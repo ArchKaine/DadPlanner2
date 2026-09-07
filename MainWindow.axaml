@@ -3,12 +3,17 @@
         xmlns:vm="using:DadPlanner2.ViewModels"
         xmlns:lvc="using:LiveChartsCore.SkiaSharpView.Avalonia"
         xmlns:sys="using:System"
+        xmlns:local="using:DadPlanner2"
         x:Class="DadPlanner2.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         x:Name="RootWindow"
         Title="Dad-Planner System Utility" Width="1300" Height="900"
         Background="#121212" Foreground="#e0e0e0"
         WindowStartupLocation="CenterScreen">
+
+    <Window.Resources>
+        <local:ModeToColorConverter x:Key="ModeColorConverter"/>
+    </Window.Resources>
 
     <Window.KeyBindings>
         <KeyBinding Gesture="Escape" Command="{Binding ToggleStealthCommand}"/>
@@ -100,13 +105,49 @@
                             </Grid>
                         </Border>
 
+                        <!-- Analytics Charts -->
                         <Grid ColumnDefinitions="*, *" Height="200">
+                            
+                            <!-- Doughnut Chart & Custom Legend -->
                             <Border Grid.Column="0" Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0">
                                 <Grid RowDefinitions="Auto, *">
                                     <TextBlock Grid.Row="0" Text="EVENT DISTRIBUTION" FontSize="12" Foreground="#888" Margin="10,10,0,5"/>
-                                    <lvc:PieChart Grid.Row="1" Series="{Binding ModeSeries}" Margin="10"/>
+                                    
+                                    <Grid Grid.Row="1" ColumnDefinitions="*, Auto" Margin="10,0,15,10">
+                                        <!-- Doughnut Layer -->
+                                        <Grid Grid.Column="0">
+                                            <!-- Hide LiveCharts default ugly legend -->
+                                            <lvc:PieChart Series="{Binding ModeSeries}" LegendPosition="Hidden" TooltipPosition="Hidden"/>
+                                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                                <TextBlock Text="{Binding TotalEventCount}" FontSize="22" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+                                                <TextBlock Text="Total Logs" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
+                                            </StackPanel>
+                                        </Grid>
+                                        
+                                        <!-- Custom UI Side Legend -->
+                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="10" Margin="10,0,0,0">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Border Width="12" Height="12" CornerRadius="6" Background="#007acc"/>
+                                                <TextBlock Text="{Binding LegendMaint}" FontSize="11" Foreground="#ccc" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Border Width="12" Height="12" CornerRadius="6" Background="#9c27b0"/>
+                                                <TextBlock Text="{Binding LegendPlay}" FontSize="11" Foreground="#ccc" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Border Width="12" Height="12" CornerRadius="6" Background="#4caf50"/>
+                                                <TextBlock Text="{Binding LegendBaby}" FontSize="11" Foreground="#ccc" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Border Width="12" Height="12" CornerRadius="6" Background="#546e7a"/>
+                                                <TextBlock Text="{Binding LegendLab}" FontSize="11" Foreground="#ccc" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
                                 </Grid>
                             </Border>
+                            
+                            <!-- Bar Chart (Yield Profile) -->
                             <Border Grid.Column="1" Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6">
                                 <Grid RowDefinitions="Auto, *">
                                     <TextBlock Grid.Row="0" Text="YIELD PROFILE" FontSize="12" Foreground="#888" Margin="10,10,0,5"/>
@@ -115,23 +156,27 @@
                             </Border>
                         </Grid>
 
+                        <!-- GitHub-Style Auto-Scaling Heatmap -->
                         <Border Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10">
                             <StackPanel>
                                 <TextBlock Text="365-DAY ACTIVITY MATRIX" FontSize="12" Foreground="#888" Margin="0,0,0,10"/>
-                                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
-                                    <ItemsControl ItemsSource="{Binding HeatmapDays}" Height="100">
+                                
+                                <!-- Viewbox forces the strict 7-row matrix to scale flawlessly to any window width -->
+                                <Viewbox Height="110" Stretch="Uniform" HorizontalAlignment="Left">
+                                    <ItemsControl ItemsSource="{Binding HeatmapDays}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
-                                                <WrapPanel Orientation="Vertical" ItemHeight="14" ItemWidth="14" />
+                                                <!-- Wrapping vertically forces it to column-build like GitHub -->
+                                                <WrapPanel Orientation="Vertical" Height="110" />
                                             </ItemsPanelTemplate>
                                         </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Background="{Binding ColorHex}" Width="12" Height="12" Margin="1" CornerRadius="2" ToolTip.Tip="{Binding Tooltip}"/>
+                                                <Border Background="{Binding ColorHex}" Width="12" Height="12" Margin="1.5" CornerRadius="2" ToolTip.Tip="{Binding Tooltip}"/>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
-                                </ScrollViewer>
+                                </Viewbox>
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -144,7 +189,7 @@
                             <TextBlock Text="LOG NEW EVENT" FontWeight="Bold" Foreground="#888"/>
                             
                             <Grid ColumnDefinitions="*, *">
-                                <ComboBox Grid.Column="0" SelectedItem="{Binding SelectedHeat}" HorizontalAlignment="Stretch" Margin="0,0,5,0">
+                                <ComboBox Grid.Column="0" SelectedIndex="{Binding SelectedHeat}" HorizontalAlignment="Stretch" Margin="0,0,5,0">
                                     <sys:Int32>0</sys:Int32>
                                     <sys:Int32>1</sys:Int32>
                                     <sys:Int32>2</sys:Int32>
@@ -168,7 +213,7 @@
                                 </StackPanel>
                             </Border>
 
-                            <Border IsVisible="{Binding ShowClinicalFields}" Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="6" Padding="10">
+                            <Border Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="6" Padding="10">
                                 <StackPanel Spacing="8">
                                     <TextBlock Text="CLINICAL METRICS (OPTIONAL)" FontSize="10" FontWeight="Bold" Foreground="#90a4ae"/>
                                     <UniformGrid Columns="3">
@@ -192,10 +237,16 @@
                     </Border>
 
                     <!-- Main Application Log Grid -->
-                    <DataGrid x:Name="LogsGrid" Grid.Row="1" ItemsSource="{Binding Logs}" SelectedItem="{Binding SelectedLog}" AutoGenerateColumns="False" Background="#1e1e1e" Margin="0,15,0,0" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#333">
+                    <DataGrid x:Name="LogsGrid" Grid.Row="1" ItemsSource="{Binding Logs}" SelectedItem="{Binding SelectedLog}" IsReadOnly="True" AutoGenerateColumns="False" Background="#1e1e1e" Margin="0,15,0,0" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#333">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Date" Binding="{Binding DisplayDate}" />
-                            <DataGridTextColumn Header="Mode" Binding="{Binding Mode}" />
+                            <DataGridTemplateColumn Header="Mode">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Mode}" Foreground="{Binding Mode, Converter={StaticResource ModeColorConverter}}" VerticalAlignment="Center" FontWeight="Bold" Margin="10,0"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
                             <DataGridTemplateColumn Header="Metrics" Width="*">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -370,7 +421,7 @@
                     
                     <Border Background="#252526" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10">
                         <Grid ColumnDefinitions="Auto, *">
-                            <ComboBox Grid.Column="0" SelectedItem="{Binding ManualHeat}" Width="140" Margin="0,0,10,0">
+                            <ComboBox Grid.Column="0" SelectedIndex="{Binding ManualHeat}" Width="140" Margin="0,0,10,0">
                                 <sys:Int32>0</sys:Int32>
                                 <sys:Int32>1</sys:Int32>
                                 <sys:Int32>2</sys:Int32>
@@ -385,7 +436,7 @@
                         </Grid>
                     </Border>
 
-                    <Border IsVisible="{Binding ShowManualClinicalFields}" Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="6" Padding="10">
+                    <Border Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="6" Padding="10">
                         <StackPanel Spacing="8">
                             <TextBlock Text="CLINICAL LAB DATA (OPTIONAL)" FontSize="10" FontWeight="Bold" Foreground="#90a4ae"/>
                             <UniformGrid Columns="3">
@@ -468,7 +519,7 @@
                         </Grid>
                     </Border>
 
-                    <Border IsVisible="{Binding ShowEditClinicalFields}" Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="6" Padding="10">
+                    <Border Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="6" Padding="10">
                         <StackPanel Spacing="8">
                             <TextBlock Text="CLINICAL LAB DATA (OPTIONAL)" FontSize="10" FontWeight="Bold" Foreground="#90a4ae"/>
                             <UniformGrid Columns="3">

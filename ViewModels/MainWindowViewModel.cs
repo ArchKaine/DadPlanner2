@@ -13,6 +13,7 @@ using DadPlanner2.Services;
 using LiveChartsCore;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
+using LiveChartsCore.Defaults;
 using SkiaSharp;
 
 namespace DadPlanner2.ViewModels
@@ -134,6 +135,13 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private ISeries[] _volumeSeries = Array.Empty<ISeries>();
         [ObservableProperty] private Axis[] _volumeXAxes = Array.Empty<Axis>();
         [ObservableProperty] private Axis[] _volumeYAxes = Array.Empty<Axis>();
+        
+        // Custom Legend Properties
+        [ObservableProperty] private int _totalEventCount;
+        [ObservableProperty] private string _legendMaint = "";
+        [ObservableProperty] private string _legendPlay = "";
+        [ObservableProperty] private string _legendBaby = "";
+        [ObservableProperty] private string _legendLab = "";
 
         public MainWindowViewModel()
         {
@@ -674,88 +682,168 @@ namespace DadPlanner2.ViewModels
             HudMax = $"{maxGap:F1}h";
         }
 
+        private string GenerateTooltip(int index, double gap, List<LogRecord> releaseLogs)
+        {
+            var log = releaseLogs[index];
+            string date = DateTimeOffset.FromUnixTimeSeconds(log.Timestamp).ToLocalTime().ToString("MMM dd HH:mm");
+            long shadowWindow = log.Timestamp - (74 * 24 * 3600);
+            string shadowText = Logs.Any(x => x.Timestamp >= shadowWindow && x.Timestamp < log.Timestamp && x.HeatFlag >= 2) ? " | 🔥 Shadow" : "";
+            var flags = new System.Collections.Generic.List<string>();
+            if (log.HeatFlag > 0) flags.Add($"⚠️ L{log.HeatFlag}");
+            if (log.Supplements.Contains("\"zinc\":1")) flags.Add("Zn");
+            if (log.Supplements.Contains("\"maca\":1")) flags.Add("Ma");
+            if (log.Supplements.Contains("\"vitD\":1")) flags.Add("D3");
+            if (log.Supplements.Contains("\"vitC\":1")) flags.Add("C");
+            
+            string metrics = log.Mode == "Clinical-Lab" && log.Concentration > 0 ? $"\nLab: {log.Concentration}M | {log.Motility}% Mot" : "";
+            string flagStr = flags.Count > 0 ? $"\nFlags: {string.Join(", ", flags)}" : "";
+            
+            return $"{date}{shadowText}\nGap: {gap:F1} hrs\nMode: {log.Mode} ({log.Volume}){flagStr}{metrics}";
+        }
+
+        private void UpdateCharts()
+        {
+            var releaseLogs = Logs.Where(l => l.Volume != "None" && l.Volume != "N/A").OrderBy(l => l.Timestamp).ToList();
+            
+            if (releaseLogs.Count == 0)
+            {
+                ChartSeries = Array.Empty<ISeries>();
+            }
+            else
+            {
+                var gapData = new System.Collections.Generic.List<double>();
+                var maintPts = new System.Collections.Generic.List<ObservablePoint>();
+                var playPts = new System.Collections.Generic.List<ObservablePoint>();
+                var babyPts = new System.Collections.Generic.List<ObservablePoint>();
+                var labPts = new System.Collections.Generic.List<ObservablePoint>();
+
+                for (int i = 0; i < releaseLogs.Count; i++) 
+                {
+                    double gap = i == 0 ? MaxHours : (releaseLogs[i].Timestamp - releaseLogs[i - 1].Timestamp) / 3600.0;
+                    gapData.Add(gap);
+
+                    switch (releaseLogs[i].Mode)
+                    {
+                        case "Maintenance": maintPts.Add(new ObservablePoint(i, gap)); break;
+                        case "Playtime": playPts.Add(new ObservablePoint(i, gap)); break;
+                        case "Baby-Making": babyPts.Add(new ObservablePoint(i, gap)); break;
+                        case "Clinical-Lab": labPts.Add(new ObservablePoint(i, gap)); break;
+                    }
+                }
+
+                var lineSeries = new LineSeries<double> { 
+                    Name = "", Values = gapData, 
+                    Fill = new SolidColorPaint(new SKColor(85, 85, 85, 30)), 
+                    Stroke = new SolidColorPaint(new SKColor(85, 85, 85)) { StrokeThickness = 2 }, 
+                    GeometrySize = 0, 
+                    YToolTipLabelFormatter = null 
+                };
+
+                var maintSeries = new ScatterSeries<ObservablePoint> { Values = maintPts, GeometrySize = 10, Fill = new SolidColorPaint(new SKColor(0, 122, 204)), Stroke = null, YToolTipLabelFormatter = p => GenerateTooltip((int)p.Coordinate.SecondaryValue, p.Coordinate.PrimaryValue, releaseLogs) };
+                var playSeries = new ScatterSeries<ObservablePoint> { Values = playPts, GeometrySize = 10, Fill = new SolidColorPaint(new SKColor(156, 39, 176)), Stroke = null, YToolTipLabelFormatter = p => GenerateTooltip((int)p.Coordinate.SecondaryValue, p.Coordinate.PrimaryValue, releaseLogs) };
+                var babySeries = new ScatterSeries<ObservablePoint> { Values = babyPts, GeometrySize = 10, Fill = new SolidColorPaint(new SKColor(76, 175, 80)), Stroke = null, YToolTipLabelFormatter = p => GenerateTooltip((int)p.Coordinate.SecondaryValue, p.Coordinate.PrimaryValue, releaseLogs) };
+                var labSeries = new ScatterSeries<ObservablePoint> { Values = labPts, GeometrySize = 10, Fill = new SolidColorPaint(new SKColor(84, 110, 122)), Stroke = null, YToolTipLabelFormatter = p => GenerateTooltip((int)p.Coordinate.SecondaryValue, p.Coordinate.PrimaryValue, releaseLogs) };
+
+                ChartSeries = new ISeries[] { lineSeries, maintSeries, playSeries, babySeries, labSeries };
+            }
+
+            TotalEventCount = Logs.Count;
+            int maint = Logs.Count(l => l.Mode == "Maintenance");
+            int play = Logs.Count(l => l.Mode == "Playtime");
+            int baby = Logs.Count(l => l.Mode == "Baby-Making");
+            int lab = Logs.Count(l => l.Mode == "Clinical-Lab");
+
+            LegendMaint = $"Maintenance ({maint})";
+            LegendPlay = $"Playtime ({play})";
+            LegendBaby = $"Baby-Making ({baby})";
+            LegendLab = $"Clinical-Lab ({lab})";
+
+            ModeSeries = new ISeries[] {
+                new PieSeries<int> { Values = new[] { maint }, Name = "Maintenance", InnerRadius = 40, HoverPushout = 10, Fill = new SolidColorPaint(new SKColor(0, 122, 204)), ToolTipLabelFormatter = p => $"Maintenance: {p.Model} events" },
+                new PieSeries<int> { Values = new[] { play }, Name = "Playtime", InnerRadius = 40, HoverPushout = 10, Fill = new SolidColorPaint(new SKColor(156, 39, 176)), ToolTipLabelFormatter = p => $"Playtime: {p.Model} events" },
+                new PieSeries<int> { Values = new[] { baby }, Name = "Baby-Making", InnerRadius = 40, HoverPushout = 10, Fill = new SolidColorPaint(new SKColor(76, 175, 80)), ToolTipLabelFormatter = p => $"Baby-Making: {p.Model} events" },
+                new PieSeries<int> { Values = new[] { lab }, Name = "Clinical", InnerRadius = 40, HoverPushout = 10, Fill = new SolidColorPaint(new SKColor(84, 110, 122)), ToolTipLabelFormatter = p => $"Clinical Lab: {p.Model} events" }
+            };
+
+            int high = Logs.Count(l => l.Volume == "High");
+            int norm = Logs.Count(l => l.Volume == "Normal");
+            int low = Logs.Count(l => l.Volume == "Low");
+            int dry = Logs.Count(l => l.Volume == "None" || l.Volume == "N/A");
+
+            string[] rowLabels = new[] { "Dry", "Low", "Normal", "High" };
+
+            VolumeSeries = new ISeries[] { 
+                new RowSeries<int> { 
+                    Name = "",
+                    Values = new[] { dry, low, norm, high }, 
+                    Fill = new SolidColorPaint(new SKColor(0, 122, 204)),
+                    DataLabelsPaint = new SolidColorPaint(new SKColor(220, 220, 220)),
+                    DataLabelsSize = 12,
+                    DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.End,
+                    XToolTipLabelFormatter = p => $"{rowLabels[p.Index]}: {p.Model} Total Events"
+                } 
+            };
+            
+            VolumeYAxes = new[] { new Axis { 
+                Labels = rowLabels, 
+                LabelsPaint = new SolidColorPaint(SKColors.Gray),
+                TextSize = 12
+            }};
+        }
+
         private void UpdateHeatmap()
         {
             HeatmapDays.Clear();
             var today = DateTime.Today;
+            
             var logsByDate = Logs.Where(l => l.Volume != "None" && l.Volume != "N/A")
                                  .GroupBy(l => DateTimeOffset.FromUnixTimeSeconds(l.Timestamp).ToLocalTime().Date)
                                  .ToDictionary(g => g.Key, g => g.ToList());
 
             var oldestDay = today.AddDays(-364);
             int padding = (int)oldestDay.DayOfWeek;
-            for (int i = 0; i < padding; i++) HeatmapDays.Add(new HeatmapDay { Level = 0 });
+            
+            for (int i = 0; i < padding; i++) 
+            {
+                HeatmapDays.Add(new HeatmapDay { Level = 0, ColorHex = "#252526" });
+            }
 
             for (int i = 364; i >= 0; i--)
             {
                 var targetDate = today.AddDays(-i);
                 int level = 0;
-                string tooltip = $"{targetDate:MMM dd}: No yield activity";
+                string tooltip = $"{targetDate:MMM dd, yyyy}\nNo active yield events logged.";
+                string colorHex = "#252526";
 
                 if (logsByDate.TryGetValue(targetDate, out var dayLogs))
                 {
-                    if (dayLogs.Any(l => l.Volume == "High")) level = 3;
-                    else if (dayLogs.Any(l => l.Volume == "Normal")) level = 2;
-                    else if (dayLogs.Any(l => l.Volume == "Low")) level = 1;
+                    var dominantLog = dayLogs.OrderByDescending(l => l.Volume == "High" ? 3 : l.Volume == "Normal" ? 2 : 1).First();
+                    
+                    if (dominantLog.Volume == "High") level = 3;
+                    else if (dominantLog.Volume == "Normal") level = 2;
+                    else if (dominantLog.Volume == "Low") level = 1;
 
                     string volLabel = level == 3 ? "High" : level == 2 ? "Normal" : "Low";
-                    tooltip = $"{targetDate:MMM dd}: {dayLogs.Count} event(s) | Max Yield: {volLabel}";
+                    var modes = string.Join(", ", dayLogs.Select(l => l.Mode).Distinct());
+                    tooltip = $"{targetDate:MMM dd, yyyy}\nTotal Events: {dayLogs.Count}\nMax Yield: {volLabel}\nDetected Modes: {modes}";
+
+                    colorHex = dominantLog.Mode switch
+                    {
+                        "Maintenance" => level == 3 ? "#42a5f5" : level == 2 ? "#007acc" : "#01437a",
+                        "Playtime"    => level == 3 ? "#ce93d8" : level == 2 ? "#9c27b0" : "#4a148c",
+                        "Baby-Making" => level == 3 ? "#81c784" : level == 2 ? "#4caf50" : "#1b5e20",
+                        "Clinical-Lab"=> level == 3 ? "#90a4ae" : level == 2 ? "#546e7a" : "#263238",
+                        _ => "#007acc"
+                    };
                 }
-                HeatmapDays.Add(new HeatmapDay { DateStr = targetDate.ToShortDateString(), Level = level, Tooltip = tooltip });
+                
+                HeatmapDays.Add(new HeatmapDay { 
+                    DateStr = targetDate.ToShortDateString(), 
+                    Level = level, 
+                    Tooltip = tooltip, 
+                    ColorHex = colorHex 
+                });
             }
-        }
-
-        private void UpdateCharts()
-        {
-            var releaseLogs = Logs.Where(l => l.Volume != "None" && l.Volume != "N/A").OrderBy(l => l.Timestamp).ToList();
-            var gapData = new System.Collections.Generic.List<double>();
-            for (int i = 0; i < releaseLogs.Count; i++) gapData.Add(i == 0 ? MaxHours : (releaseLogs[i].Timestamp - releaseLogs[i - 1].Timestamp) / 3600.0);
-
-            var lineSeries = new LineSeries<double> { 
-                Name = "", 
-                Values = gapData, 
-                Fill = new SolidColorPaint(new SKColor(85, 85, 85, 90)), 
-                Stroke = new SolidColorPaint(new SKColor(85, 85, 85)) { StrokeThickness = 2 }, 
-                GeometrySize = 6,
-                YToolTipLabelFormatter = (point) => 
-                {
-                    var log = releaseLogs[point.Index];
-                    string date = DateTimeOffset.FromUnixTimeSeconds(log.Timestamp).ToLocalTime().ToString("MMM dd HH:mm");
-                    
-                    long shadowWindow = log.Timestamp - (74 * 24 * 3600);
-                    string shadowText = Logs.Any(x => x.Timestamp >= shadowWindow && x.Timestamp < log.Timestamp && x.HeatFlag >= 2) 
-                        ? " | 🔥 Shadow Active" : "";
-
-                    var flags = new System.Collections.Generic.List<string>();
-                    if (log.HeatFlag > 0) flags.Add($"⚠️ Temp L{log.HeatFlag}");
-                    if (log.Supplements.Contains("\"zinc\":1")) flags.Add("💊 Zinc");
-                    if (log.Supplements.Contains("\"maca\":1")) flags.Add("🌿 Maca");
-                    if (log.Supplements.Contains("\"vitD\":1")) flags.Add("☀️ D3");
-                    if (log.Supplements.Contains("\"vitC\":1")) flags.Add("🍊 C");
-                    
-                    string metrics = "";
-                    if (log.Mode == "Clinical-Lab" && (log.ClinicalVol > 0 || log.Concentration > 0))
-                        metrics = $"\n\nLab Metrics:\nVol: {log.ClinicalVol}mL | Conc: {log.Concentration}M\nTot Mot: {log.Motility}% | Prog Mot: {log.ProgMotility}%\nMorph: {log.Morphology}% | pH: {log.PhLevel}";
-
-                    string flagStr = flags.Count > 0 ? $"\n\nFlags: {string.Join(" | ", flags)}" : "";
-                    
-                    return $"{date}{shadowText}\nGap: {point.Coordinate.PrimaryValue} hrs\nMode: {log.Mode}\nVolume: {log.Volume}{flagStr}{metrics}";
-                }
-            };
-
-            ChartSeries = new ISeries[] { lineSeries };
-
-            int maint = Logs.Count(l => l.Mode == "Maintenance"), play = Logs.Count(l => l.Mode == "Playtime"), baby = Logs.Count(l => l.Mode == "Baby-Making"), lab = Logs.Count(l => l.Mode == "Clinical-Lab");
-            ModeSeries = new ISeries[] {
-                new PieSeries<int> { Values = new[] { maint }, Name = "Maintenance", Fill = new SolidColorPaint(new SKColor(0, 122, 204)) },
-                new PieSeries<int> { Values = new[] { play }, Name = "Playtime", Fill = new SolidColorPaint(new SKColor(156, 39, 176)) },
-                new PieSeries<int> { Values = new[] { baby }, Name = "Baby-Making", Fill = new SolidColorPaint(new SKColor(76, 175, 80)) },
-                new PieSeries<int> { Values = new[] { lab }, Name = "Clinical", Fill = new SolidColorPaint(new SKColor(84, 110, 122)) }
-            };
-
-            int high = Logs.Count(l => l.Volume == "High"), norm = Logs.Count(l => l.Volume == "Normal"), low = Logs.Count(l => l.Volume == "Low"), dry = Logs.Count(l => l.Volume == "None" || l.Volume == "N/A");
-            VolumeSeries = new ISeries[] { new RowSeries<int> { Values = new[] { high, norm, low, dry }, Fill = new SolidColorPaint(new SKColor(0, 122, 204)) } };
-            VolumeYAxes = new[] { new Axis { Labels = new[] { "High", "Norm", "Low", "Dry" }, LabelsPaint = new SolidColorPaint(SKColors.Gray) } };
         }
 
         [RelayCommand]

@@ -2,6 +2,7 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:vm="using:DadPlanner2.ViewModels"
         xmlns:lvc="using:LiveChartsCore.SkiaSharpView.Avalonia"
+        xmlns:sys="using:System"
         x:Class="DadPlanner2.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         x:Name="RootWindow"
@@ -94,7 +95,8 @@
                         <Border Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Height="250">
                             <Grid RowDefinitions="Auto, *">
                                 <TextBlock Grid.Row="0" Text="RECOVERY GAP TIMELINE" FontSize="12" Foreground="#888" Margin="10,10,0,5"/>
-                                <lvc:CartesianChart Grid.Row="1" Series="{Binding ChartSeries}" XAxes="{Binding XAxes}" YAxes="{Binding YAxes}" Margin="10"/>
+                                <lvc:CartesianChart Grid.Row="1" Series="{Binding ChartSeries}" XAxes="{Binding XAxes}" YAxes="{Binding YAxes}" Margin="10"
+                                                    DataPointerDownCommand="{Binding ChartClickedCommand}"/>
                             </Grid>
                         </Border>
 
@@ -143,16 +145,16 @@
                             
                             <Grid ColumnDefinitions="*, *">
                                 <ComboBox Grid.Column="0" SelectedItem="{Binding SelectedHeat}" HorizontalAlignment="Stretch" Margin="0,0,5,0">
-                                    <ComboBoxItem Content="0" />
-                                    <ComboBoxItem Content="1" />
-                                    <ComboBoxItem Content="2" />
-                                    <ComboBoxItem Content="3" />
+                                    <sys:Int32>0</sys:Int32>
+                                    <sys:Int32>1</sys:Int32>
+                                    <sys:Int32>2</sys:Int32>
+                                    <sys:Int32>3</sys:Int32>
                                 </ComboBox>
                                 <ComboBox Grid.Column="1" SelectedItem="{Binding SelectedVolume}" HorizontalAlignment="Stretch" Margin="5,0,0,0">
-                                    <ComboBoxItem Content="Normal"/>
-                                    <ComboBoxItem Content="Low"/>
-                                    <ComboBoxItem Content="High"/>
-                                    <ComboBoxItem Content="None"/>
+                                    <x:String>Normal</x:String>
+                                    <x:String>Low</x:String>
+                                    <x:String>High</x:String>
+                                    <x:String>None</x:String>
                                 </ComboBox>
                             </Grid>
 
@@ -189,7 +191,8 @@
                         </StackPanel>
                     </Border>
 
-                    <DataGrid Grid.Row="1" ItemsSource="{Binding Logs}" AutoGenerateColumns="False" Background="#1e1e1e" Margin="0,15,0,0" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#333">
+                    <!-- Main Application Log Grid -->
+                    <DataGrid x:Name="LogsGrid" Grid.Row="1" ItemsSource="{Binding Logs}" SelectedItem="{Binding SelectedLog}" AutoGenerateColumns="False" Background="#1e1e1e" Margin="0,15,0,0" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#333">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Date" Binding="{Binding DisplayDate}" />
                             <DataGridTextColumn Header="Mode" Binding="{Binding Mode}" />
@@ -348,19 +351,19 @@
                         <StackPanel Grid.Column="0" Margin="0,0,5,0">
                             <TextBlock Text="Event Mode" FontSize="11" Foreground="#888"/>
                             <ComboBox SelectedItem="{Binding ManualMode}" HorizontalAlignment="Stretch">
-                                <ComboBoxItem Content="Maintenance"/>
-                                <ComboBoxItem Content="Playtime"/>
-                                <ComboBoxItem Content="Baby-Making"/>
-                                <ComboBoxItem Content="Clinical-Lab"/>
+                                <x:String>Maintenance</x:String>
+                                <x:String>Playtime</x:String>
+                                <x:String>Baby-Making</x:String>
+                                <x:String>Clinical-Lab</x:String>
                             </ComboBox>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="5,0,0,0">
                             <TextBlock Text="Volume" FontSize="11" Foreground="#888"/>
                             <ComboBox SelectedItem="{Binding ManualVolume}" HorizontalAlignment="Stretch">
-                                <ComboBoxItem Content="Normal"/>
-                                <ComboBoxItem Content="Low"/>
-                                <ComboBoxItem Content="High"/>
-                                <ComboBoxItem Content="None"/>
+                                <x:String>Normal</x:String>
+                                <x:String>Low</x:String>
+                                <x:String>High</x:String>
+                                <x:String>None</x:String>
                             </ComboBox>
                         </StackPanel>
                     </Grid>
@@ -368,10 +371,10 @@
                     <Border Background="#252526" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10">
                         <Grid ColumnDefinitions="Auto, *">
                             <ComboBox Grid.Column="0" SelectedItem="{Binding ManualHeat}" Width="140" Margin="0,0,10,0">
-                                <ComboBoxItem Content="0" />
-                                <ComboBoxItem Content="1" />
-                                <ComboBoxItem Content="2" />
-                                <ComboBoxItem Content="3" />
+                                <sys:Int32>0</sys:Int32>
+                                <sys:Int32>1</sys:Int32>
+                                <sys:Int32>2</sys:Int32>
+                                <sys:Int32>3</sys:Int32>
                             </ComboBox>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="15" VerticalAlignment="Center">
                                 <CheckBox Content="💊 Zn" IsChecked="{Binding ManualZinc}"/>
@@ -393,6 +396,12 @@
                                 <TextBox Text="{Binding ManualMorphology}" Watermark="Morph (%)" Margin="2"/>
                                 <TextBox Text="{Binding ManualPhLevel}" Watermark="pH Level" Margin="2"/>
                             </UniformGrid>
+                            
+                            <!-- PDF File Picker for Manual Log -->
+                            <Grid ColumnDefinitions="*, Auto" Margin="0,5,0,0">
+                                <TextBlock Text="{Binding ManualLabFileName, TargetNullValue='No PDF attached...'}" VerticalAlignment="Center" Foreground="#888" FontSize="11" TextTrimming="CharacterEllipsis"/>
+                                <Button Grid.Column="1" Content="Attach PDF" Command="{Binding SelectManualPdfCommand}" CommandParameter="{Binding #RootWindow}" Background="#546e7a" Foreground="White" FontSize="10" Padding="8,4"/>
+                            </Grid>
                         </StackPanel>
                     </Border>
 
@@ -425,19 +434,19 @@
                         <StackPanel Grid.Column="0" Margin="0,0,5,0">
                             <TextBlock Text="Event Mode" FontSize="11" Foreground="#888"/>
                             <ComboBox SelectedItem="{Binding EditMode}" HorizontalAlignment="Stretch">
-                                <ComboBoxItem Content="Maintenance"/>
-                                <ComboBoxItem Content="Playtime"/>
-                                <ComboBoxItem Content="Baby-Making"/>
-                                <ComboBoxItem Content="Clinical-Lab"/>
+                                <x:String>Maintenance</x:String>
+                                <x:String>Playtime</x:String>
+                                <x:String>Baby-Making</x:String>
+                                <x:String>Clinical-Lab</x:String>
                             </ComboBox>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="5,0,0,0">
                             <TextBlock Text="Volume" FontSize="11" Foreground="#888"/>
                             <ComboBox SelectedItem="{Binding EditVolume}" HorizontalAlignment="Stretch">
-                                <ComboBoxItem Content="Normal"/>
-                                <ComboBoxItem Content="Low"/>
-                                <ComboBoxItem Content="High"/>
-                                <ComboBoxItem Content="None"/>
+                                <x:String>Normal</x:String>
+                                <x:String>Low</x:String>
+                                <x:String>High</x:String>
+                                <x:String>None</x:String>
                             </ComboBox>
                         </StackPanel>
                     </Grid>
@@ -445,10 +454,10 @@
                     <Border Background="#252526" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10">
                         <Grid ColumnDefinitions="Auto, *">
                             <ComboBox Grid.Column="0" SelectedItem="{Binding EditHeat}" Width="140" Margin="0,0,10,0">
-                                <ComboBoxItem Content="0" />
-                                <ComboBoxItem Content="1" />
-                                <ComboBoxItem Content="2" />
-                                <ComboBoxItem Content="3" />
+                                <sys:Int32>0</sys:Int32>
+                                <sys:Int32>1</sys:Int32>
+                                <sys:Int32>2</sys:Int32>
+                                <sys:Int32>3</sys:Int32>
                             </ComboBox>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="15" VerticalAlignment="Center">
                                 <CheckBox Content="💊 Zn" IsChecked="{Binding EditZinc}"/>
@@ -470,6 +479,12 @@
                                 <TextBox Text="{Binding EditMorphology}" Watermark="Morph (%)" Margin="2"/>
                                 <TextBox Text="{Binding EditPhLevel}" Watermark="pH Level" Margin="2"/>
                             </UniformGrid>
+
+                            <!-- PDF File Picker for Edit Log -->
+                            <Grid ColumnDefinitions="*, Auto" Margin="0,5,0,0">
+                                <TextBlock Text="{Binding EditLabFileName, TargetNullValue='No PDF attached...'}" VerticalAlignment="Center" Foreground="#888" FontSize="11" TextTrimming="CharacterEllipsis"/>
+                                <Button Grid.Column="1" Content="Update PDF" Command="{Binding SelectEditPdfCommand}" CommandParameter="{Binding #RootWindow}" Background="#546e7a" Foreground="White" FontSize="10" Padding="8,4"/>
+                            </Grid>
                         </StackPanel>
                     </Border>
 

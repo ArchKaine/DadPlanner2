@@ -8,7 +8,15 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
-        // This links the C# data engine to the AXAML visual layout
-        DataContext = new MainWindowViewModel();
+        
+        var vm = new MainWindowViewModel();
+        DataContext = vm;
+
+        // XAML actively listens for the ViewModel click event and physically moves the scrollbar
+        vm.RequestScrollToLog = (log) =>
+        {
+            var grid = this.FindControl<DataGrid>("LogsGrid");
+            grid?.ScrollIntoView(log, null);
+        };
     }
 }

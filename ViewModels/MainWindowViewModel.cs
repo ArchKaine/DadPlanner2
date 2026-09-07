@@ -1,7 +1,11 @@
 using System;
+using System.IO;
 using System.Linq;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Threading.Tasks;
+using Avalonia.Controls;
+using Avalonia.Platform.Storage;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DadPlanner2.Models;
@@ -16,6 +20,10 @@ namespace DadPlanner2.ViewModels
     public partial class MainWindowViewModel : ObservableObject
     {
         private readonly DatabaseService _dbService;
+
+        // Bridge for chart-to-table scrolling
+        public Action<LogRecord>? RequestScrollToLog;
+        [ObservableProperty] private LogRecord? _selectedLog;
 
         // Configuration
         [ObservableProperty] private double _minHours = 24.0;
@@ -51,7 +59,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private string _hudRemaining = "--";
         [ObservableProperty] private string _hudAvg = "--";
         [ObservableProperty] private string _hudMax = "--";
-        [ObservableProperty] private DateTimeOffset? _appointmentDate;
+        [ObservableProperty] private DateTime? _appointmentDate;
 
         // Main Input Form
         [ObservableProperty] private string _selectedMode = "Maintenance";
@@ -71,8 +79,8 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private double? _phLevel;
 
         // Manual Log Form
-        [ObservableProperty] private DateTimeOffset? _manualDate = DateTimeOffset.Now;
-        [ObservableProperty] private TimeSpan? _manualTime = DateTimeOffset.Now.TimeOfDay;
+        [ObservableProperty] private DateTime? _manualDate = DateTime.Now;
+        [ObservableProperty] private TimeSpan? _manualTime = DateTime.Now.TimeOfDay;
         [ObservableProperty] private string _manualMode = "Maintenance";
         [ObservableProperty] private string _manualVolume = "Normal";
         [ObservableProperty] private int _manualHeat = 0;
@@ -88,10 +96,13 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private int? _manualProgMotility;
         [ObservableProperty] private int? _manualMorphology;
         [ObservableProperty] private double? _manualPhLevel;
+        
+        [ObservableProperty] private string? _manualLabFileName;
+        private byte[]? _manualLabFileData;
 
         // Edit Form
         [ObservableProperty] private long _editId;
-        [ObservableProperty] private DateTimeOffset? _editDate;
+        [ObservableProperty] private DateTime? _editDate;
         [ObservableProperty] private TimeSpan? _editTime;
         [ObservableProperty] private string _editMode = "Maintenance";
         [ObservableProperty] private string _editVolume = "Normal";
@@ -108,6 +119,9 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private int? _editProgMotility;
         [ObservableProperty] private int? _editMorphology;
         [ObservableProperty] private double? _editPhLevel;
+        
+        [ObservableProperty] private string? _editLabFileName;
+        private byte[]? _editLabFileData;
 
         // Collections & Charts
         public ObservableCollection<LogRecord> Logs { get; } = new();
@@ -166,7 +180,7 @@ namespace DadPlanner2.ViewModels
             MaxHours = thresholds.Max;
 
             long apptTs = _dbService.GetAppointment();
-            AppointmentDate = apptTs > 0 ? DateTimeOffset.FromUnixTimeSeconds(apptTs).ToLocalTime() : null;
+            AppointmentDate = apptTs > 0 ? DateTimeOffset.FromUnixTimeSeconds(apptTs).ToLocalTime().DateTime : null;
 
             Logs.Clear();
             var records = _dbService.GetAllLogs();
@@ -184,7 +198,7 @@ namespace DadPlanner2.ViewModels
         {
             if (AppointmentDate.HasValue)
             {
-                _dbService.SetAppointment(AppointmentDate.Value.ToUnixTimeSeconds());
+                _dbService.SetAppointment(new DateTimeOffset(AppointmentDate.Value).ToUnixTimeSeconds());
                 LoadData();
             }
         }
@@ -332,7 +346,11 @@ namespace DadPlanner2.ViewModels
                 PhLevel = ManualPhLevel ?? 0.0
             };
             
-            _dbService.InsertLog(newLog);
+            _dbService.InsertLog(newLog, ManualLabFileName, _manualLabFileData);
+            
+            ManualLabFileName = null;
+            _manualLabFileData = null;
+            
             CloseManualLog();
             LoadData();
         }
@@ -363,6 +381,9 @@ namespace DadPlanner2.ViewModels
             EditProgMotility = log.ProgMotility > 0 ? log.ProgMotility : null;
             EditMorphology = log.Morphology > 0 ? log.Morphology : null;
             EditPhLevel = log.PhLevel > 0 ? log.PhLevel : null;
+            
+            EditLabFileName = null;
+            _editLabFileData = null;
             
             IsEditLogOpen = true;
         }
@@ -396,7 +417,7 @@ namespace DadPlanner2.ViewModels
                 PhLevel = EditPhLevel ?? 0.0
             };
             
-            _dbService.UpdateLog(updatedLog);
+            _dbService.UpdateLog(updatedLog, EditLabFileName, _editLabFileData);
             CloseEditLog();
             LoadData();
         }
@@ -408,6 +429,47 @@ namespace DadPlanner2.ViewModels
                 _dbService.DeleteLog(id); 
                 LoadData();
             });
+        }
+
+        [RelayCommand]
+        private async Task SelectManualPdf(Window window)
+        {
+            var file = await OpenPdfPicker(window);
+            if (file != null)
+            {
+                ManualLabFileName = file.Value.Name;
+                _manualLabFileData = file.Value.Data;
+            }
+        }
+
+        [RelayCommand]
+        private async Task SelectEditPdf(Window window)
+        {
+            var file = await OpenPdfPicker(window);
+            if (file != null)
+            {
+                EditLabFileName = file.Value.Name;
+                _editLabFileData = file.Value.Data;
+            }
+        }
+
+        private async Task<(string Name, byte[] Data)?> OpenPdfPicker(Window window)
+        {
+            var files = await window.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
+            {
+                Title = "Select Clinical Lab Report",
+                AllowMultiple = false,
+                FileTypeFilter = new[] { new FilePickerFileType("PDF Documents") { Patterns = new[] { "*.pdf" } } }
+            });
+
+            if (files.Count > 0)
+            {
+                using var stream = await files[0].OpenReadAsync();
+                using var ms = new MemoryStream();
+                await stream.CopyToAsync(ms);
+                return (files[0].Name, ms.ToArray());
+            }
+            return null;
         }
 
         [RelayCommand]
@@ -649,40 +711,39 @@ namespace DadPlanner2.ViewModels
             var gapData = new System.Collections.Generic.List<double>();
             for (int i = 0; i < releaseLogs.Count; i++) gapData.Add(i == 0 ? MaxHours : (releaseLogs[i].Timestamp - releaseLogs[i - 1].Timestamp) / 3600.0);
 
-            ChartSeries = new ISeries[] { 
-                new LineSeries<double> { 
-                    Name = "", // Hides the default series prefix
-                    Values = gapData, 
-                    Fill = new SolidColorPaint(new SKColor(85, 85, 85, 90)), 
-                    Stroke = new SolidColorPaint(new SKColor(85, 85, 85)) { StrokeThickness = 2 }, 
-                    GeometrySize = 6,
-                    YToolTipLabelFormatter = (point) => 
-                    {
-                        // Safely access the index natively mapped in v2.0.0-rc3
-                        var log = releaseLogs[point.Index];
-                        string date = DateTimeOffset.FromUnixTimeSeconds(log.Timestamp).ToLocalTime().ToString("MMM dd HH:mm");
-                        
-                        long shadowWindow = log.Timestamp - (74 * 24 * 3600);
-                        string shadowText = Logs.Any(x => x.Timestamp >= shadowWindow && x.Timestamp < log.Timestamp && x.HeatFlag >= 2) 
-                            ? " | 🔥 Shadow Active" : "";
+            var lineSeries = new LineSeries<double> { 
+                Name = "", 
+                Values = gapData, 
+                Fill = new SolidColorPaint(new SKColor(85, 85, 85, 90)), 
+                Stroke = new SolidColorPaint(new SKColor(85, 85, 85)) { StrokeThickness = 2 }, 
+                GeometrySize = 6,
+                YToolTipLabelFormatter = (point) => 
+                {
+                    var log = releaseLogs[point.Index];
+                    string date = DateTimeOffset.FromUnixTimeSeconds(log.Timestamp).ToLocalTime().ToString("MMM dd HH:mm");
+                    
+                    long shadowWindow = log.Timestamp - (74 * 24 * 3600);
+                    string shadowText = Logs.Any(x => x.Timestamp >= shadowWindow && x.Timestamp < log.Timestamp && x.HeatFlag >= 2) 
+                        ? " | 🔥 Shadow Active" : "";
 
-                        var flags = new System.Collections.Generic.List<string>();
-                        if (log.HeatFlag > 0) flags.Add($"⚠️ Temp L{log.HeatFlag}");
-                        if (log.Supplements.Contains("\"zinc\":1")) flags.Add("💊 Zinc");
-                        if (log.Supplements.Contains("\"maca\":1")) flags.Add("🌿 Maca");
-                        if (log.Supplements.Contains("\"vitD\":1")) flags.Add("☀️ D3");
-                        if (log.Supplements.Contains("\"vitC\":1")) flags.Add("🍊 C");
-                        
-                        string metrics = "";
-                        if (log.Mode == "Clinical-Lab" && (log.ClinicalVol > 0 || log.Concentration > 0))
-                            metrics = $"\n\nLab Metrics:\nVol: {log.ClinicalVol}mL | Conc: {log.Concentration}M\nTot Mot: {log.Motility}% | Prog Mot: {log.ProgMotility}%\nMorph: {log.Morphology}% | pH: {log.PhLevel}";
+                    var flags = new System.Collections.Generic.List<string>();
+                    if (log.HeatFlag > 0) flags.Add($"⚠️ Temp L{log.HeatFlag}");
+                    if (log.Supplements.Contains("\"zinc\":1")) flags.Add("💊 Zinc");
+                    if (log.Supplements.Contains("\"maca\":1")) flags.Add("🌿 Maca");
+                    if (log.Supplements.Contains("\"vitD\":1")) flags.Add("☀️ D3");
+                    if (log.Supplements.Contains("\"vitC\":1")) flags.Add("🍊 C");
+                    
+                    string metrics = "";
+                    if (log.Mode == "Clinical-Lab" && (log.ClinicalVol > 0 || log.Concentration > 0))
+                        metrics = $"\n\nLab Metrics:\nVol: {log.ClinicalVol}mL | Conc: {log.Concentration}M\nTot Mot: {log.Motility}% | Prog Mot: {log.ProgMotility}%\nMorph: {log.Morphology}% | pH: {log.PhLevel}";
 
-                        string flagStr = flags.Count > 0 ? $"\n\nFlags: {string.Join(" | ", flags)}" : "";
-                        
-                        return $"{date}{shadowText}\nGap: {point.Coordinate.PrimaryValue} hrs\nMode: {log.Mode}\nVolume: {log.Volume}{flagStr}{metrics}";
-                    }
-                } 
+                    string flagStr = flags.Count > 0 ? $"\n\nFlags: {string.Join(" | ", flags)}" : "";
+                    
+                    return $"{date}{shadowText}\nGap: {point.Coordinate.PrimaryValue} hrs\nMode: {log.Mode}\nVolume: {log.Volume}{flagStr}{metrics}";
+                }
             };
+
+            ChartSeries = new ISeries[] { lineSeries };
 
             int maint = Logs.Count(l => l.Mode == "Maintenance"), play = Logs.Count(l => l.Mode == "Playtime"), baby = Logs.Count(l => l.Mode == "Baby-Making"), lab = Logs.Count(l => l.Mode == "Clinical-Lab");
             ModeSeries = new ISeries[] {
@@ -695,6 +756,27 @@ namespace DadPlanner2.ViewModels
             int high = Logs.Count(l => l.Volume == "High"), norm = Logs.Count(l => l.Volume == "Normal"), low = Logs.Count(l => l.Volume == "Low"), dry = Logs.Count(l => l.Volume == "None" || l.Volume == "N/A");
             VolumeSeries = new ISeries[] { new RowSeries<int> { Values = new[] { high, norm, low, dry }, Fill = new SolidColorPaint(new SKColor(0, 122, 204)) } };
             VolumeYAxes = new[] { new Axis { Labels = new[] { "High", "Norm", "Low", "Dry" }, LabelsPaint = new SolidColorPaint(SKColors.Gray) } };
+        }
+
+        [RelayCommand]
+        private void ChartClicked(object obj)
+        {
+            LiveChartsCore.Kernel.ChartPoint? point = null;
+
+            if (obj is LiveChartsCore.Kernel.ChartPoint singlePoint)
+                point = singlePoint;
+            else if (obj is System.Collections.Generic.IEnumerable<LiveChartsCore.Kernel.ChartPoint> points)
+                point = System.Linq.Enumerable.FirstOrDefault(points);
+
+            if (point == null) return;
+            
+            var releaseLogs = Logs.Where(l => l.Volume != "None" && l.Volume != "N/A").OrderBy(l => l.Timestamp).ToList();
+            if (point.Index >= 0 && point.Index < releaseLogs.Count)
+            {
+                var log = releaseLogs[point.Index];
+                SelectedLog = log;
+                RequestScrollToLog?.Invoke(log);
+            }
         }
 
         private void SetupChartAxes()

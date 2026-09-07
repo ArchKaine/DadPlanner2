@@ -42,10 +42,10 @@
             <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,15">
                 <TextBlock Text="System Maintenance Utility" FontSize="24" FontWeight="Bold" VerticalAlignment="Center"/>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
-                    <Button Classes="btn-icon" Content="❓ Help" Command="{Binding OpenHelpCommand}" Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1"/>
-                    <Button Classes="btn-icon" Content="📄 90-Day Report" Command="{Binding GeneratePdfCommand}" Background="#546e7a"/>
-                    <Button Classes="btn-icon" Content="➕ Add Past Log" Command="{Binding OpenManualLogCommand}"/>
-                    <Button Classes="btn-icon" Content="⚙️ Settings" Command="{Binding OpenSettingsCommand}"/>
+                    <Button Classes="btn-icon" Content="[?] Help" Command="{Binding OpenHelpCommand}" Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1"/>
+                    <Button Classes="btn-icon" Content="[PDF] 90-Day Report" Command="{Binding GeneratePdfCommand}" Background="#546e7a"/>
+                    <Button Classes="btn-icon" Content="[+] Add Past Log" Command="{Binding OpenManualLogCommand}"/>
+                    <Button Classes="btn-icon" Content="[=] Settings" Command="{Binding OpenSettingsCommand}"/>
                 </StackPanel>
             </Grid>
 
@@ -190,10 +190,10 @@
                             
                             <Grid ColumnDefinitions="*, *">
                                 <ComboBox Grid.Column="0" SelectedIndex="{Binding SelectedHeat}" HorizontalAlignment="Stretch" Margin="0,0,5,0">
-                                    <sys:Int32>0</sys:Int32>
-                                    <sys:Int32>1</sys:Int32>
-                                    <sys:Int32>2</sys:Int32>
-                                    <sys:Int32>3</sys:Int32>
+                                    <ComboBoxItem>Temp: Normal</ComboBoxItem>
+                                    <ComboBoxItem>Temp: L1 (Mild)</ComboBoxItem>
+                                    <ComboBoxItem>Temp: L2 (Fever)</ComboBoxItem>
+                                    <ComboBoxItem>Temp: L3 (Severe)</ComboBoxItem>
                                 </ComboBox>
                                 <ComboBox Grid.Column="1" SelectedItem="{Binding SelectedVolume}" HorizontalAlignment="Stretch" Margin="5,0,0,0">
                                     <x:String>Normal</x:String>
@@ -206,10 +206,10 @@
                             <Border Background="#252526" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10">
                                 <StackPanel Orientation="Horizontal" Spacing="15">
                                     <TextBlock Text="SUPPS:" FontSize="11" FontWeight="Bold" Foreground="#888" VerticalAlignment="Center"/>
-                                    <CheckBox Content="💊 Zn" IsChecked="{Binding ZincActive}"/>
-                                    <CheckBox Content="🌿 Ma" IsChecked="{Binding MacaActive}"/>
-                                    <CheckBox Content="☀️ D3" IsChecked="{Binding VitDActive}"/>
-                                    <CheckBox Content="🍊 C" IsChecked="{Binding VitCActive}"/>
+                                    <CheckBox Content="[Zn]" IsChecked="{Binding ZincActive}"/>
+                                    <CheckBox Content="[Ma]" IsChecked="{Binding MacaActive}"/>
+                                    <CheckBox Content="[D3]" IsChecked="{Binding VitDActive}"/>
+                                    <CheckBox Content="[C]" IsChecked="{Binding VitCActive}"/>
                                 </StackPanel>
                             </Border>
 
@@ -291,7 +291,7 @@
                 <StackPanel Spacing="20">
                     <Grid>
                         <TextBlock Text="Configuration &amp; Analytics" FontSize="20" FontWeight="Bold" Foreground="White"/>
-                        <Button Content="❌" Command="{Binding CloseSettingsCommand}" Background="Transparent" HorizontalAlignment="Right"/>
+                        <Button Content="[X]" Command="{Binding CloseSettingsCommand}" Background="Transparent" Foreground="#888" HorizontalAlignment="Right"/>
                     </Grid>
                     
                     <StackPanel Spacing="10">
@@ -337,7 +337,7 @@
                 <StackPanel Spacing="15">
                     <Grid>
                         <TextBlock Text="PIMS User Manual" FontSize="20" FontWeight="Bold" Foreground="White"/>
-                        <Button Content="❌" Command="{Binding CloseHelpCommand}" Background="Transparent" HorizontalAlignment="Right"/>
+                        <Button Content="[X]" Command="{Binding CloseHelpCommand}" Background="Transparent" Foreground="#888" HorizontalAlignment="Right"/>
                     </Grid>
                     
                     <ScrollViewer MaxHeight="600" HorizontalScrollBarVisibility="Disabled">
@@ -384,7 +384,7 @@
                 <StackPanel Spacing="15">
                     <Grid>
                         <TextBlock Text="Add Retroactive Log" FontSize="20" FontWeight="Bold" Foreground="White"/>
-                        <Button Content="❌" Command="{Binding CloseManualLogCommand}" Background="Transparent" HorizontalAlignment="Right"/>
+                        <Button Content="[X]" Command="{Binding CloseManualLogCommand}" Background="Transparent" Foreground="#888" HorizontalAlignment="Right"/>
                     </Grid>
                     
                     <Grid ColumnDefinitions="*,*">
@@ -422,16 +422,16 @@
                     <Border Background="#252526" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10">
                         <Grid ColumnDefinitions="Auto, *">
                             <ComboBox Grid.Column="0" SelectedIndex="{Binding ManualHeat}" Width="140" Margin="0,0,10,0">
-                                <sys:Int32>0</sys:Int32>
-                                <sys:Int32>1</sys:Int32>
-                                <sys:Int32>2</sys:Int32>
-                                <sys:Int32>3</sys:Int32>
+                                <ComboBoxItem>Temp: Normal</ComboBoxItem>
+                                <ComboBoxItem>Temp: L1 (Mild)</ComboBoxItem>
+                                <ComboBoxItem>Temp: L2 (Fever)</ComboBoxItem>
+                                <ComboBoxItem>Temp: L3 (Severe)</ComboBoxItem>
                             </ComboBox>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="15" VerticalAlignment="Center">
-                                <CheckBox Content="💊 Zn" IsChecked="{Binding ManualZinc}"/>
-                                <CheckBox Content="🌿 Ma" IsChecked="{Binding ManualMaca}"/>
-                                <CheckBox Content="☀️ D3" IsChecked="{Binding ManualVitD}"/>
-                                <CheckBox Content="🍊 C" IsChecked="{Binding ManualVitC}"/>
+                                <CheckBox Content="[Zn]" IsChecked="{Binding ManualZinc}"/>
+                                <CheckBox Content="[Ma]" IsChecked="{Binding ManualMaca}"/>
+                                <CheckBox Content="[D3]" IsChecked="{Binding ManualVitD}"/>
+                                <CheckBox Content="[C]" IsChecked="{Binding ManualVitC}"/>
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -467,7 +467,7 @@
                 <StackPanel Spacing="15">
                     <Grid>
                         <TextBlock Text="Modify Existing Log" FontSize="20" FontWeight="Bold" Foreground="White"/>
-                        <Button Content="❌" Command="{Binding CloseEditLogCommand}" Background="Transparent" HorizontalAlignment="Right"/>
+                        <Button Content="[X]" Command="{Binding CloseEditLogCommand}" Background="Transparent" Foreground="#888" HorizontalAlignment="Right"/>
                     </Grid>
                     
                     <Grid ColumnDefinitions="*,*">
@@ -504,17 +504,17 @@
                     
                     <Border Background="#252526" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10">
                         <Grid ColumnDefinitions="Auto, *">
-                            <ComboBox Grid.Column="0" SelectedItem="{Binding EditHeat}" Width="140" Margin="0,0,10,0">
-                                <sys:Int32>0</sys:Int32>
-                                <sys:Int32>1</sys:Int32>
-                                <sys:Int32>2</sys:Int32>
-                                <sys:Int32>3</sys:Int32>
+                            <ComboBox Grid.Column="0" SelectedIndex="{Binding EditHeat}" Width="140" Margin="0,0,10,0">
+                                <ComboBoxItem>Temp: Normal</ComboBoxItem>
+                                <ComboBoxItem>Temp: L1 (Mild)</ComboBoxItem>
+                                <ComboBoxItem>Temp: L2 (Fever)</ComboBoxItem>
+                                <ComboBoxItem>Temp: L3 (Severe)</ComboBoxItem>
                             </ComboBox>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="15" VerticalAlignment="Center">
-                                <CheckBox Content="💊 Zn" IsChecked="{Binding EditZinc}"/>
-                                <CheckBox Content="🌿 Ma" IsChecked="{Binding EditMaca}"/>
-                                <CheckBox Content="☀️ D3" IsChecked="{Binding EditVitD}"/>
-                                <CheckBox Content="🍊 C" IsChecked="{Binding EditVitC}"/>
+                                <CheckBox Content="[Zn]" IsChecked="{Binding EditZinc}"/>
+                                <CheckBox Content="[Ma]" IsChecked="{Binding EditMaca}"/>
+                                <CheckBox Content="[D3]" IsChecked="{Binding EditVitD}"/>
+                                <CheckBox Content="[C]" IsChecked="{Binding EditVitC}"/>
                             </StackPanel>
                         </Grid>
                     </Border>

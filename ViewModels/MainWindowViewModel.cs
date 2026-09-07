@@ -148,6 +148,21 @@ namespace DadPlanner2.ViewModels
             _dbService = new DatabaseService();
             IsTestModeActive = _dbService.CheckIfTestModeActive();
             SetupChartAxes();
+            
+            var thresholds = _dbService.GetThresholdSettings();
+            MinHours = thresholds.Min;
+            MaxHours = thresholds.Max;
+
+            long appt = _dbService.GetAppointment();
+            if (appt > 0)
+                AppointmentDate = DateTimeOffset.FromUnixTimeSeconds(appt).ToLocalTime().DateTime;
+
+            var savedSupps = _dbService.GetSupplementsState();
+            ZincActive = savedSupps.zn;
+            MacaActive = savedSupps.ma;
+            VitDActive = savedSupps.vitD;
+            VitCActive = savedSupps.vitC;
+            
             LoadData();
         }
 
@@ -186,7 +201,7 @@ namespace DadPlanner2.ViewModels
             var thresholds = _dbService.GetThresholdSettings();
             MinHours = thresholds.Min;
             MaxHours = thresholds.Max;
-
+            
             long apptTs = _dbService.GetAppointment();
             AppointmentDate = apptTs > 0 ? DateTimeOffset.FromUnixTimeSeconds(apptTs).ToLocalTime().DateTime : null;
 
@@ -282,48 +297,34 @@ namespace DadPlanner2.ViewModels
         [RelayCommand]
         private void LogEvent(string mode)
         {
-            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            string supps = $"{{\"zinc\":{(ZincActive ? 1 : 0)},\"maca\":{(MacaActive ? 1 : 0)},\"vitD\":{(VitDActive ? 1 : 0)},\"vitC\":{(VitCActive ? 1 : 0)}}}";
+            long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             
-            if (mode == "Clinical-Lab" && IsShadowActive)
-            {
-                ShowAlert("Warning", "A Thermal Shadow is active, which compromises clinical accuracy. Are you sure you want to log a baseline test?", () => ExecuteLogEvent(mode, now));
-                return;
-            }
-            ExecuteLogEvent(mode, now);
-        }
-
-        private void ExecuteLogEvent(string mode, long timestamp)
-        {
-            SelectedMode = mode;
-            int z = ZincActive ? 1 : 0, m = MacaActive ? 1 : 0, d = VitDActive ? 1 : 0, c = VitCActive ? 1 : 0;
             string vol = SelectedVolume;
-            
             if (mode == "Clinical-Lab" && (vol == "None" || vol == "N/A")) vol = "Normal";
             if (mode == "Baby-Making") vol = EstimateBabyMakingVolume(timestamp);
-
-            var newLog = new LogRecord {
-                Timestamp = timestamp, 
+            
+            var log = new LogRecord
+            {
+                Timestamp = timestamp,
                 Mode = mode,
-                Volume = vol, 
+                Volume = vol,
                 HeatFlag = SelectedHeat,
-                Supplements = $"{{\"zinc\":{z},\"maca\":{m},\"vitD\":{d},\"vitC\":{c}}}",
-                ClinicalVol = ClinicalVol ?? 0.0, 
+                Supplements = supps,
+                ClinicalVol = ClinicalVol ?? 0.0,
                 Concentration = Concentration ?? 0,
-                Motility = Motility ?? 0, 
+                Motility = Motility ?? 0,
                 ProgMotility = ProgMotility ?? 0,
-                Morphology = Morphology ?? 0, 
+                Morphology = Morphology ?? 0,
                 PhLevel = PhLevel ?? 0.0
             };
-            
-            _dbService.InsertLog(newLog);
-            
-            ZincActive = MacaActive = VitDActive = VitCActive = false;
-            SelectedHeat = 0; 
-            SelectedVolume = "Normal";
-            ClinicalVol = null; Concentration = null; Motility = null; 
-            ProgMotility = null; Morphology = null; PhLevel = null;
-            
+
+            _dbService.InsertLog(log);
+            _dbService.SaveSupplementsState(ZincActive, MacaActive, VitDActive, VitCActive);
+
             LoadData();
+            ClearForm();
+            DatabaseService.ShowNotification("Event Logged", $"Successfully recorded {mode} event.");
         }
 
         [RelayCommand]
@@ -599,7 +600,7 @@ namespace DadPlanner2.ViewModels
                 if (cSat) cGaps.Add(gap); else ncGaps.Add(gap);
             }
 
-            string msg = "💊 BIOLOGICAL SATURATION ANALYSIS 🌿☀️🍊\n\n(Measuring efficacy based on cumulative buildup windows)\n(Thermal Shadow periods removed to prevent data corruption)\n\n";
+            string msg = "--- BIOLOGICAL SATURATION ANALYSIS ---\n\n(Measuring efficacy based on cumulative buildup windows)\n(Thermal Shadow periods removed to prevent data corruption)\n\n";
 
             if (zaTot > 0 && ziTot > 0) {
                 int zaPct = (int)Math.Round((zaSuc / (double)zaTot) * 100);
@@ -682,25 +683,6 @@ namespace DadPlanner2.ViewModels
             HudMax = $"{maxGap:F1}h";
         }
 
-        private string GenerateTooltip(int index, double gap, List<LogRecord> releaseLogs)
-        {
-            var log = releaseLogs[index];
-            string date = DateTimeOffset.FromUnixTimeSeconds(log.Timestamp).ToLocalTime().ToString("MMM dd HH:mm");
-            long shadowWindow = log.Timestamp - (74 * 24 * 3600);
-            string shadowText = Logs.Any(x => x.Timestamp >= shadowWindow && x.Timestamp < log.Timestamp && x.HeatFlag >= 2) ? " | 🔥 Shadow" : "";
-            var flags = new System.Collections.Generic.List<string>();
-            if (log.HeatFlag > 0) flags.Add($"⚠️ L{log.HeatFlag}");
-            if (log.Supplements.Contains("\"zinc\":1")) flags.Add("Zn");
-            if (log.Supplements.Contains("\"maca\":1")) flags.Add("Ma");
-            if (log.Supplements.Contains("\"vitD\":1")) flags.Add("D3");
-            if (log.Supplements.Contains("\"vitC\":1")) flags.Add("C");
-            
-            string metrics = log.Mode == "Clinical-Lab" && log.Concentration > 0 ? $"\nLab: {log.Concentration}M | {log.Motility}% Mot" : "";
-            string flagStr = flags.Count > 0 ? $"\nFlags: {string.Join(", ", flags)}" : "";
-            
-            return $"{date}{shadowText}\nGap: {gap:F1} hrs\nMode: {log.Mode} ({log.Volume}){flagStr}{metrics}";
-        }
-
         private void UpdateCharts()
         {
             var releaseLogs = Logs.Where(l => l.Volume != "None" && l.Volume != "N/A").OrderBy(l => l.Timestamp).ToList();
@@ -711,27 +693,29 @@ namespace DadPlanner2.ViewModels
             }
             else
             {
-                var gapData = new System.Collections.Generic.List<double>();
-                var maintPts = new System.Collections.Generic.List<ObservablePoint>();
-                var playPts = new System.Collections.Generic.List<ObservablePoint>();
-                var babyPts = new System.Collections.Generic.List<ObservablePoint>();
-                var labPts = new System.Collections.Generic.List<ObservablePoint>();
+                var gapData = new System.Collections.Generic.List<DateTimePoint>();
+                var maintPts = new System.Collections.Generic.List<DateTimePoint>();
+                var playPts = new System.Collections.Generic.List<DateTimePoint>();
+                var babyPts = new System.Collections.Generic.List<DateTimePoint>();
+                var labPts = new System.Collections.Generic.List<DateTimePoint>();
 
                 for (int i = 0; i < releaseLogs.Count; i++) 
                 {
+                    var logDate = DateTimeOffset.FromUnixTimeSeconds(releaseLogs[i].Timestamp).ToLocalTime().DateTime;
                     double gap = i == 0 ? MaxHours : (releaseLogs[i].Timestamp - releaseLogs[i - 1].Timestamp) / 3600.0;
-                    gapData.Add(gap);
+                    
+                    gapData.Add(new DateTimePoint(logDate, gap));
 
                     switch (releaseLogs[i].Mode)
                     {
-                        case "Maintenance": maintPts.Add(new ObservablePoint(i, gap)); break;
-                        case "Playtime": playPts.Add(new ObservablePoint(i, gap)); break;
-                        case "Baby-Making": babyPts.Add(new ObservablePoint(i, gap)); break;
-                        case "Clinical-Lab": labPts.Add(new ObservablePoint(i, gap)); break;
+                        case "Maintenance": maintPts.Add(new DateTimePoint(logDate, gap)); break;
+                        case "Playtime": playPts.Add(new DateTimePoint(logDate, gap)); break;
+                        case "Baby-Making": babyPts.Add(new DateTimePoint(logDate, gap)); break;
+                        case "Clinical-Lab": labPts.Add(new DateTimePoint(logDate, gap)); break;
                     }
                 }
 
-                var lineSeries = new LineSeries<double> { 
+                var lineSeries = new LineSeries<DateTimePoint> { 
                     Name = "", Values = gapData, 
                     Fill = new SolidColorPaint(new SKColor(85, 85, 85, 30)), 
                     Stroke = new SolidColorPaint(new SKColor(85, 85, 85)) { StrokeThickness = 2 }, 
@@ -739,12 +723,21 @@ namespace DadPlanner2.ViewModels
                     YToolTipLabelFormatter = null 
                 };
 
-                var maintSeries = new ScatterSeries<ObservablePoint> { Values = maintPts, GeometrySize = 10, Fill = new SolidColorPaint(new SKColor(0, 122, 204)), Stroke = null, YToolTipLabelFormatter = p => GenerateTooltip((int)p.Coordinate.SecondaryValue, p.Coordinate.PrimaryValue, releaseLogs) };
-                var playSeries = new ScatterSeries<ObservablePoint> { Values = playPts, GeometrySize = 10, Fill = new SolidColorPaint(new SKColor(156, 39, 176)), Stroke = null, YToolTipLabelFormatter = p => GenerateTooltip((int)p.Coordinate.SecondaryValue, p.Coordinate.PrimaryValue, releaseLogs) };
-                var babySeries = new ScatterSeries<ObservablePoint> { Values = babyPts, GeometrySize = 10, Fill = new SolidColorPaint(new SKColor(76, 175, 80)), Stroke = null, YToolTipLabelFormatter = p => GenerateTooltip((int)p.Coordinate.SecondaryValue, p.Coordinate.PrimaryValue, releaseLogs) };
-                var labSeries = new ScatterSeries<ObservablePoint> { Values = labPts, GeometrySize = 10, Fill = new SolidColorPaint(new SKColor(84, 110, 122)), Stroke = null, YToolTipLabelFormatter = p => GenerateTooltip((int)p.Coordinate.SecondaryValue, p.Coordinate.PrimaryValue, releaseLogs) };
+                var maintSeries = new ScatterSeries<DateTimePoint> { Values = maintPts, GeometrySize = 10, Fill = new SolidColorPaint(new SKColor(0, 122, 204)), Stroke = null, YToolTipLabelFormatter = p => GenerateTooltip(p.Model!.DateTime, p.Model!.Value ?? 0.0, releaseLogs) };
+                var playSeries = new ScatterSeries<DateTimePoint> { Values = playPts, GeometrySize = 10, Fill = new SolidColorPaint(new SKColor(156, 39, 176)), Stroke = null, YToolTipLabelFormatter = p => GenerateTooltip(p.Model!.DateTime, p.Model!.Value ?? 0.0, releaseLogs) };
+                var babySeries = new ScatterSeries<DateTimePoint> { Values = babyPts, GeometrySize = 10, Fill = new SolidColorPaint(new SKColor(76, 175, 80)), Stroke = null, YToolTipLabelFormatter = p => GenerateTooltip(p.Model!.DateTime, p.Model!.Value ?? 0.0, releaseLogs) };
+                var labSeries = new ScatterSeries<DateTimePoint> { Values = labPts, GeometrySize = 10, Fill = new SolidColorPaint(new SKColor(84, 110, 122)), Stroke = null, YToolTipLabelFormatter = p => GenerateTooltip(p.Model!.DateTime, p.Model!.Value ?? 0.0, releaseLogs) };
 
                 ChartSeries = new ISeries[] { lineSeries, maintSeries, playSeries, babySeries, labSeries };
+                
+                XAxes = new[] { 
+                    new Axis { 
+                        Labeler = value => new DateTime((long)value).ToString("MMM dd"), 
+                        LabelsRotation = 15,
+                        LabelsPaint = new SolidColorPaint(SKColors.Gray),
+                        TextSize = 12
+                    } 
+                };
             }
 
             TotalEventCount = Logs.Count;
@@ -765,30 +758,42 @@ namespace DadPlanner2.ViewModels
                 new PieSeries<int> { Values = new[] { lab }, Name = "Clinical", InnerRadius = 40, HoverPushout = 10, Fill = new SolidColorPaint(new SKColor(84, 110, 122)), ToolTipLabelFormatter = p => $"Clinical Lab: {p.Model} events" }
             };
 
-            int high = Logs.Count(l => l.Volume == "High");
-            int norm = Logs.Count(l => l.Volume == "Normal");
-            int low = Logs.Count(l => l.Volume == "Low");
-            int dry = Logs.Count(l => l.Volume == "None" || l.Volume == "N/A");
+            int[] maintVols = { Logs.Count(l => l.Mode == "Maintenance" && (l.Volume == "None" || l.Volume == "N/A")), Logs.Count(l => l.Mode == "Maintenance" && l.Volume == "Low"), Logs.Count(l => l.Mode == "Maintenance" && l.Volume == "Normal"), Logs.Count(l => l.Mode == "Maintenance" && l.Volume == "High") };
+            int[] playVols = { Logs.Count(l => l.Mode == "Playtime" && (l.Volume == "None" || l.Volume == "N/A")), Logs.Count(l => l.Mode == "Playtime" && l.Volume == "Low"), Logs.Count(l => l.Mode == "Playtime" && l.Volume == "Normal"), Logs.Count(l => l.Mode == "Playtime" && l.Volume == "High") };
+            int[] babyVols = { Logs.Count(l => l.Mode == "Baby-Making" && (l.Volume == "None" || l.Volume == "N/A")), Logs.Count(l => l.Mode == "Baby-Making" && l.Volume == "Low"), Logs.Count(l => l.Mode == "Baby-Making" && l.Volume == "Normal"), Logs.Count(l => l.Mode == "Baby-Making" && l.Volume == "High") };
+            int[] labVols = { Logs.Count(l => l.Mode == "Clinical-Lab" && (l.Volume == "None" || l.Volume == "N/A")), Logs.Count(l => l.Mode == "Clinical-Lab" && l.Volume == "Low"), Logs.Count(l => l.Mode == "Clinical-Lab" && l.Volume == "Normal"), Logs.Count(l => l.Mode == "Clinical-Lab" && l.Volume == "High") };
 
-            string[] rowLabels = new[] { "Dry", "Low", "Normal", "High" };
+            string[] volLabels = new[] { "Dry", "Low", "Normal", "High" };
 
-            VolumeSeries = new ISeries[] { 
-                new RowSeries<int> { 
-                    Name = "",
-                    Values = new[] { dry, low, norm, high }, 
-                    Fill = new SolidColorPaint(new SKColor(0, 122, 204)),
-                    DataLabelsPaint = new SolidColorPaint(new SKColor(220, 220, 220)),
-                    DataLabelsSize = 12,
-                    DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.End,
-                    XToolTipLabelFormatter = p => $"{rowLabels[p.Index]}: {p.Model} Total Events"
-                } 
+            VolumeSeries = new ISeries[] {
+                new StackedColumnSeries<int> { Name = "Maintenance", Values = maintVols, Fill = new SolidColorPaint(new SKColor(0, 122, 204)), DataLabelsPaint = new SolidColorPaint(new SKColor(255, 255, 255)), DataLabelsSize = 11, DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Middle, DataLabelsFormatter = p => p.Model > 0 ? p.Model.ToString() : "", YToolTipLabelFormatter = p => $"Maintenance ({volLabels[p.Index]}): {p.Model}" },
+                new StackedColumnSeries<int> { Name = "Playtime", Values = playVols, Fill = new SolidColorPaint(new SKColor(156, 39, 176)), DataLabelsPaint = new SolidColorPaint(new SKColor(255, 255, 255)), DataLabelsSize = 11, DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Middle, DataLabelsFormatter = p => p.Model > 0 ? p.Model.ToString() : "", YToolTipLabelFormatter = p => $"Playtime ({volLabels[p.Index]}): {p.Model}" },
+                new StackedColumnSeries<int> { Name = "Baby-Making", Values = babyVols, Fill = new SolidColorPaint(new SKColor(76, 175, 80)), DataLabelsPaint = new SolidColorPaint(new SKColor(255, 255, 255)), DataLabelsSize = 11, DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Middle, DataLabelsFormatter = p => p.Model > 0 ? p.Model.ToString() : "", YToolTipLabelFormatter = p => $"Baby-Making ({volLabels[p.Index]}): {p.Model}" },
+                new StackedColumnSeries<int> { Name = "Clinical-Lab", Values = labVols, Fill = new SolidColorPaint(new SKColor(84, 110, 122)), DataLabelsPaint = new SolidColorPaint(new SKColor(255, 255, 255)), DataLabelsSize = 11, DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Middle, DataLabelsFormatter = p => p.Model > 0 ? p.Model.ToString() : "", YToolTipLabelFormatter = p => $"Clinical-Lab ({volLabels[p.Index]}): {p.Model}" }
             };
             
-            VolumeYAxes = new[] { new Axis { 
-                Labels = rowLabels, 
-                LabelsPaint = new SolidColorPaint(SKColors.Gray),
-                TextSize = 12
-            }};
+            VolumeXAxes = new[] { new Axis { Labels = volLabels, LabelsPaint = new SolidColorPaint(SKColors.Gray), TextSize = 12 } };
+            VolumeYAxes = new[] { new Axis { LabelsPaint = new SolidColorPaint(SKColors.Gray), TextSize = 12, MinLimit = 0 } };
+        }
+
+        private string GenerateTooltip(DateTime date, double gap, List<LogRecord> releaseLogs)
+        {
+            var unixTime = ((DateTimeOffset)date).ToUnixTimeSeconds();
+            var log = releaseLogs.OrderBy(l => Math.Abs(l.Timestamp - unixTime)).FirstOrDefault();
+            
+            if (log == null) return $"{gap:F1} Hrs";
+
+            string supps = "";
+            if (log.Supplements.Contains("\"zinc\":1")) supps += "Zn ";
+            if (log.Supplements.Contains("\"maca\":1")) supps += "Ma ";
+            if (log.Supplements.Contains("\"vitD\":1")) supps += "D3 ";
+            if (log.Supplements.Contains("\"vitC\":1")) supps += "C";
+
+            string tooltip = $"Gap: {gap:F1} Hrs\nVol: {log.Volume}";
+            if (log.HeatFlag > 0) tooltip += $"\nHeat: L{log.HeatFlag}";
+            if (!string.IsNullOrEmpty(supps)) tooltip += $"\nSupps: {supps.Trim()}";
+
+            return tooltip;
         }
 
         private void UpdateHeatmap()
@@ -867,6 +872,18 @@ namespace DadPlanner2.ViewModels
             }
         }
 
+        private void ClearForm()
+        {
+            SelectedVolume = "Normal";
+            SelectedHeat = 0;
+            ClinicalVol = null;
+            Concentration = null;
+            Motility = null;
+            ProgMotility = null;
+            Morphology = null;
+            PhLevel = null;
+        }  
+        
         private void SetupChartAxes()
         {
             XAxes = new[] { new Axis { LabelsPaint = new SolidColorPaint(SKColors.Gray) } };

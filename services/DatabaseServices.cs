@@ -9,6 +9,12 @@ using QuestPDF.Fluent;
 using QuestPDF.Helpers;
 using QuestPDF.Infrastructure;
 using DadPlanner2.Models;
+using LiveChartsCore;
+using LiveChartsCore.Defaults;
+using LiveChartsCore.SkiaSharpView;
+using LiveChartsCore.SkiaSharpView.Painting;
+using LiveChartsCore.SkiaSharpView.SKCharts;
+using SkiaSharp;
 
 namespace DadPlanner2.Services
 {
@@ -68,7 +74,6 @@ namespace DadPlanner2.Services
                 ";
                 cmd.ExecuteNonQuery();
 
-                // Schema Upgrades (Silent Catch for existing columns)
                 string[] alterStatements = {
                     "ALTER TABLE Logs ADD COLUMN Mode TEXT DEFAULT 'Maintenance'",
                     "ALTER TABLE Logs ADD COLUMN Volume TEXT DEFAULT 'Normal'",
@@ -192,8 +197,6 @@ namespace DadPlanner2.Services
             cmd.Parameters.AddWithValue("$cvol", log.ClinicalVol);
             cmd.Parameters.AddWithValue("$pmot", log.ProgMotility);
             cmd.Parameters.AddWithValue("$ph", log.PhLevel);
-
-            // Unconditionally bind the file parameters to satisfy the SQLite INSERT statement
             cmd.Parameters.AddWithValue("$fname", fileName ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("$blob", pdfBlob ?? (object)DBNull.Value);
         }
@@ -214,6 +217,40 @@ namespace DadPlanner2.Services
             cmd.Parameters.AddWithValue("$min", min.ToString());
             cmd.Parameters.AddWithValue("$max", max.ToString());
             cmd.ExecuteNonQuery();
+        }
+
+        public void SaveSupplementsState(bool zn, bool ma, bool vitD, bool vitC)
+        {
+            using var db = new SqliteConnection(_connectionString);
+            db.Open();
+            using var cmd = db.CreateCommand();
+            cmd.CommandText = "INSERT OR REPLACE INTO Settings (Key, Value) VALUES ('supp_zn', $zn), ('supp_ma', $ma), ('supp_vitD', $vitD), ('supp_vitC', $vitC)";
+            cmd.Parameters.AddWithValue("$zn", zn.ToString());
+            cmd.Parameters.AddWithValue("$ma", ma.ToString());
+            cmd.Parameters.AddWithValue("$vitD", vitD.ToString());
+            cmd.Parameters.AddWithValue("$vitC", vitC.ToString());
+            cmd.ExecuteNonQuery();
+        }
+
+        public (bool zn, bool ma, bool vitD, bool vitC) GetSupplementsState()
+        {
+            using var db = new SqliteConnection(_connectionString);
+            db.Open();
+            return (
+                GetSettingStr(db, "supp_zn") == "True",
+                GetSettingStr(db, "supp_ma") == "True",
+                GetSettingStr(db, "supp_vitD") == "True",
+                GetSettingStr(db, "supp_vitC") == "True"
+            );
+        }
+
+        private string GetSettingStr(SqliteConnection db, string key)
+        {
+            using var cmd = db.CreateCommand();
+            cmd.CommandText = "SELECT Value FROM Settings WHERE Key = $key";
+            cmd.Parameters.AddWithValue("$key", key);
+            var result = cmd.ExecuteScalar();
+            return result?.ToString() ?? "False";
         }
 
         public long GetAppointment()
@@ -405,18 +442,89 @@ namespace DadPlanner2.Services
             double avgGap = 0;
             double minGap = 0;
 
-            if (releaseLogs.Count > 1)
+            var gapData = new List<DateTimePoint>();
+
+            if (releaseLogs.Count > 0)
             {
                 double totalGap = 0;
                 minGap = 999;
-                for (int i = 0; i < releaseLogs.Count - 1; i++)
+                for (int i = 0; i < releaseLogs.Count; i++)
                 {
-                    double gap = (releaseLogs[i+1].Timestamp - releaseLogs[i].Timestamp) / 3600.0;
-                    totalGap += gap;
-                    if (gap < minGap) minGap = gap;
+                    var dt = DateTimeOffset.FromUnixTimeSeconds(releaseLogs[i].Timestamp).ToLocalTime().DateTime;
+                    double gap = i == 0 ? 72.0 : (releaseLogs[i].Timestamp - releaseLogs[i - 1].Timestamp) / 3600.0;
+                    gapData.Add(new DateTimePoint(dt, gap));
+
+                    if (i > 0)
+                    {
+                        totalGap += gap;
+                        if (gap < minGap) minGap = gap;
+                    }
                 }
-                avgGap = totalGap / (releaseLogs.Count - 1);
+                if (releaseLogs.Count > 1) avgGap = totalGap / (releaseLogs.Count - 1);
             }
+            
+            var lineChart = new SKCartesianChart
+            {
+                Width = 900, Height = 250,
+                Series = new ISeries[] { new LineSeries<DateTimePoint> { Values = gapData, Fill = new SolidColorPaint(new SKColor(0, 122, 204, 50)), Stroke = new SolidColorPaint(new SKColor(0, 122, 204)) { StrokeThickness = 2 }, GeometrySize = 6 } },
+                XAxes = new[] { new Axis { Labeler = val => new DateTime((long)val).ToString("MMM dd"), LabelsPaint = new SolidColorPaint(SKColors.Black) } },
+                YAxes = new[] { new Axis { Name = "Gap (Hrs)", LabelsPaint = new SolidColorPaint(SKColors.Black), NamePaint = new SolidColorPaint(SKColors.Black) } },
+                Background = SKColors.White
+            };
+            
+            byte[] lineBytes;
+            using (var img = lineChart.GetImage())
+            using (var data = img.Encode(SKEncodedImageFormat.Png, 100)) lineBytes = data.ToArray();
+
+            int maint = logs.Count(l => l.Mode == "Maintenance");
+            int play = logs.Count(l => l.Mode == "Playtime");
+            int baby = logs.Count(l => l.Mode == "Baby-Making");
+            int lab = logs.Count(l => l.Mode == "Clinical-Lab");
+
+            var pieChart = new SKPieChart
+            {
+                Width = 450, Height = 300,
+                Series = new ISeries[] {
+                    new PieSeries<int> { Values = new[] { maint }, Name = "Maintenance", Fill = new SolidColorPaint(new SKColor(0, 122, 204)) },
+                    new PieSeries<int> { Values = new[] { play }, Name = "Playtime", Fill = new SolidColorPaint(new SKColor(156, 39, 176)) },
+                    new PieSeries<int> { Values = new[] { baby }, Name = "Baby-Making", Fill = new SolidColorPaint(new SKColor(76, 175, 80)) },
+                    new PieSeries<int> { Values = new[] { lab }, Name = "Clinical", Fill = new SolidColorPaint(new SKColor(84, 110, 122)) }
+                },
+                Background = SKColors.White,
+                LegendPosition = LiveChartsCore.Measure.LegendPosition.Right,
+                LegendTextPaint = new SolidColorPaint(SKColors.Black)
+            };
+
+            byte[] pieBytes;
+            using (var img = pieChart.GetImage())
+            using (var data = img.Encode(SKEncodedImageFormat.Png, 100)) pieBytes = data.ToArray();
+
+            int high = logs.Count(l => l.Volume == "High");
+            int norm = logs.Count(l => l.Volume == "Normal");
+            int low = logs.Count(l => l.Volume == "Low");
+            int dry = logs.Count(l => l.Volume == "None" || l.Volume == "N/A");
+
+            var barChart = new SKCartesianChart
+            {
+                Width = 450, Height = 300,
+                Series = new ISeries[] {
+                    new ColumnSeries<int> { 
+                        Values = new[] { dry, low, norm, high }, 
+                        Fill = new SolidColorPaint(new SKColor(0, 122, 204)),
+                        DataLabelsPaint = new SolidColorPaint(SKColors.White),
+                        DataLabelsSize = 12,
+                        DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Middle,
+                        DataLabelsFormatter = p => p.Model > 0 ? p.Model.ToString() : ""
+                    }
+                },
+                XAxes = new[] { new Axis { Labels = new[] { "Dry", "Low", "Normal", "High" }, LabelsPaint = new SolidColorPaint(SKColors.Black) } },
+                YAxes = new[] { new Axis { LabelsPaint = new SolidColorPaint(SKColors.Black), MinLimit = 0 } },
+                Background = SKColors.White
+            };
+
+            byte[] barBytes;
+            using (var img = barChart.GetImage())
+            using (var data = img.Encode(SKEncodedImageFormat.Png, 100)) barBytes = data.ToArray();
 
             string pdfPath = Path.Combine(_dbDir, "Baseline_Summary.pdf");
             string pdfFont = RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? "Liberation Sans" : 
@@ -459,7 +567,7 @@ namespace DadPlanner2.Services
                             });
                             row.RelativeItem().Column(c => {
                                 c.Item().Text("Min Recovery Gap").SemiBold().FontColor(Colors.Grey.Darken1);
-                                c.Item().Text($"{minGap:F1} Hrs").FontSize(16).SemiBold();
+                                c.Item().Text(minGap == 999 ? "--" : $"{minGap:F1} Hrs").FontSize(16).SemiBold();
                             });
                         });
 
@@ -471,6 +579,24 @@ namespace DadPlanner2.Services
                         }
                         else
                         {
+                            col.Item().PaddingBottom(15).Column(c => {
+                                c.Item().Text("Recovery Gap Timeline").SemiBold().FontSize(12).FontColor(Colors.Grey.Darken2);
+                                c.Item().Image(lineBytes);
+                            });
+
+                            col.Item().PaddingBottom(15).Row(r => {
+                                r.RelativeItem().PaddingRight(5).Column(c => {
+                                    c.Item().Text("Event Distribution").SemiBold().FontSize(12).FontColor(Colors.Grey.Darken2);
+                                    c.Item().Image(pieBytes);
+                                });
+                                r.RelativeItem().PaddingLeft(5).Column(c => {
+                                    c.Item().Text("Yield Profile").SemiBold().FontSize(12).FontColor(Colors.Grey.Darken2);
+                                    c.Item().Image(barBytes);
+                                });
+                            });
+
+                            col.Item().PaddingBottom(5).Text("Raw Event Log").SemiBold().FontSize(12).FontColor(Colors.Grey.Darken2);
+
                             col.Item().Table(table =>
                             {
                                 table.ColumnsDefinition(columns =>
@@ -499,7 +625,16 @@ namespace DadPlanner2.Services
 
                                     var date = DateTimeOffset.FromUnixTimeSeconds(log.Timestamp).ToLocalTime().ToString("MMM dd HH:mm");
                                     
-                                    string flagStr = log.HeatFlag > 0 ? $"Heat(L{log.HeatFlag})" : "-";
+                                    string suppStr = "";
+                                    if (log.Supplements.Contains("\"zinc\":1")) suppStr += "💊 ";
+                                    if (log.Supplements.Contains("\"maca\":1")) suppStr += "🌿 ";
+                                    if (log.Supplements.Contains("\"vitD\":1")) suppStr += "☀️ ";
+                                    if (log.Supplements.Contains("\"vitC\":1")) suppStr += "🍊 ";
+                                    
+                                    string heatStr = log.HeatFlag > 0 ? $"🔥 L{log.HeatFlag}" : "";
+                                    string combinedSupps = (heatStr + " " + suppStr).Trim();
+                                    if (string.IsNullOrEmpty(combinedSupps)) combinedSupps = "-";
+
                                     string labStr = "-";
 
                                     if (log.Concentration > 0 || log.Motility > 0 || log.Morphology > 0)
@@ -510,7 +645,7 @@ namespace DadPlanner2.Services
                                     table.Cell().Background(backgroundColor).PaddingVertical(5).PaddingHorizontal(2).Text(date).FontSize(9);
                                     table.Cell().Background(backgroundColor).PaddingVertical(5).PaddingHorizontal(2).Text(log.Mode).FontSize(9);
                                     table.Cell().Background(backgroundColor).PaddingVertical(5).PaddingHorizontal(2).Text(log.Volume).FontSize(9);
-                                    table.Cell().Background(backgroundColor).PaddingVertical(5).PaddingHorizontal(2).Text(flagStr).FontSize(9);
+                                    table.Cell().Background(backgroundColor).PaddingVertical(5).PaddingHorizontal(2).Text(combinedSupps).FontSize(9);
                                     table.Cell().Background(backgroundColor).PaddingVertical(5).PaddingHorizontal(2).Text(labStr).FontSize(8).SemiBold();
                                     
                                     isAlternate = !isAlternate;

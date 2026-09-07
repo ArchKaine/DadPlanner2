@@ -1,0 +1,481 @@
+<Window xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+        xmlns:vm="using:DadPlanner2.ViewModels"
+        xmlns:lvc="using:LiveChartsCore.SkiaSharpView.Avalonia"
+        x:Class="DadPlanner2.MainWindow"
+        x:DataType="vm:MainWindowViewModel"
+        x:Name="RootWindow"
+        Title="Dad-Planner System Utility" Width="1300" Height="900"
+        Background="#121212" Foreground="#e0e0e0"
+        WindowStartupLocation="CenterScreen">
+
+    <Window.KeyBindings>
+        <KeyBinding Gesture="Escape" Command="{Binding ToggleStealthCommand}"/>
+    </Window.KeyBindings>
+
+    <Window.Styles>
+        <Style Selector="Button.btn-icon">
+            <Setter Property="Background" Value="#333"/>
+            <Setter Property="Foreground" Value="White"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="10,6"/>
+        </Style>
+        <Style Selector="Button.btn-icon:pointerover /template/ ContentPresenter">
+            <Setter Property="Background" Value="#555"/>
+        </Style>
+    </Window.Styles>
+
+    <Grid>
+        <!-- MAIN APP LAYER -->
+        <Grid RowDefinitions="Auto, Auto, *" Margin="20">
+            <Grid.Effect>
+                <BlurEffect Radius="{Binding StealthBlurRadius}" />
+            </Grid.Effect>
+
+            <!-- HEADER -->
+            <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,15">
+                <TextBlock Text="System Maintenance Utility" FontSize="24" FontWeight="Bold" VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <Button Classes="btn-icon" Content="❓ Help" Command="{Binding OpenHelpCommand}" Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1"/>
+                    <Button Classes="btn-icon" Content="📄 90-Day Report" Command="{Binding GeneratePdfCommand}" Background="#546e7a"/>
+                    <Button Classes="btn-icon" Content="➕ Add Past Log" Command="{Binding OpenManualLogCommand}"/>
+                    <Button Classes="btn-icon" Content="⚙️ Settings" Command="{Binding OpenSettingsCommand}"/>
+                </StackPanel>
+            </Grid>
+
+            <!-- BANNERS -->
+            <StackPanel Grid.Row="1" Spacing="10" Margin="0,0,0,15">
+                <Border IsVisible="{Binding IsTestModeActive}" Background="#d32f2f" CornerRadius="6" Padding="10,5">
+                    <TextBlock Text="WARNING: TEST MODE ACTIVE. FAKE DATA DISPLAYED." FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+                </Border>
+                <Border IsVisible="{Binding IsShadowActive}" Background="#f57c00" CornerRadius="6" Padding="10,5">
+                    <TextBlock Text="{Binding ShadowMessage}" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+                </Border>
+                <Border IsVisible="{Binding IsBlackoutActive}" Background="{Binding BlackoutColor}" BorderBrush="{Binding BlackoutBorder}" BorderThickness="1" CornerRadius="6" Padding="10,5">
+                    <TextBlock Text="{Binding BlackoutMessage}" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+                </Border>
+            </StackPanel>
+
+            <!-- MAIN SPLIT -->
+            <Grid Grid.Row="2" ColumnDefinitions="1.8*, 1.2*">
+                
+                <!-- LEFT PANE -->
+                <ScrollViewer Grid.Column="0" Margin="0,0,15,0" HorizontalScrollBarVisibility="Disabled">
+                    <StackPanel Spacing="15">
+                        
+                        <!-- HUD -->
+                        <UniformGrid Columns="4" Height="70">
+                            <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0">
+                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <TextBlock Text="{Binding HudCurrent}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="CURRENT DELTA" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0">
+                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <TextBlock Text="{Binding HudRemaining}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="LIMIT T-MINUS" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0">
+                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <TextBlock Text="{Binding HudAvg}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="ROLLING AVG" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                            <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6">
+                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <TextBlock Text="{Binding HudMax}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="MAX ENDURANCE" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
+                        </UniformGrid>
+
+                        <Border Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Height="250">
+                            <Grid RowDefinitions="Auto, *">
+                                <TextBlock Grid.Row="0" Text="RECOVERY GAP TIMELINE" FontSize="12" Foreground="#888" Margin="10,10,0,5"/>
+                                <lvc:CartesianChart Grid.Row="1" Series="{Binding ChartSeries}" XAxes="{Binding XAxes}" YAxes="{Binding YAxes}" Margin="10"/>
+                            </Grid>
+                        </Border>
+
+                        <Grid ColumnDefinitions="*, *" Height="200">
+                            <Border Grid.Column="0" Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0">
+                                <Grid RowDefinitions="Auto, *">
+                                    <TextBlock Grid.Row="0" Text="EVENT DISTRIBUTION" FontSize="12" Foreground="#888" Margin="10,10,0,5"/>
+                                    <lvc:PieChart Grid.Row="1" Series="{Binding ModeSeries}" Margin="10"/>
+                                </Grid>
+                            </Border>
+                            <Border Grid.Column="1" Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6">
+                                <Grid RowDefinitions="Auto, *">
+                                    <TextBlock Grid.Row="0" Text="YIELD PROFILE" FontSize="12" Foreground="#888" Margin="10,10,0,5"/>
+                                    <lvc:CartesianChart Grid.Row="1" Series="{Binding VolumeSeries}" XAxes="{Binding VolumeXAxes}" YAxes="{Binding VolumeYAxes}" Margin="10"/>
+                                </Grid>
+                            </Border>
+                        </Grid>
+
+                        <Border Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10">
+                            <StackPanel>
+                                <TextBlock Text="365-DAY ACTIVITY MATRIX" FontSize="12" Foreground="#888" Margin="0,0,0,10"/>
+                                <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                                    <ItemsControl ItemsSource="{Binding HeatmapDays}" Height="100">
+                                        <ItemsControl.ItemsPanel>
+                                            <ItemsPanelTemplate>
+                                                <WrapPanel Orientation="Vertical" ItemHeight="14" ItemWidth="14" />
+                                            </ItemsPanelTemplate>
+                                        </ItemsControl.ItemsPanel>
+                                        <ItemsControl.ItemTemplate>
+                                            <DataTemplate>
+                                                <Border Background="{Binding ColorHex}" Width="12" Height="12" Margin="1" CornerRadius="2" ToolTip.Tip="{Binding Tooltip}"/>
+                                            </DataTemplate>
+                                        </ItemsControl.ItemTemplate>
+                                    </ItemsControl>
+                                </ScrollViewer>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+                </ScrollViewer>
+
+                <!-- RIGHT PANE -->
+                <Grid Grid.Column="1" RowDefinitions="Auto, *" Background="#1a1a1a" Margin="5,0,0,0">
+                    <Border BorderBrush="#333" BorderThickness="1" CornerRadius="8" Padding="15">
+                        <StackPanel Spacing="12">
+                            <TextBlock Text="LOG NEW EVENT" FontWeight="Bold" Foreground="#888"/>
+                            
+                            <Grid ColumnDefinitions="*, *">
+                                <ComboBox Grid.Column="0" SelectedItem="{Binding SelectedHeat}" HorizontalAlignment="Stretch" Margin="0,0,5,0">
+                                    <ComboBoxItem Content="0" />
+                                    <ComboBoxItem Content="1" />
+                                    <ComboBoxItem Content="2" />
+                                    <ComboBoxItem Content="3" />
+                                </ComboBox>
+                                <ComboBox Grid.Column="1" SelectedItem="{Binding SelectedVolume}" HorizontalAlignment="Stretch" Margin="5,0,0,0">
+                                    <ComboBoxItem Content="Normal"/>
+                                    <ComboBoxItem Content="Low"/>
+                                    <ComboBoxItem Content="High"/>
+                                    <ComboBoxItem Content="None"/>
+                                </ComboBox>
+                            </Grid>
+
+                            <Border Background="#252526" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10">
+                                <StackPanel Orientation="Horizontal" Spacing="15">
+                                    <TextBlock Text="SUPPS:" FontSize="11" FontWeight="Bold" Foreground="#888" VerticalAlignment="Center"/>
+                                    <CheckBox Content="💊 Zn" IsChecked="{Binding ZincActive}"/>
+                                    <CheckBox Content="🌿 Ma" IsChecked="{Binding MacaActive}"/>
+                                    <CheckBox Content="☀️ D3" IsChecked="{Binding VitDActive}"/>
+                                    <CheckBox Content="🍊 C" IsChecked="{Binding VitCActive}"/>
+                                </StackPanel>
+                            </Border>
+
+                            <Border IsVisible="{Binding ShowClinicalFields}" Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="6" Padding="10">
+                                <StackPanel Spacing="8">
+                                    <TextBlock Text="CLINICAL METRICS (OPTIONAL)" FontSize="10" FontWeight="Bold" Foreground="#90a4ae"/>
+                                    <UniformGrid Columns="3">
+                                        <TextBox Text="{Binding ClinicalVol}" Watermark="Vol (mL)" Margin="2"/>
+                                        <TextBox Text="{Binding Concentration}" Watermark="Conc (M)" Margin="2"/>
+                                        <TextBox Text="{Binding Motility}" Watermark="Tot Mot (%)" Margin="2"/>
+                                        <TextBox Text="{Binding ProgMotility}" Watermark="Prog Mot (%)" Margin="2"/>
+                                        <TextBox Text="{Binding Morphology}" Watermark="Morph (%)" Margin="2"/>
+                                        <TextBox Text="{Binding PhLevel}" Watermark="pH Level" Margin="2"/>
+                                    </UniformGrid>
+                                </StackPanel>
+                            </Border>
+
+                            <UniformGrid Columns="2" Rows="2">
+                                <Button Content="Maintenance" Command="{Binding LogEventCommand}" CommandParameter="Maintenance" Background="#007acc" Foreground="White" HorizontalAlignment="Stretch" Margin="2"/>
+                                <Button Content="Playtime" Command="{Binding LogEventCommand}" CommandParameter="Playtime" Background="#9c27b0" Foreground="White" HorizontalAlignment="Stretch" Margin="2"/>
+                                <Button Content="Baby-Making" Command="{Binding LogEventCommand}" CommandParameter="Baby-Making" Background="#2e7d32" Foreground="White" HorizontalAlignment="Stretch" Margin="2"/>
+                                <Button Content="Clinical Lab" Command="{Binding LogEventCommand}" CommandParameter="Clinical-Lab" Background="#546e7a" Foreground="White" HorizontalAlignment="Stretch" Margin="2"/>
+                            </UniformGrid>
+                        </StackPanel>
+                    </Border>
+
+                    <DataGrid Grid.Row="1" ItemsSource="{Binding Logs}" AutoGenerateColumns="False" Background="#1e1e1e" Margin="0,15,0,0" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#333">
+                        <DataGrid.Columns>
+                            <DataGridTextColumn Header="Date" Binding="{Binding DisplayDate}" />
+                            <DataGridTextColumn Header="Mode" Binding="{Binding Mode}" />
+                            <DataGridTemplateColumn Header="Metrics" Width="*">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding MetricsDisplay}" VerticalAlignment="Center" FontSize="11" Foreground="#aaa" Margin="5,0"/>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                            <DataGridTemplateColumn Header="Action">
+                                <DataGridTemplateColumn.CellTemplate>
+                                    <DataTemplate>
+                                        <StackPanel Orientation="Horizontal">
+                                            <Button IsVisible="{Binding HasPdf}" Content="PDF" Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).OpenPdfCommand}" CommandParameter="{Binding Id}" Background="#546e7a" Foreground="White" FontSize="10" Padding="6,4" Margin="2"/>
+                                            <Button Content="EDIT" Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).OpenEditLogCommand}" CommandParameter="{Binding Id}" Background="#f57c00" Foreground="White" FontSize="10" Padding="6,4" Margin="2"/>
+                                            <Button Content="PURGE" Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).DeleteLogCommand}" CommandParameter="{Binding Id}" Background="#d32f2f" Foreground="White" FontSize="10" Padding="6,4" Margin="2"/>
+                                        </StackPanel>
+                                    </DataTemplate>
+                                </DataGridTemplateColumn.CellTemplate>
+                            </DataGridTemplateColumn>
+                        </DataGrid.Columns>
+                    </DataGrid>
+                </Grid>
+            </Grid>
+        </Grid>
+
+        <!-- GENERIC ALERT MODAL -->
+        <Border IsVisible="{Binding IsAlertOpen}" Background="#B2000000" ZIndex="200">
+            <Border Background="#1e1e1e" BorderBrush="#444" BorderThickness="1" CornerRadius="8" Width="450" Padding="25" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 10 30 0 #A8000000">
+                <StackPanel Spacing="15">
+                    <TextBlock Text="{Binding AlertTitle}" FontSize="18" FontWeight="Bold" Foreground="White"/>
+                    <TextBlock Text="{Binding AlertMessage}" TextWrapping="Wrap" Foreground="#ccc"/>
+                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,10,0,0">
+                        <Button Content="Cancel" Command="{Binding CloseAlertCommand}" Background="#333" Foreground="White"/>
+                        <Button IsVisible="{Binding ShowAlertConfirm}" Content="Confirm" Command="{Binding ConfirmAlertCommand}" Background="#007acc" Foreground="White"/>
+                    </StackPanel>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- SETTINGS MODAL -->
+        <Border IsVisible="{Binding IsSettingsOpen}" Background="#B2000000" ZIndex="100">
+            <Border Background="#1e1e1e" BorderBrush="#444" BorderThickness="1" CornerRadius="8" Width="550" Padding="25" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 10 30 0 #A8000000">
+                <StackPanel Spacing="20">
+                    <Grid>
+                        <TextBlock Text="Configuration &amp; Analytics" FontSize="20" FontWeight="Bold" Foreground="White"/>
+                        <Button Content="❌" Command="{Binding CloseSettingsCommand}" Background="Transparent" HorizontalAlignment="Right"/>
+                    </Grid>
+                    
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Threshold Limits" FontWeight="Bold"/>
+                        <Grid ColumnDefinitions="*,*,Auto">
+                            <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                                <TextBlock Text="Min Rest (Hrs)" FontSize="11" Foreground="#888"/>
+                                <TextBox Text="{Binding MinHours}"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Margin="0,0,10,0">
+                                <TextBlock Text="Max Limit (Hrs)" FontSize="11" Foreground="#888"/>
+                                <TextBox Text="{Binding MaxHours}"/>
+                            </StackPanel>
+                            <Button Grid.Column="2" Content="Save" Command="{Binding SaveSettingsCommand}" Background="#007acc" Foreground="White" VerticalAlignment="Bottom"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Clinical Blackout Window" FontWeight="Bold"/>
+                        <Grid ColumnDefinitions="*, Auto, Auto">
+                            <CalendarDatePicker Grid.Column="0" SelectedDate="{Binding AppointmentDate}" HorizontalAlignment="Stretch" Margin="0,0,10,0"/>
+                            <Button Grid.Column="1" Content="Lock" Command="{Binding SetAppointmentCommand}" Background="#007acc" Foreground="White" Margin="0,0,5,0"/>
+                            <Button Grid.Column="2" Content="Clear" Command="{Binding ClearAppointmentCommand}" Background="#555" Foreground="White"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Mathematical Analysis" FontWeight="Bold"/>
+                        <Grid ColumnDefinitions="*, *">
+                            <Button Grid.Column="0" Content="Auto-Calibrate" Command="{Binding AutoCalibrateCommand}" Background="#f57c00" Foreground="White" HorizontalAlignment="Stretch" Margin="0,0,5,0"/>
+                            <Button Grid.Column="1" Content="Analyze Supps" Command="{Binding AnalyzeSupplementsCommand}" Background="#4caf50" Foreground="White" HorizontalAlignment="Stretch" Margin="5,0,0,0"/>
+                        </Grid>
+                    </StackPanel>
+
+                    <Button Content="{Binding IsTestModeActive, StringFormat='{}Toggle Sandbox Mode (Currently: {0})'}" Command="{Binding ToggleTestModeCommand}" Background="#555" Foreground="White" HorizontalAlignment="Stretch"/>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- HELP MODAL -->
+        <Border IsVisible="{Binding IsHelpOpen}" Background="#B2000000" ZIndex="100">
+            <Border Background="#1e1e1e" BorderBrush="#444" BorderThickness="1" CornerRadius="8" Width="700" Padding="25" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 10 30 0 #A8000000">
+                <StackPanel Spacing="15">
+                    <Grid>
+                        <TextBlock Text="PIMS User Manual" FontSize="20" FontWeight="Bold" Foreground="White"/>
+                        <Button Content="❌" Command="{Binding CloseHelpCommand}" Background="Transparent" HorizontalAlignment="Right"/>
+                    </Grid>
+                    
+                    <ScrollViewer MaxHeight="600" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Spacing="15" Margin="0,0,15,0">
+                            
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5">
+                                <TextBlock Text="Operating Modes" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="The system classifies biological events into four distinct operational modes to maintain accurate statistical tracking:" TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Maintenance: Standard self-regulated cycle clearing. Used to establish baseline recovery metrics and enforce system turnover." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
+                            <TextBlock Text="• Playtime: Recreational relational events without reproductive intent. Tracked for system strain analysis but excluded from strict yield optimization." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
+                            <TextBlock Text="• Baby-Making: Active reproductive attempts. The system auto-estimates volume based on historical recovery gap and saturation metrics." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
+                            <TextBlock Text="• Clinical-Lab: Ground-truth baseline data. Used to record lab analytics (Concentration, Motility) to verify system integrity and clear Thermal Shadows." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
+                            
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
+                                <TextBlock Text="Thermal Shadows" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="Spermatogenesis operates on a 74-day biological cycle. Severe thermal exposure (fevers, hot tubs, saunas) critically degrades system integrity during this window." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Logging a Heat Event (Level 2 or 3) instantly triggers a Thermal Shadow warning that persists for exactly 74 days." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
+                            <TextBlock Text="• Clinical Baseline testing is highly discouraged during a shadow, as the data will be artificially depressed and inaccurate." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
+                            <TextBlock Text="• A shadow can be overridden early if a Clinical Baseline test is logged with passing metrics (≥15 M/mL Conc and ≥40% Motility) after the heat event occurred." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
+                            
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
+                                <TextBlock Text="Biological Saturation Index" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="Supplements like Zinc, Maca, and Vitamins D/C do not provide instantaneous benefits. The system tracks Saturation over rolling time windows." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• A supplement is considered 'Saturated' if it was logged during at least 50% of the events within its specific biological buildup window (e.g., 21 days for Zinc, 30 days for D3)." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
+                            <TextBlock Text="• The Analyze Supps tool in Settings calculates the exact yield and recovery time differences between Saturated and Un-Saturated system states." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
+
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
+                                <TextBlock Text="Stealth Mode (Panic Key)" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="To instantly obfuscate all sensitive biological data, charts, and table logs from screen-lookers:" TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Press the Escape key to blur the UI. Press it again to clear." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
+                        </StackPanel>
+                    </ScrollViewer>
+                </StackPanel>
+            </Border>
+        </Border>
+        
+        <!-- MANUAL LOG MODAL -->
+        <Border IsVisible="{Binding IsManualLogOpen}" Background="#B2000000" ZIndex="100">
+            <Border Background="#1e1e1e" BorderBrush="#444" BorderThickness="1" CornerRadius="8" Width="550" Padding="25" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 10 30 0 #A8000000">
+                <StackPanel Spacing="15">
+                    <Grid>
+                        <TextBlock Text="Add Retroactive Log" FontSize="20" FontWeight="Bold" Foreground="White"/>
+                        <Button Content="❌" Command="{Binding CloseManualLogCommand}" Background="Transparent" HorizontalAlignment="Right"/>
+                    </Grid>
+                    
+                    <Grid ColumnDefinitions="*,*">
+                        <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                            <TextBlock Text="Date" FontSize="11" Foreground="#888"/>
+                            <CalendarDatePicker SelectedDate="{Binding ManualDate}" HorizontalAlignment="Stretch"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="5,0,0,0">
+                            <TextBlock Text="Time" FontSize="11" Foreground="#888"/>
+                            <TimePicker SelectedTime="{Binding ManualTime}" HorizontalAlignment="Stretch"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,*">
+                        <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                            <TextBlock Text="Event Mode" FontSize="11" Foreground="#888"/>
+                            <ComboBox SelectedItem="{Binding ManualMode}" HorizontalAlignment="Stretch">
+                                <ComboBoxItem Content="Maintenance"/>
+                                <ComboBoxItem Content="Playtime"/>
+                                <ComboBoxItem Content="Baby-Making"/>
+                                <ComboBoxItem Content="Clinical-Lab"/>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="5,0,0,0">
+                            <TextBlock Text="Volume" FontSize="11" Foreground="#888"/>
+                            <ComboBox SelectedItem="{Binding ManualVolume}" HorizontalAlignment="Stretch">
+                                <ComboBoxItem Content="Normal"/>
+                                <ComboBoxItem Content="Low"/>
+                                <ComboBoxItem Content="High"/>
+                                <ComboBoxItem Content="None"/>
+                            </ComboBox>
+                        </StackPanel>
+                    </Grid>
+                    
+                    <Border Background="#252526" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10">
+                        <Grid ColumnDefinitions="Auto, *">
+                            <ComboBox Grid.Column="0" SelectedItem="{Binding ManualHeat}" Width="140" Margin="0,0,10,0">
+                                <ComboBoxItem Content="0" />
+                                <ComboBoxItem Content="1" />
+                                <ComboBoxItem Content="2" />
+                                <ComboBoxItem Content="3" />
+                            </ComboBox>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="15" VerticalAlignment="Center">
+                                <CheckBox Content="💊 Zn" IsChecked="{Binding ManualZinc}"/>
+                                <CheckBox Content="🌿 Ma" IsChecked="{Binding ManualMaca}"/>
+                                <CheckBox Content="☀️ D3" IsChecked="{Binding ManualVitD}"/>
+                                <CheckBox Content="🍊 C" IsChecked="{Binding ManualVitC}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Border IsVisible="{Binding ShowManualClinicalFields}" Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="6" Padding="10">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="CLINICAL LAB DATA (OPTIONAL)" FontSize="10" FontWeight="Bold" Foreground="#90a4ae"/>
+                            <UniformGrid Columns="3">
+                                <TextBox Text="{Binding ManualClinicalVol}" Watermark="Vol (mL)" Margin="2"/>
+                                <TextBox Text="{Binding ManualConcentration}" Watermark="Conc (M)" Margin="2"/>
+                                <TextBox Text="{Binding ManualMotility}" Watermark="Tot Mot (%)" Margin="2"/>
+                                <TextBox Text="{Binding ManualProgMotility}" Watermark="Prog Mot (%)" Margin="2"/>
+                                <TextBox Text="{Binding ManualMorphology}" Watermark="Morph (%)" Margin="2"/>
+                                <TextBox Text="{Binding ManualPhLevel}" Watermark="pH Level" Margin="2"/>
+                            </UniformGrid>
+                        </StackPanel>
+                    </Border>
+
+                    <Button Content="Insert Record" Command="{Binding SubmitManualLogCommand}" HorizontalAlignment="Stretch" Background="#007acc" Foreground="White" FontWeight="Bold" Margin="0,10,0,0"/>
+                </StackPanel>
+            </Border>
+        </Border>
+
+        <!-- EDIT LOG MODAL -->
+        <Border IsVisible="{Binding IsEditLogOpen}" Background="#B2000000" ZIndex="100">
+            <Border Background="#1e1e1e" BorderBrush="#444" BorderThickness="1" CornerRadius="8" Width="550" Padding="25" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 10 30 0 #A8000000">
+                <StackPanel Spacing="15">
+                    <Grid>
+                        <TextBlock Text="Modify Existing Log" FontSize="20" FontWeight="Bold" Foreground="White"/>
+                        <Button Content="❌" Command="{Binding CloseEditLogCommand}" Background="Transparent" HorizontalAlignment="Right"/>
+                    </Grid>
+                    
+                    <Grid ColumnDefinitions="*,*">
+                        <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                            <TextBlock Text="Date" FontSize="11" Foreground="#888"/>
+                            <CalendarDatePicker SelectedDate="{Binding EditDate}" HorizontalAlignment="Stretch"/>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="5,0,0,0">
+                            <TextBlock Text="Time" FontSize="11" Foreground="#888"/>
+                            <TimePicker SelectedTime="{Binding EditTime}" HorizontalAlignment="Stretch"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,*">
+                        <StackPanel Grid.Column="0" Margin="0,0,5,0">
+                            <TextBlock Text="Event Mode" FontSize="11" Foreground="#888"/>
+                            <ComboBox SelectedItem="{Binding EditMode}" HorizontalAlignment="Stretch">
+                                <ComboBoxItem Content="Maintenance"/>
+                                <ComboBoxItem Content="Playtime"/>
+                                <ComboBoxItem Content="Baby-Making"/>
+                                <ComboBoxItem Content="Clinical-Lab"/>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="5,0,0,0">
+                            <TextBlock Text="Volume" FontSize="11" Foreground="#888"/>
+                            <ComboBox SelectedItem="{Binding EditVolume}" HorizontalAlignment="Stretch">
+                                <ComboBoxItem Content="Normal"/>
+                                <ComboBoxItem Content="Low"/>
+                                <ComboBoxItem Content="High"/>
+                                <ComboBoxItem Content="None"/>
+                            </ComboBox>
+                        </StackPanel>
+                    </Grid>
+                    
+                    <Border Background="#252526" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10">
+                        <Grid ColumnDefinitions="Auto, *">
+                            <ComboBox Grid.Column="0" SelectedItem="{Binding EditHeat}" Width="140" Margin="0,0,10,0">
+                                <ComboBoxItem Content="0" />
+                                <ComboBoxItem Content="1" />
+                                <ComboBoxItem Content="2" />
+                                <ComboBoxItem Content="3" />
+                            </ComboBox>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="15" VerticalAlignment="Center">
+                                <CheckBox Content="💊 Zn" IsChecked="{Binding EditZinc}"/>
+                                <CheckBox Content="🌿 Ma" IsChecked="{Binding EditMaca}"/>
+                                <CheckBox Content="☀️ D3" IsChecked="{Binding EditVitD}"/>
+                                <CheckBox Content="🍊 C" IsChecked="{Binding EditVitC}"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Border IsVisible="{Binding ShowEditClinicalFields}" Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="6" Padding="10">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="CLINICAL LAB DATA (OPTIONAL)" FontSize="10" FontWeight="Bold" Foreground="#90a4ae"/>
+                            <UniformGrid Columns="3">
+                                <TextBox Text="{Binding EditClinicalVol}" Watermark="Vol (mL)" Margin="2"/>
+                                <TextBox Text="{Binding EditConcentration}" Watermark="Conc (M)" Margin="2"/>
+                                <TextBox Text="{Binding EditMotility}" Watermark="Tot Mot (%)" Margin="2"/>
+                                <TextBox Text="{Binding EditProgMotility}" Watermark="Prog Mot (%)" Margin="2"/>
+                                <TextBox Text="{Binding EditMorphology}" Watermark="Morph (%)" Margin="2"/>
+                                <TextBox Text="{Binding EditPhLevel}" Watermark="pH Level" Margin="2"/>
+                            </UniformGrid>
+                        </StackPanel>
+                    </Border>
+
+                    <Button Content="Update Record" Command="{Binding SaveEditLogCommand}" HorizontalAlignment="Stretch" Background="#4caf50" Foreground="White" FontWeight="Bold" Margin="0,10,0,0"/>
+                </StackPanel>
+            </Border>
+        </Border>
+    </Grid>
+</Window>

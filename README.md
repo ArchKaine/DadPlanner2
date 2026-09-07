@@ -1,7 +1,3 @@
-Here is the updated README tailored for **Dad-Planner 2**. It preserves your personal introduction and tone, but completely rips out the old Photino/HTML/JS architecture and replaces it with the new Avalonia 11, XAML, SkiaSharp, and LiveCharts infrastructure we’ve built.
-
----
-
 # Dad-Planner 2 (DP2)
 
 This software is intended for guys like me who want to be a dad, and who are interested in taking full control of their data and their telemetry.

@@ -230,24 +230,29 @@ public sealed class ReportDocumentService
                             col.Item().PaddingTop(15).Text("Observed Supplement Associations")
                                 .SemiBold().FontSize(12).FontColor(Colors.Grey.Darken2);
                             col.Item().Text("Analysis schema v1. Personal observational comparisons only; not clinical evidence. "
-                                + "Saturation is defined as at least 50% supplement presence in each target window.")
+                                + "Saturation is defined as at least 50% supplement presence in each target window. "
+                                + "Confidence counts use O=Observed, E=Estimated, U=Unknown; percentages include all observations.")
                                 .FontSize(8).Italic();
 
                             col.Item().PaddingTop(5).Table(table =>
                             {
                                 table.ColumnsDefinition(columns =>
                                 {
-                                    columns.RelativeColumn(2);
-                                    columns.RelativeColumn(2);
-                                    columns.RelativeColumn(2);
-                                    columns.RelativeColumn(2);
+                                    columns.RelativeColumn(1.5f);
+                                    columns.RelativeColumn(1.2f);
+                                    columns.RelativeColumn(1.7f);
+                                    columns.RelativeColumn(1.7f);
+                                    columns.RelativeColumn(1.7f);
+                                    columns.RelativeColumn(1.5f);
                                     columns.RelativeColumn(3);
                                 });
                                 table.Header(header =>
                                 {
                                     header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Supplement").SemiBold();
                                     header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Window").SemiBold();
-                                    header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Events").SemiBold();
+                                    header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Saturated").SemiBold();
+                                    header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Unsaturated").SemiBold();
+                                    header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Successes").SemiBold();
                                     header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Proportion").SemiBold();
                                     header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Targets").SemiBold();
                                 });
@@ -269,7 +274,12 @@ public sealed class ReportDocumentService
 
                                     table.Cell().PaddingVertical(3).Text(comparison.Supplement);
                                     table.Cell().PaddingVertical(3).Text($"{comparison.WindowDays} days");
-                                    table.Cell().PaddingVertical(3).Text($"{supplementEvents}/{releaseEvents}");
+                                    table.Cell().PaddingVertical(3).Text(
+                                        $"{comparison.SaturatedCount} ({FormatConfidenceCounts(comparison.SaturatedConfidenceCounts)})");
+                                    table.Cell().PaddingVertical(3).Text(
+                                        $"{comparison.UnsaturatedCount} ({FormatConfidenceCounts(comparison.UnsaturatedConfidenceCounts)})");
+                                    table.Cell().PaddingVertical(3).Text(
+                                        FormatSuccessCounts(comparison));
                                     table.Cell().PaddingVertical(3).Text($"{proportion:P1}");
                                     table.Cell().PaddingVertical(3).Text(targets.Length == 0 ? "No target events" : targets);
                                 }
@@ -293,6 +303,18 @@ public sealed class ReportDocumentService
         });
 
         document.GeneratePdf(pdfPath);
+    }
+
+    private static string FormatConfidenceCounts(ConfidenceCounts counts) =>
+        $"O:{counts.Observed} E:{counts.Estimated} U:{counts.Unknown}";
+
+    private static string FormatSuccessCounts(SupplementComparison comparison)
+    {
+        if (!comparison.SaturatedSuccesses.HasValue && !comparison.UnsaturatedSuccesses.HasValue)
+            return "-";
+
+        return $"S {FormatConfidenceCounts(comparison.SaturatedSuccessesByConfidence)} / "
+            + $"U {FormatConfidenceCounts(comparison.UnsaturatedSuccessesByConfidence)}";
     }
 
 }

@@ -26,10 +26,11 @@ public sealed class SupplementAnalysisService
         IEnumerable<LogRecord> logs,
         Func<long, string, int, SupplementSaturationResult> getSaturation)
     {
-        var validLogs = logs
+        var allLogs = logs.ToList();
+        var validLogs = allLogs
             .Where(log => log.Volume is not "None" and not "N/A")
             .OrderBy(log => log.Timestamp)
-            .Where(log => !HasThermalShadow(logs, log.Timestamp))
+            .Where(log => !HasThermalShadow(allLogs, log.Timestamp))
             .ToList();
 
         if (validLogs.Count < 5)
@@ -52,7 +53,7 @@ public sealed class SupplementAnalysisService
         var audits = logs.Select(log => getSaturation(log.Timestamp, key, days)).ToList();
         var saturated = logs.Zip(audits).Where(item => item.Second.IsSaturated).Select(item => item.First).ToList();
         var unsaturated = logs.Zip(audits).Where(item => !item.Second.IsSaturated).Select(item => item.First).ToList();
-        return new SupplementComparison(
+        return WithConfidenceCounts(new SupplementComparison(
             key,
             days,
             saturated.Count,
@@ -61,7 +62,7 @@ public sealed class SupplementAnalysisService
             unsaturated.Count(log => log.Volume is "Normal" or "High"),
             null,
             null,
-            audits);
+            audits), saturated, unsaturated);
     }
 
     private static SupplementComparison BuildGapComparison(
@@ -75,7 +76,9 @@ public sealed class SupplementAnalysisService
         var audits = gaps.Select(item => getSaturation(item.Current.Timestamp, key, days)).ToList();
         var saturated = gaps.Zip(audits).Where(item => item.Second.IsSaturated).Select(item => item.First.Hours).ToList();
         var unsaturated = gaps.Zip(audits).Where(item => !item.Second.IsSaturated).Select(item => item.First.Hours).ToList();
-        return new SupplementComparison(
+        var saturatedSessions = gaps.Zip(audits).Where(item => item.Second.IsSaturated).Select(item => item.First.Current).ToList();
+        var unsaturatedSessions = gaps.Zip(audits).Where(item => !item.Second.IsSaturated).Select(item => item.First.Current).ToList();
+        return WithConfidenceCounts(new SupplementComparison(
             key,
             days,
             saturated.Count,
@@ -84,8 +87,31 @@ public sealed class SupplementAnalysisService
             null,
             saturated.Count == 0 ? null : saturated.Average(),
             unsaturated.Count == 0 ? null : unsaturated.Average(),
-            audits);
+            audits), saturatedSessions, unsaturatedSessions);
     }
+
+    private static SupplementComparison WithConfidenceCounts(
+        SupplementComparison comparison,
+        IEnumerable<LogRecord> saturated,
+        IEnumerable<LogRecord> unsaturated)
+    {
+        var saturatedSessions = saturated.ToList();
+        var unsaturatedSessions = unsaturated.ToList();
+        var saturatedCounts = ConfidenceCounts.From(saturatedSessions);
+        var unsaturatedCounts = ConfidenceCounts.From(unsaturatedSessions);
+
+        return comparison with
+        {
+            SaturatedConfidenceCounts = saturatedCounts,
+            UnsaturatedConfidenceCounts = unsaturatedCounts,
+            SaturatedSuccessesByConfidence = ConfidenceCounts.From(
+                saturatedSessions.Where(IsSuccessful)),
+            UnsaturatedSuccessesByConfidence = ConfidenceCounts.From(
+                unsaturatedSessions.Where(IsSuccessful))
+        };
+    }
+
+    private static bool IsSuccessful(LogRecord log) => log.Volume is "Normal" or "High";
 
     private static bool HasThermalShadow(IEnumerable<LogRecord> logs, long timestamp)
     {
@@ -106,6 +132,84 @@ public sealed record SupplementComparison(
     IReadOnlyList<SupplementSaturationResult> SaturationAudits)
 {
     public bool HasBothGroups => SaturatedCount > 0 && UnsaturatedCount > 0;
+
+    public ConfidenceCounts SaturatedConfidenceCounts { get; init; } = ConfidenceCounts.Empty;
+    public ConfidenceCounts UnsaturatedConfidenceCounts { get; init; } = ConfidenceCounts.Empty;
+    public ConfidenceCounts SaturatedSuccessesByConfidence { get; init; } = ConfidenceCounts.Empty;
+    public ConfidenceCounts UnsaturatedSuccessesByConfidence { get; init; } = ConfidenceCounts.Empty;
+
+    // Named aliases keep the count intent obvious to callers and exports.
+    public ConfidenceCounts SaturatedCountsByConfidence => SaturatedConfidenceCounts;
+    public ConfidenceCounts UnsaturatedCountsByConfidence => UnsaturatedConfidenceCounts;
+    public ConfidenceCounts SaturatedSuccessCountsByConfidence => SaturatedSuccessesByConfidence;
+    public ConfidenceCounts UnsaturatedSuccessCountsByConfidence => UnsaturatedSuccessesByConfidence;
+
+    public int SaturatedObservedCount => SaturatedConfidenceCounts.Observed;
+    public int SaturatedEstimatedCount => SaturatedConfidenceCounts.Estimated;
+    public int SaturatedUnknownCount => SaturatedConfidenceCounts.Unknown;
+    public int UnsaturatedObservedCount => UnsaturatedConfidenceCounts.Observed;
+    public int UnsaturatedEstimatedCount => UnsaturatedConfidenceCounts.Estimated;
+    public int UnsaturatedUnknownCount => UnsaturatedConfidenceCounts.Unknown;
+    public int SaturatedObservedSuccesses => SaturatedSuccessesByConfidence.Observed;
+    public int SaturatedEstimatedSuccesses => SaturatedSuccessesByConfidence.Estimated;
+    public int SaturatedUnknownSuccesses => SaturatedSuccessesByConfidence.Unknown;
+    public int UnsaturatedObservedSuccesses => UnsaturatedSuccessesByConfidence.Observed;
+    public int UnsaturatedEstimatedSuccesses => UnsaturatedSuccessesByConfidence.Estimated;
+    public int UnsaturatedUnknownSuccesses => UnsaturatedSuccessesByConfidence.Unknown;
+    public int SaturatedObservedSuccessCount => SaturatedObservedSuccesses;
+    public int SaturatedEstimatedSuccessCount => SaturatedEstimatedSuccesses;
+    public int SaturatedUnknownSuccessCount => SaturatedUnknownSuccesses;
+    public int UnsaturatedObservedSuccessCount => UnsaturatedObservedSuccesses;
+    public int UnsaturatedEstimatedSuccessCount => UnsaturatedEstimatedSuccesses;
+    public int UnsaturatedUnknownSuccessCount => UnsaturatedUnknownSuccesses;
+}
+
+public sealed record ConfidenceCounts(int Observed, int Estimated, int Unknown)
+    : IReadOnlyDictionary<VolumeConfidence, int>
+{
+    public static ConfidenceCounts Empty { get; } = new(0, 0, 0);
+    public int Total => Observed + Estimated + Unknown;
+
+    public int this[VolumeConfidence confidence] => confidence switch
+    {
+        VolumeConfidence.Observed => Observed,
+        VolumeConfidence.Estimated => Estimated,
+        _ => Unknown
+    };
+
+    public static ConfidenceCounts From(IEnumerable<LogRecord> logs)
+    {
+        var counts = logs.GroupBy(log => log.VolumeConfidence)
+            .ToDictionary(group => group.Key, group => group.Count());
+        return new ConfidenceCounts(
+            counts.GetValueOrDefault(VolumeConfidence.Observed),
+            counts.GetValueOrDefault(VolumeConfidence.Estimated),
+            counts.GetValueOrDefault(VolumeConfidence.Unknown));
+    }
+
+    public IEnumerable<VolumeConfidence> Keys =>
+        Enum.GetValues<VolumeConfidence>();
+
+    public IEnumerable<int> Values => Keys.Select(confidence => this[confidence]);
+    public int Count => 3;
+    public bool ContainsKey(VolumeConfidence key) => Enum.IsDefined(key);
+    public bool TryGetValue(VolumeConfidence key, out int value)
+    {
+        if (!ContainsKey(key))
+        {
+            value = 0;
+            return false;
+        }
+
+        value = this[key];
+        return true;
+    }
+
+    public IEnumerator<KeyValuePair<VolumeConfidence, int>> GetEnumerator() =>
+        Keys.Select(key => new KeyValuePair<VolumeConfidence, int>(key, this[key])).GetEnumerator();
+
+    System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator() =>
+        GetEnumerator();
 }
 
 public sealed record SupplementAnalysisResult(

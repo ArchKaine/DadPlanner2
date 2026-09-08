@@ -685,6 +685,7 @@ namespace DadPlanner2.ViewModels
                 + "Personal observational comparisons only; this is not clinical evidence.\n"
                 + "Thermal-shadow periods are excluded.\n\n"
                 + "Saturation rule: at least 50% of release events in the stated lookback window contain the supplement.\n\n"
+                + "Percentages include all observations, including sessions with estimated or unknown volume confidence.\n\n"
                 + FormatYieldComparison("ZINC", analysis.Zinc)
                 + FormatGapComparison("MACA ROOT", analysis.Maca)
                 + FormatYieldComparison("VITAMIN D3", analysis.VitaminD)
@@ -709,7 +710,11 @@ namespace DadPlanner2.ViewModels
             return $"[{label} - {comparison.WindowDays}-DAY WINDOW]\n"
                 + audit
                 + $"Saturated: {comparison.SaturatedSuccesses?.ToString() ?? "n/a"}/{comparison.SaturatedCount} successful ({saturatedRate})\n"
+                + $"  Confidence: {FormatConfidenceCounts(comparison.SaturatedConfidenceCounts)}\n"
+                + $"  Successes by confidence: {FormatConfidenceCounts(comparison.SaturatedSuccessesByConfidence)}\n"
                 + $"Unsaturated: {comparison.UnsaturatedSuccesses?.ToString() ?? "n/a"}/{comparison.UnsaturatedCount} successful ({unsaturatedRate})\n"
+                + $"  Confidence: {FormatConfidenceCounts(comparison.UnsaturatedConfidenceCounts)}\n"
+                + $"  Successes by confidence: {FormatConfidenceCounts(comparison.UnsaturatedSuccessesByConfidence)}\n"
                 + $"{association}\n"
                 + (caution.Length > 0 ? $"{caution}\n" : "")
                 + "\n";
@@ -727,11 +732,16 @@ namespace DadPlanner2.ViewModels
             return $"[{label} - {comparison.WindowDays}-DAY WINDOW]\n"
                 + audit
                 + $"Saturated: {(comparison.SaturatedAverageGap.HasValue ? $"{comparison.SaturatedAverageGap:F1}h" : "n/a")} average gap ({comparison.SaturatedCount} gaps)\n"
+                + $"  Confidence: {FormatConfidenceCounts(comparison.SaturatedConfidenceCounts)}\n"
                 + $"Unsaturated: {(comparison.UnsaturatedAverageGap.HasValue ? $"{comparison.UnsaturatedAverageGap:F1}h" : "n/a")} average gap ({comparison.UnsaturatedCount} gaps)\n"
+                + $"  Confidence: {FormatConfidenceCounts(comparison.UnsaturatedConfidenceCounts)}\n"
                 + $"{association}\n"
                 + (caution.Length > 0 ? $"{caution}\n" : "")
                 + "\n";
         }
+
+        private static string FormatConfidenceCounts(ConfidenceCounts counts) =>
+            $"Observed {counts.Observed}, Estimated {counts.Estimated}, Unknown {counts.Unknown} (all {counts.Total})";
 
         private static string FormatSaturationAudit(SupplementComparison comparison)
         {

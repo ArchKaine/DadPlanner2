@@ -239,15 +239,18 @@ namespace DadPlanner2.ViewModels
                 else if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX))
                     System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "open", Arguments = BackupPath });
             }
-            catch { /* Silent fallback if OS blocks execution */ }
+            catch (Exception ex)
+            {
+                ShowAlert("Folder Unavailable", $"Could not open the backup folder:\n{ex.Message}");
+            }
         }
 
         [RelayCommand]
         private void RunManualBackup()
         {
             _dbService.MarkDirty();
-            _dbService.ExecuteAutoBackup(BackupPath);
-            ShowAlert("Backup Complete", $"Database successfully backed up to:\n{BackupPath}");
+            if (_dbService.ExecuteAutoBackup(BackupPath))
+                ShowAlert("Backup Complete", $"Database successfully backed up to:\n{BackupPath}");
         }
 
         [RelayCommand]

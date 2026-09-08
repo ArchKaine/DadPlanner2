@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
-using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -24,6 +23,7 @@ namespace DadPlanner2.Services
         private readonly string _dbDir;
         private readonly string _dbPath;
         private readonly string _connectionString;
+        private readonly DataExportService _dataExport = new();
         private bool _isDirty;
 
         public DatabaseService(string? dataDirectory = null)
@@ -38,9 +38,9 @@ namespace DadPlanner2.Services
 
         public void MarkDirty() => _isDirty = true;
 
-        public void ExecuteAutoBackup(string backupDirectory)
+        public bool ExecuteAutoBackup(string backupDirectory)
         {
-            if (!_isDirty) return;
+            if (!_isDirty) return false;
 
             try
             {
@@ -65,12 +65,13 @@ namespace DadPlanner2.Services
                     oldBackup.Delete();
 
                 _isDirty = false;
+                return true;
             }
             catch (Exception ex)
             {
                 ShowNotification("Backup Error", $"Could not create a database backup: {ex.Message}");
+                return false;
             }
-
         }
 
         public string? GetLatestBackup(string backupDirectory)
@@ -124,44 +125,7 @@ namespace DadPlanner2.Services
         }
 
         public (string JsonPath, string CsvPath) ExportData(string exportDirectory)
-        {
-            Directory.CreateDirectory(exportDirectory);
-            var logs = GetAllLogs().OrderBy(log => log.Timestamp).ToList();
-            string timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmss-fff");
-            string jsonPath = Path.Combine(exportDirectory, $"dadplanner-export-{timestamp}.json");
-            string csvPath = Path.Combine(exportDirectory, $"dadplanner-export-{timestamp}.csv");
-
-            var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
-            File.WriteAllText(jsonPath, JsonSerializer.Serialize(logs, jsonOptions));
-
-            using var writer = new StreamWriter(csvPath);
-            writer.WriteLine("Id,Timestamp,Date,Mode,Volume,HeatFlag,Supplements,ClinicalVol,Concentration,Motility,ProgMotility,Morphology,PhLevel,HasPdf");
-            foreach (var log in logs)
-            {
-                writer.WriteLine(string.Join(",",
-                    log.Id,
-                    log.Timestamp,
-                    CsvEscape(log.DisplayDate),
-                    CsvEscape(log.Mode),
-                    CsvEscape(log.Volume),
-                    log.HeatFlag,
-                    CsvEscape(log.Supplements),
-                    log.ClinicalVol.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    log.Concentration,
-                    log.Motility,
-                    log.ProgMotility,
-                    log.Morphology,
-                    log.PhLevel.ToString(System.Globalization.CultureInfo.InvariantCulture),
-                    log.HasPdf));
-            }
-
-            return (jsonPath, csvPath);
-        }
-
-        private static string CsvEscape(string value)
-        {
-            return $"\"{value.Replace("\"", "\"\"")}\"";
-        }
+            => _dataExport.Export(GetAllLogs(), exportDirectory);
 
         private void InitializeDatabase()
         {
@@ -185,7 +149,14 @@ namespace DadPlanner2.Services
 
             if (File.Exists(_dbPath))
             {
-                try { File.SetAttributes(_dbPath, FileAttributes.Normal); } catch { }
+                try
+                {
+                    File.SetAttributes(_dbPath, FileAttributes.Normal);
+                }
+                catch (Exception ex)
+                {
+                    ShowNotification("Database Access Warning", $"Could not normalize database file attributes: {ex.Message}");
+                }
             }
 
             try

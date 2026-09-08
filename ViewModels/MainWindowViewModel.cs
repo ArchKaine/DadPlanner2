@@ -24,6 +24,7 @@ namespace DadPlanner2.ViewModels
         private readonly TelemetryAnalysisService _telemetryAnalysis = new();
         private readonly LogValidationService _logValidation = new();
         private readonly SupplementAnalysisService _supplementAnalysis = new();
+        private readonly SupplementSaturationService _supplementSaturation = new();
 
         public Action<LogRecord>? RequestScrollToLog;
         [ObservableProperty] private LogRecord? _selectedLog;
@@ -517,10 +518,9 @@ namespace DadPlanner2.ViewModels
 
         private bool GetSupplementSaturation(long targetTs, string suppKey, int daysBack)
         {
-            long start = targetTs - (daysBack * 24 * 3600);
-            var windowLogs = Logs.Where(l => l.Timestamp >= start && l.Timestamp <= targetTs).ToList();
-            if (windowLogs.Count == 0) return false;
-            return ((double)windowLogs.Count(l => l.Supplements.Contains($"\"{suppKey}\":1")) / windowLogs.Count) >= 0.5;
+            return _supplementSaturation
+                .Calculate(Logs, targetTs, suppKey, daysBack)
+                .IsSaturated;
         }
 
         private string EstimateBabyMakingVolume(long timestamp)
@@ -669,6 +669,7 @@ namespace DadPlanner2.ViewModels
             return "--- OBSERVED SUPPLEMENT ASSOCIATIONS ---\n\n"
                 + "Personal observational comparisons only; this is not clinical evidence.\n"
                 + "Thermal-shadow periods are excluded.\n\n"
+                + "Saturation rule: at least 50% of release events in the stated lookback window contain the supplement.\n\n"
                 + FormatYieldComparison("ZINC", analysis.Zinc)
                 + FormatGapComparison("MACA ROOT", analysis.Maca)
                 + FormatYieldComparison("VITAMIN D3", analysis.VitaminD)

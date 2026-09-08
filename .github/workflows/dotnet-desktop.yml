@@ -42,10 +42,10 @@ jobs:
           dotnet-version: '10.0.x'
 
       - name: Restore Dependencies
-        run: dotnet restore DadPlanner2/DadPlanner2.csproj
+        run: dotnet restore
 
       - name: Publish Executable
-        run: dotnet publish DadPlanner2/DadPlanner2.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -o publish/${{ matrix.rid }}
+        run: dotnet publish -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -o publish/${{ matrix.rid }}
 
       - name: Upload Artifacts
         uses: actions/upload-artifact@v4

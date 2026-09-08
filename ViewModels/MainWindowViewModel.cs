@@ -21,6 +21,7 @@ namespace DadPlanner2.ViewModels
     public partial class MainWindowViewModel : ObservableObject
     {
         private readonly DatabaseService _dbService;
+        private readonly TelemetryAnalysisService _telemetryAnalysis = new();
 
         public Action<LogRecord>? RequestScrollToLog;
         [ObservableProperty] private LogRecord? _selectedLog;
@@ -240,6 +241,49 @@ namespace DadPlanner2.ViewModels
             ShowAlert("Backup Complete", $"Database successfully backed up to:\n{BackupPath}");
         }
 
+        [RelayCommand]
+        private void RestoreLatestBackup()
+        {
+            string? latestBackup = _dbService.GetLatestBackup(BackupPath);
+            if (latestBackup == null)
+            {
+                ShowAlert("No Backup Found", "Create a backup before attempting to restore one.");
+                return;
+            }
+
+            ShowAlert(
+                "Restore Latest Backup",
+                $"Restore the latest backup?\n\n{latestBackup}\n\nCurrent data will be replaced.",
+                () =>
+                {
+                    try
+                    {
+                        _dbService.RestoreBackup(latestBackup);
+                        IsTestModeActive = _dbService.CheckIfTestModeActive();
+                        LoadData();
+                        ShowAlert("Restore Complete", "The latest database backup has been restored.");
+                    }
+                    catch (Exception ex)
+                    {
+                        ShowAlert("Restore Failed", ex.Message);
+                    }
+                });
+        }
+
+        [RelayCommand]
+        private void ExportData()
+        {
+            try
+            {
+                var exports = _dbService.ExportData(BackupPath);
+                ShowAlert("Export Complete", $"Portable exports created:\n{exports.JsonPath}\n{exports.CsvPath}");
+            }
+            catch (Exception ex)
+            {
+                ShowAlert("Export Failed", ex.Message);
+            }
+        }
+
         // Called automatically by Window.Closing in MainWindow.axaml.cs
         public void HandleShutdown()
         {
@@ -394,6 +438,73 @@ namespace DadPlanner2.ViewModels
             IsAlertOpen = true;
         }
 
+        private bool ValidateLogInput(
+            string mode,
+            double? clinicalVol,
+            int? concentration,
+            int? motility,
+            int? progMotility,
+            int? morphology,
+            double? phLevel,
+            long timestamp,
+            long? existingId = null)
+        {
+            if (timestamp > DateTimeOffset.UtcNow.ToUnixTimeSeconds())
+            {
+                ShowAlert("Invalid Date", "A log cannot be recorded in the future.");
+                return false;
+            }
+
+            if (Logs.Any(log => log.Id != existingId && log.Timestamp == timestamp))
+            {
+                ShowAlert("Duplicate Log", "A log already exists at this exact date and time.");
+                return false;
+            }
+
+            if (mode != "Clinical-Lab")
+            {
+                return true;
+            }
+
+            if (!clinicalVol.HasValue || clinicalVol.Value <= 0)
+            {
+                ShowAlert("Invalid Clinical Data", "Clinical volume must be greater than zero for a lab record.");
+                return false;
+            }
+
+            if (!concentration.HasValue || concentration.Value < 0)
+            {
+                ShowAlert("Invalid Clinical Data", "Concentration is required and cannot be negative.");
+                return false;
+            }
+
+            if (!motility.HasValue || motility.Value is < 0 or > 100)
+            {
+                ShowAlert("Invalid Clinical Data", "Total motility is required and must be between 0 and 100%.");
+                return false;
+            }
+
+            if (!progMotility.HasValue || progMotility.Value is < 0 or > 100 || progMotility.Value > motility.Value)
+            {
+                ShowAlert("Invalid Clinical Data", "Progressive motility must be between 0 and total motility.");
+                return false;
+            }
+
+            if (!morphology.HasValue || morphology.Value is < 0 or > 100)
+            {
+                ShowAlert("Invalid Clinical Data", "Morphology is required and must be between 0 and 100%.");
+                return false;
+            }
+
+            if (!phLevel.HasValue || phLevel.Value is < 0 or > 14)
+            {
+                ShowAlert("Invalid Clinical Data", "pH is required and must be between 0 and 14.");
+                return false;
+            }
+
+            return true;
+        }
+
         private void LoadData()
         {
             var thresholds = _dbService.GetThresholdSettings();
@@ -437,17 +548,12 @@ namespace DadPlanner2.ViewModels
 
         private string EstimateBabyMakingVolume(long timestamp)
         {
-            var priorRelease = Logs.Where(l => l.Timestamp < timestamp && l.Volume != "None" && l.Volume != "N/A").OrderByDescending(l => l.Timestamp).FirstOrDefault();
-            double gapHours = priorRelease != null ? (timestamp - priorRelease.Timestamp) / 3600.0 : MaxHours;
-            
-            string estVol = "Normal";
-            if (gapHours < MinHours) estVol = "Low"; else if (gapHours >= MaxHours) estVol = "High";
-            
-            if (GetSupplementSaturation(timestamp, "zinc", 21))
-            {
-                if (estVol == "Low") estVol = "Normal"; else if (estVol == "Normal") estVol = "High";
-            }
-            return estVol;
+            return _telemetryAnalysis.EstimateVolume(
+                Logs,
+                timestamp,
+                MinHours,
+                MaxHours,
+                GetSupplementSaturation);
         }
 
         [RelayCommand]
@@ -455,6 +561,11 @@ namespace DadPlanner2.ViewModels
         {
             string supps = $"{{\"zinc\":{(ZincActive ? 1 : 0)},\"maca\":{(MacaActive ? 1 : 0)},\"vitD\":{(VitDActive ? 1 : 0)},\"vitC\":{(VitCActive ? 1 : 0)}}}";
             long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+            if (!ValidateLogInput(mode, ClinicalVol, Concentration, Motility, ProgMotility, Morphology, PhLevel, timestamp))
+            {
+                return;
+            }
             
             string vol = SelectedVolume;
             if (mode == "Clinical-Lab" && (vol == "None" || vol == "N/A")) vol = "Normal";
@@ -474,6 +585,12 @@ namespace DadPlanner2.ViewModels
         {
             if (!ManualDate.HasValue || !ManualTime.HasValue) return;
             DateTime dt = ManualDate.Value.Date + ManualTime.Value; long ts = new DateTimeOffset(dt).ToUnixTimeSeconds();
+
+            if (!ValidateLogInput(ManualMode, ManualClinicalVol, ManualConcentration, ManualMotility, ManualProgMotility, ManualMorphology, ManualPhLevel, ts))
+            {
+                return;
+            }
+
             int z = ManualZinc ? 1 : 0, m = ManualMaca ? 1 : 0, d = ManualVitD ? 1 : 0, c = ManualVitC ? 1 : 0;
             string vol = ManualVolume;
             if (ManualMode == "Clinical-Lab" && (vol == "None" || vol == "N/A")) vol = "Normal";
@@ -504,6 +621,12 @@ namespace DadPlanner2.ViewModels
         {
             if (!EditDate.HasValue || !EditTime.HasValue) return;
             DateTime dt = EditDate.Value.Date + EditTime.Value; long ts = new DateTimeOffset(dt).ToUnixTimeSeconds();
+
+            if (!ValidateLogInput(EditMode, EditClinicalVol, EditConcentration, EditMotility, EditProgMotility, EditMorphology, EditPhLevel, ts, EditId))
+            {
+                return;
+            }
+
             int z = EditZinc ? 1 : 0, m = EditMaca ? 1 : 0, d = EditVitD ? 1 : 0, c = EditVitC ? 1 : 0;
             string vol = EditVolume;
             if (EditMode == "Clinical-Lab" && (vol == "None" || vol == "N/A")) vol = "Normal";
@@ -585,15 +708,9 @@ namespace DadPlanner2.ViewModels
         private void CheckThermalShadow()
         {
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            long shadowWindow = now - (74 * 24 * 3600); 
-            var severeEvents = Logs.Where(l => l.Timestamp >= shadowWindow && l.HeatFlag >= 2).OrderByDescending(l => l.Timestamp).ToList();
-            if (severeEvents.Any())
+            if (_telemetryAnalysis.HasActiveThermalShadow(Logs, now, out var latestHeat))
             {
-                var latestHeat = severeEvents.First();
-                var subsequentLabs = Logs.Where(l => l.Mode == "Clinical-Lab" && l.Timestamp > latestHeat.Timestamp && l.Timestamp <= now).ToList();
-                foreach(var lab in subsequentLabs) if (lab.Concentration >= 15 && lab.Motility >= 40) { IsShadowActive = false; return; }
-
-                var clearsAt = DateTimeOffset.FromUnixTimeSeconds(latestHeat.Timestamp + (74 * 24 * 3600)).ToLocalTime();
+                var clearsAt = DateTimeOffset.FromUnixTimeSeconds(latestHeat!.Timestamp + (TelemetryAnalysisService.ThermalShadowDays * 24 * 3600)).ToLocalTime();
                 IsShadowActive = true; ShadowMessage = $"[!] SYSTEM COMPROMISED: Level {latestHeat.HeatFlag} Thermal Shadow active. Clears: {clearsAt:MMM dd, yyyy}.";
             }
             else IsShadowActive = false;
@@ -602,25 +719,15 @@ namespace DadPlanner2.ViewModels
         private void UpdateTelemetry()
         {
             // 1. Core Recovery Telemetry
-            var releaseLogs = Logs.Where(l => l.Volume != "None" && l.Volume != "N/A").ToList();
-            if (releaseLogs.Any())
+            var metrics = _telemetryAnalysis.CalculateRecoveryMetrics(
+                Logs,
+                DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            if (metrics.HasRelease)
             {
-                double currentDelta = (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - releaseLogs.First().Timestamp) / 3600.0;
-                HudCurrent = $"{currentDelta:F1}h"; 
-                HudRemaining = (MaxHours - currentDelta) > 0 ? $"{(MaxHours - currentDelta):F1}h" : "OVERDUE";
-
-                if (releaseLogs.Count >= 2)
-                {
-                    double totalGap = 0, maxGap = 0;
-                    for (int i = 0; i < releaseLogs.Count - 1; i++) 
-                    { 
-                        double gap = (releaseLogs[i].Timestamp - releaseLogs[i + 1].Timestamp) / 3600.0; 
-                        totalGap += gap; 
-                        if (gap > maxGap) maxGap = gap; 
-                    }
-                    HudAvg = $"{(totalGap / (releaseLogs.Count - 1)):F1}h"; 
-                    HudMax = $"{maxGap:F1}h";
-                }
+                HudCurrent = $"{metrics.CurrentHours:F1}h";
+                HudRemaining = (MaxHours - metrics.CurrentHours) > 0 ? $"{(MaxHours - metrics.CurrentHours):F1}h" : "OVERDUE";
+                HudAvg = metrics.AverageGapHours.HasValue ? $"{metrics.AverageGapHours:F1}h" : "--";
+                HudMax = metrics.MaximumGapHours.HasValue ? $"{metrics.MaximumGapHours:F1}h" : "--";
             }
             else
             {

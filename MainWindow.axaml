@@ -411,6 +411,8 @@
                             <Button Grid.Column="1" Content="Open Folder" Command="{Binding OpenBackupFolderCommand}" Background="#555" Foreground="White" Margin="0,0,5,0"/>
                             <Button Grid.Column="2" Content="Backup Now" Command="{Binding RunManualBackupCommand}" Background="#007acc" Foreground="White"/>
                         </Grid>
+                        <Button Content="Restore Latest Backup" Command="{Binding RestoreLatestBackupCommand}" Background="#d32f2f" Foreground="White" HorizontalAlignment="Stretch"/>
+                        <Button Content="Export Data (JSON + CSV)" Command="{Binding ExportDataCommand}" Background="#546e7a" Foreground="White" HorizontalAlignment="Stretch"/>
                         <TextBlock Text="System automatically retains the last 10 backups on exit." FontSize="10" Foreground="#888"/>
                     </StackPanel>
 

@@ -10,7 +10,10 @@ namespace DadPlanner2.Services;
 
 public sealed class DataExportService
 {
-    public (string JsonPath, string CsvPath) Export(IEnumerable<LogRecord> sourceLogs, string exportDirectory)
+    public DataExportResult Export(
+        IEnumerable<LogRecord> sourceLogs,
+        string exportDirectory,
+        SupplementAnalysisResult? analysis = null)
     {
         Directory.CreateDirectory(exportDirectory);
         var logs = sourceLogs.OrderBy(log => log.Timestamp).ToList();
@@ -41,8 +44,40 @@ public sealed class DataExportService
                 log.HasPdf));
         }
 
-        return (jsonPath, csvPath);
+        string? analysisJsonPath = null;
+        string? analysisCsvPath = null;
+        if (analysis != null)
+        {
+            analysisJsonPath = Path.Combine(exportDirectory, $"dadplanner-analysis-{timestamp}.json");
+            analysisCsvPath = Path.Combine(exportDirectory, $"dadplanner-analysis-{timestamp}.csv");
+            File.WriteAllText(analysisJsonPath, JsonSerializer.Serialize(analysis, new JsonSerializerOptions { WriteIndented = true }));
+
+            using var analysisWriter = new StreamWriter(analysisCsvPath);
+            analysisWriter.WriteLine("Supplement,WindowDays,TargetTimestamp,ReleaseEventCount,SupplementEventCount,SupplementProportion,Classification");
+            foreach (var comparison in new[] { analysis.Zinc, analysis.Maca, analysis.VitaminD, analysis.VitaminC })
+            {
+                foreach (var audit in comparison.SaturationAudits)
+                {
+                    analysisWriter.WriteLine(string.Join(",",
+                        CsvEscape(comparison.Supplement),
+                        audit.WindowDays,
+                        audit.TargetTimestamp,
+                        audit.ReleaseEventCount,
+                        audit.SupplementEventCount,
+                        audit.SupplementProportion.ToString("F4", CultureInfo.InvariantCulture),
+                        audit.IsSaturated ? "SATURATED" : "UNSATURATED"));
+                }
+            }
+        }
+
+        return new DataExportResult(jsonPath, csvPath, analysisJsonPath, analysisCsvPath);
     }
 
     private static string CsvEscape(string value) => $"\"{value.Replace("\"", "\"\"")}\"";
 }
+
+public sealed record DataExportResult(
+    string JsonPath,
+    string CsvPath,
+    string? AnalysisJsonPath,
+    string? AnalysisCsvPath);

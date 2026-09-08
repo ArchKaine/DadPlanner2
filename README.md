@@ -10,6 +10,18 @@ Dad-Planner 2 is a highly over-engineered, offline-first sexual frequency, biolo
 
 This second-generation build (DP2) discards the original web-wrapper approach for a pure, compiled C# Avalonia desktop architecture.
 
+### 🛡️ The Open-Source Manifesto
+
+If you find a bug, open an issue on GitHub. Want to contribute? Fork a copy and start coding. But know that my line in the sand for this project is absolute:
+
+* **No ads or sponsored content.**
+* **No paywalls, subscriptions, or "freemium" features.**
+* **No telemetry, background tracking, or data harvesting.**
+* **No forced logins or cloud dependencies.**
+* **No support for proprietary, closed-source forks.**
+
+This is true open-source, and the main repo will remain completely clean of modern software cruft. If you see a missing feature that genuinely improves men's health and fertility tracking—write the code, open a PR, and let's see it.
+
 ---
 
 ## 🏗️ Architecture Stack
@@ -42,7 +54,8 @@ This second-generation build (DP2) discards the original web-wrapper approach fo
 * **Lab Report PDF Vault:** Attach, store (as SQLite BLOBs), and launch original laboratory PDF results directly from the Avalonia dashboard via your native OS document viewer.
 * **Pre-Log Modifiers:** Track crucial biological variables like subjective volume (Dry/Low/Normal/High), a 4-level Thermal Stress Index, and dietary supplement stacks (Zinc, Maca, Vitamin D3, Vitamin C).
 * **365-Day Activity Matrix:** GitHub-style density heatmap built natively in XAML, plotting year-round event frequency and maximum daily volume yields.
-* **Interactive Charting:** Hardware-accelerated LiveCharts dashboards featuring Cartesian timelines, Pie distributions, and Stacked Row profiles with custom metric tooltips.
+* **Interactive Charting:** Hardware-accelerated LiveCharts dashboards featuring Cartesian timelines, Pie distributions, and Stacked Row profiles.
+* **Strict Spatial UI Processing:** Engineered with strict quadrant math and spatial constraints, custom chart tooltips dynamically calculate their position to render inward, mathematically preventing UI bleed into adjacent controls or data grids. Strict pointer-event gatekeeping prevents background charts from calculating or projecting overlays when modal dialogs are open.
 
 ### 🏥 Medical Workflows & Analytics
 
@@ -57,6 +70,7 @@ This second-generation build (DP2) discards the original web-wrapper approach fo
 ### 🔒 Security & Privacy
 
 * **Fully Air-Gapped:** Zero external API calls, no telemetry, no cloud sync. All data is written exclusively to a local `inventory.db` file located in your secure user AppData directory.
+* **Zero-Corruption Auto-Backups:** Bypasses naive file-copying lock issues by utilizing SQLite's native `VACUUM INTO` command. Triggers transactionally consistent, defragmented backups on application exit (only if data was mutated during the session) and automatically maintains a rolling 10-file retention policy in an OS-safe local directory.
 * **Stealth Mode (Panic Button):** Hardware-level keybinding (Press `Escape`) instantly applies a hardware-accelerated Avalonia `BlurEffect` across the entire UI grid, obfuscating all sensitive data from screen-lookers on demand.
 * **Non-Destructive Sandbox Mode:** Safely swaps your live SQLite database into a backup partition, seeds the UI with 150 records of procedurally generated, biologically weighted fake data for visual testing, and seamlessly restores your real data when toggled off.
 

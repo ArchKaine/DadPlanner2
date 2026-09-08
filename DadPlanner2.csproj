@@ -12,6 +12,7 @@
   <ItemGroup>
     <Compile Remove="Tests/**/*.cs" />
     <None Remove="Tests/**/*.csproj" />
+    <InternalsVisibleTo Include="DadPlanner2.Tests" />
 
     <PackageReference Include="Avalonia" Version="11.0.11" />
     <PackageReference Include="Avalonia.Controls.DataGrid" Version="11.0.11" />

@@ -127,7 +127,13 @@ public sealed class DatabaseServiceIntegrationTests
     public void ExportData_WritesJsonAndCsvRecords()
     {
         var service = new DatabaseService(_testDirectory);
-        service.InsertLog(new LogRecord { Timestamp = 1000, Mode = "Playtime", Volume = "High", Supplements = "{\"zinc\":1}" });
+        service.InsertLog(new LogRecord
+        {
+            Timestamp = 1000,
+            Mode = "Playtime",
+            Volume = "High",
+            Supplements = "{\"zinc\":1}"
+        });
         string exportDirectory = Path.Combine(_testDirectory, "exports");
 
         var exports = service.ExportData(exportDirectory);
@@ -135,5 +141,25 @@ public sealed class DatabaseServiceIntegrationTests
         StringAssert.Contains(File.ReadAllText(exports.JsonPath), "\"Mode\": \"Playtime\"");
         StringAssert.Contains(File.ReadAllText(exports.CsvPath), "\"Playtime\"");
         StringAssert.Contains(File.ReadAllText(exports.CsvPath), "\"{\"\"zinc\"\":1}\"");
+    }
+
+    [TestMethod]
+    public void ExportData_CsvEscapesCommasQuotesAndNewlines()
+    {
+        var service = new DatabaseService(_testDirectory);
+        service.InsertLog(new LogRecord
+        {
+            Timestamp = 1000,
+            Mode = "Clinical, \"Lab\"\nReview",
+            Volume = "Normal",
+            Supplements = "{\"note\":\"dose, daily\"}"
+        });
+        string exportDirectory = Path.Combine(_testDirectory, "exports");
+
+        var exports = service.ExportData(exportDirectory);
+        string csv = File.ReadAllText(exports.CsvPath);
+
+        StringAssert.Contains(csv, "\"Clinical, \"\"Lab\"\"\nReview\"");
+        StringAssert.Contains(csv, "\"{\"\"note\"\":\"\"dose, daily\"\"}\"");
     }
 }

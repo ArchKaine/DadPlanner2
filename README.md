@@ -1,5 +1,8 @@
 # Dad-Planner 2 (DP2)
 
+<img width="1287" height="935" alt="DP2" src="https://github.com/user-attachments/assets/b54460a6-311c-47df-bdf0-8daafe4cab7a" />
+
+
 This software is intended for guys like me who want to be a dad, and who are interested in taking full control of their data and their telemetry.
 
 Standard calendar apps aren't built for clinical reproductive health. When you need to manage strict medical testing requirements (like OHSU semen analysis protocols), maintain baseline prostate health with rigid turnover limits, and track supplement efficacy, you need precise telemetry. More importantly, you need that data kept completely offline.

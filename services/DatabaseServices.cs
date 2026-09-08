@@ -15,6 +15,8 @@ namespace DadPlanner2.Services
         private readonly string _dbPath;
         private readonly string _connectionString;
         private readonly DataExportService _dataExport = new();
+        private readonly SupplementAnalysisService _supplementAnalysis = new();
+        private readonly SupplementSaturationService _supplementSaturation = new();
         private readonly ReportDataService _reportData = new();
         private readonly ReportDocumentService _reportDocument = new();
         private bool _isDirty;
@@ -116,8 +118,15 @@ namespace DadPlanner2.Services
             }
         }
 
-        public (string JsonPath, string CsvPath) ExportData(string exportDirectory)
-            => _dataExport.Export(GetAllLogs(), exportDirectory);
+        public DataExportResult ExportData(string exportDirectory)
+        {
+            var logs = GetAllLogs();
+            var analysis = _supplementAnalysis.Analyze(
+                logs,
+                (timestamp, supplement, days) =>
+                    _supplementSaturation.Calculate(logs, timestamp, supplement, days));
+            return _dataExport.Export(logs, exportDirectory, analysis);
+        }
 
         private void InitializeDatabase()
         {

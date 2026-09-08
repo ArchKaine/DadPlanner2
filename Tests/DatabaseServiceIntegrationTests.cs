@@ -141,6 +141,11 @@ public sealed class DatabaseServiceIntegrationTests
         StringAssert.Contains(File.ReadAllText(exports.JsonPath), "\"Mode\": \"Playtime\"");
         StringAssert.Contains(File.ReadAllText(exports.CsvPath), "\"Playtime\"");
         StringAssert.Contains(File.ReadAllText(exports.CsvPath), "\"{\"\"zinc\"\":1}\"");
+        Assert.IsNotNull(exports.AnalysisJsonPath);
+        Assert.IsNotNull(exports.AnalysisCsvPath);
+        Assert.IsTrue(File.Exists(exports.AnalysisJsonPath));
+        Assert.IsTrue(File.Exists(exports.AnalysisCsvPath));
+        StringAssert.Contains(File.ReadAllText(exports.AnalysisCsvPath), "Supplement,WindowDays,TargetTimestamp");
     }
 
     [TestMethod]

@@ -29,6 +29,13 @@ public partial class MainWindow : Window
     {
         if (DataContext is not MainWindowViewModel vm) return;
 
+        // GATEKEEPER: If any modal dialog is open, kill the tooltips and ignore hover logic
+        if (vm.IsHelpOpen || vm.IsSettingsOpen || vm.IsManualLogOpen || vm.IsEditLogOpen || vm.IsAlertOpen)
+        {
+            vm.IsTooltipVisible = false;
+            return;
+        }
+
         var windowPos = e.GetPosition(this);
         bool handled = false;
 
@@ -41,7 +48,6 @@ public partial class MainWindow : Window
             {
                 var p = e.GetPosition(timeline);
                 
-                // Extract physical absolute boundaries of the chart control
                 double ctrlX = tlPoint.Value.X;
                 double ctrlY = tlPoint.Value.Y;
                 double ctrlW = timeline.Bounds.Width;
@@ -106,10 +112,14 @@ public partial class MainWindow : Window
                     double ctrlW = bar.Bounds.Width;
                     double ctrlH = bar.Bounds.Height;
 
+                    // Grab X and Width so we don't bleed into adjacent controls
+                    double plotX = barCore.DrawMarginLocation.X;
                     double plotY = barCore.DrawMarginLocation.Y;
+                    double plotW = barCore.DrawMarginSize.Width;
                     double plotH = barCore.DrawMarginSize.Height;
                     
-                    if (p.Y >= plotY && p.Y <= plotY + plotH)
+                    // Strictly enforce both X and Y boundaries
+                    if (p.X >= plotX && p.X <= plotX + plotW && p.Y >= plotY && p.Y <= plotY + plotH)
                     {
                         vm.ProcessBarHover(p.Y, windowPos.X, windowPos.Y, plotY, plotH, ctrlX, ctrlY, ctrlW, ctrlH);
                         handled = true;

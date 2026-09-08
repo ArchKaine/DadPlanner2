@@ -106,7 +106,7 @@
                                     <TextBlock Text="MAX ENDURANCE" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
-                            <!-- NEW FREQUENCY BOX -->
+                            <!-- FREQUENCY BOX -->
                             <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6">
                                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                     <TextBlock Text="{Binding HudFrequency}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center"/>
@@ -267,7 +267,7 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Main Application Log Grid -->
+                    <!-- Main Application Log Grid (FIXED OVERFLOW ISSUE) -->
                     <DataGrid x:Name="LogsGrid" Grid.Row="1" ItemsSource="{Binding Logs}" SelectedItem="{Binding SelectedLog}" IsReadOnly="True" AutoGenerateColumns="False" Background="#1e1e1e" Margin="0,15,0,0" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#333">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Date" Binding="{Binding DisplayDate}" />
@@ -278,17 +278,21 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
+                            
+                            <!-- Notice the TextTrimming and Tooltip added here -->
                             <DataGridTemplateColumn Header="Metrics" Width="*">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <TextBlock Text="{Binding MetricsDisplay}" VerticalAlignment="Center" FontSize="11" Foreground="#aaa" Margin="5,0"/>
+                                        <TextBlock Text="{Binding MetricsDisplay}" VerticalAlignment="Center" FontSize="11" Foreground="#aaa" Margin="5,0" TextTrimming="CharacterEllipsis" ToolTip.Tip="{Binding MetricsDisplay}"/>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            <DataGridTemplateColumn Header="Action">
+                            
+                            <!-- Width="Auto" forces the buttons to always remain completely visible -->
+                            <DataGridTemplateColumn Header="Action" Width="Auto">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
-                                        <StackPanel Orientation="Horizontal">
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
                                             <Button IsVisible="{Binding HasPdf}" Content="PDF" Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).OpenPdfCommand}" CommandParameter="{Binding Id}" Background="#546e7a" Foreground="White" FontSize="10" Padding="6,4" Margin="2"/>
                                             <Button Content="EDIT" Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).OpenEditLogCommand}" CommandParameter="{Binding Id}" Background="#f57c00" Foreground="White" FontSize="10" Padding="6,4" Margin="2"/>
                                             <Button Content="PURGE" Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).DeleteLogCommand}" CommandParameter="{Binding Id}" Background="#d32f2f" Foreground="White" FontSize="10" Padding="6,4" Margin="2"/>

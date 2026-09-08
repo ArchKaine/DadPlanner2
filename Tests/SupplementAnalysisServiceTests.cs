@@ -56,18 +56,18 @@ public sealed class SupplementAnalysisServiceTests
         var logs = Enumerable.Range(0, 6)
             .Select(index => Log(100_000 + (index * 100_000), "Normal"))
             .ToList();
-        var saturation = new SupplementSaturationResult("zinc", 21, 8, 5, 0.625, true);
+        var saturation = new SupplementSaturationResult(500_000, "zinc", 21, 8, 5, 0.625, true);
 
         var result = new SupplementAnalysisService().Analyze(
             logs,
             (_, key, days) => key == "zinc"
                 ? saturation
-                : new SupplementSaturationResult(key, days, 8, 0, 0, false));
+                : new SupplementSaturationResult(500_000, key, days, 8, 0, 0, false));
 
-        Assert.AreEqual(8, result.Zinc.Saturation.ReleaseEventCount);
-        Assert.AreEqual(5, result.Zinc.Saturation.SupplementEventCount);
-        Assert.AreEqual(0.625, result.Zinc.Saturation.SupplementProportion);
-        Assert.IsTrue(result.Zinc.Saturation.IsSaturated);
+        Assert.AreEqual(6, result.Zinc.SaturationAudits.Count);
+        Assert.IsTrue(result.Zinc.SaturationAudits.All(audit => audit.TargetTimestamp > 0));
+        Assert.AreEqual(8, result.Zinc.SaturationAudits[0].ReleaseEventCount);
+        Assert.AreEqual(5, result.Zinc.SaturationAudits[0].SupplementEventCount);
     }
 
     private static LogRecord Log(long timestamp, string volume) =>

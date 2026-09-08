@@ -13,6 +13,7 @@ public sealed class SupplementAnalysisService
     {
         return Analyze(logs, (timestamp, supplement, days) =>
             new SupplementSaturationResult(
+                timestamp,
                 supplement,
                 days,
                 0,
@@ -48,9 +49,9 @@ public sealed class SupplementAnalysisService
         int days,
         Func<long, string, int, SupplementSaturationResult> getSaturation)
     {
-        var saturated = logs.Where(log => getSaturation(log.Timestamp, key, days).IsSaturated).ToList();
-        var unsaturated = logs.Where(log => !getSaturation(log.Timestamp, key, days).IsSaturated).ToList();
-        var audit = getSaturation(logs[^1].Timestamp, key, days);
+        var audits = logs.Select(log => getSaturation(log.Timestamp, key, days)).ToList();
+        var saturated = logs.Zip(audits).Where(item => item.Second.IsSaturated).Select(item => item.First).ToList();
+        var unsaturated = logs.Zip(audits).Where(item => !item.Second.IsSaturated).Select(item => item.First).ToList();
         return new SupplementComparison(
             key,
             days,
@@ -60,7 +61,7 @@ public sealed class SupplementAnalysisService
             unsaturated.Count(log => log.Volume is "Normal" or "High"),
             null,
             null,
-            audit);
+            audits);
     }
 
     private static SupplementComparison BuildGapComparison(
@@ -71,9 +72,9 @@ public sealed class SupplementAnalysisService
     {
         var gaps = logs.Zip(logs.Skip(1), (current, previous) =>
             (Current: current, Hours: (current.Timestamp - previous.Timestamp) / 3600.0));
-        var saturated = gaps.Where(item => getSaturation(item.Current.Timestamp, key, days).IsSaturated).Select(item => item.Hours).ToList();
-        var unsaturated = gaps.Where(item => !getSaturation(item.Current.Timestamp, key, days).IsSaturated).Select(item => item.Hours).ToList();
-        var audit = getSaturation(logs[^1].Timestamp, key, days);
+        var audits = gaps.Select(item => getSaturation(item.Current.Timestamp, key, days)).ToList();
+        var saturated = gaps.Zip(audits).Where(item => item.Second.IsSaturated).Select(item => item.First.Hours).ToList();
+        var unsaturated = gaps.Zip(audits).Where(item => !item.Second.IsSaturated).Select(item => item.First.Hours).ToList();
         return new SupplementComparison(
             key,
             days,
@@ -83,7 +84,7 @@ public sealed class SupplementAnalysisService
             null,
             saturated.Count == 0 ? null : saturated.Average(),
             unsaturated.Count == 0 ? null : unsaturated.Average(),
-            audit);
+            audits);
     }
 
     private static bool HasThermalShadow(IEnumerable<LogRecord> logs, long timestamp)
@@ -102,7 +103,7 @@ public sealed record SupplementComparison(
     int? UnsaturatedSuccesses,
     double? SaturatedAverageGap,
     double? UnsaturatedAverageGap,
-    SupplementSaturationResult Saturation)
+    IReadOnlyList<SupplementSaturationResult> SaturationAudits)
 {
     public bool HasBothGroups => SaturatedCount > 0 && UnsaturatedCount > 0;
 }
@@ -122,6 +123,5 @@ public sealed record SupplementAnalysisResult(
         true);
 
     private static SupplementComparison Empty(string supplement, int days) =>
-        new(supplement, days, 0, 0, null, null, null, null,
-            new SupplementSaturationResult(supplement, days, 0, 0, 0, false));
+        new(supplement, days, 0, 0, null, null, null, null, Array.Empty<SupplementSaturationResult>());
 }

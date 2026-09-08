@@ -30,6 +30,7 @@ public sealed class SupplementSaturationService
             : supplementEvents / (double)releaseLogs.Count;
 
         return new SupplementSaturationResult(
+            targetTimestamp,
             supplement,
             windowDays,
             releaseLogs.Count,
@@ -40,6 +41,7 @@ public sealed class SupplementSaturationService
 }
 
 public sealed record SupplementSaturationResult(
+    long TargetTimestamp,
     string Supplement,
     int WindowDays,
     int ReleaseEventCount,

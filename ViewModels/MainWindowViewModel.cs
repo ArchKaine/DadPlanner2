@@ -722,11 +722,20 @@ namespace DadPlanner2.ViewModels
 
         private static string FormatSaturationAudit(SupplementComparison comparison)
         {
-            var saturation = comparison.Saturation;
-            return $"Saturation audit ({saturation.WindowDays}-day window): "
-                + $"{saturation.SupplementEventCount}/{saturation.ReleaseEventCount} release events "
-                + $"({saturation.SupplementProportion:P1}) -> "
-                + $"{(saturation.IsSaturated ? "SATURATED" : "UNSATURATED")}\n";
+            if (comparison.SaturationAudits.Count == 0)
+                return "Saturation audit: no comparison events available.\n";
+
+            var windowDays = comparison.SaturationAudits[0].WindowDays;
+            int releaseEvents = comparison.SaturationAudits.Sum(audit => audit.ReleaseEventCount);
+            int supplementEvents = comparison.SaturationAudits.Sum(audit => audit.SupplementEventCount);
+            double proportion = releaseEvents == 0 ? 0 : supplementEvents / (double)releaseEvents;
+            string classifications = string.Join(", ",
+                comparison.SaturationAudits.Select(audit =>
+                    $"{DateTimeOffset.FromUnixTimeSeconds(audit.TargetTimestamp).ToLocalTime():MMM dd}:"
+                    + $"{(audit.IsSaturated ? "S" : "U")}"));
+            return $"Saturation audit ({windowDays}-day windows): "
+                + $"{supplementEvents}/{releaseEvents} release events across exact target windows "
+                + $"({proportion:P1}); targets {classifications}\n";
         }
 
         private void CheckThermalShadow()

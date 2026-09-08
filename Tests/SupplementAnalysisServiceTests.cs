@@ -70,6 +70,52 @@ public sealed class SupplementAnalysisServiceTests
         Assert.AreEqual(5, result.Zinc.SaturationAudits[0].SupplementEventCount);
     }
 
+    [TestMethod]
+    public void Analyze_RetainsConfidenceCountsAndSuccessesForEveryGroup()
+    {
+        var confidences = new[]
+        {
+            VolumeConfidence.Observed,
+            VolumeConfidence.Estimated,
+            VolumeConfidence.Unknown,
+            VolumeConfidence.Observed,
+            VolumeConfidence.Estimated,
+            VolumeConfidence.Unknown
+        };
+        var logs = Enumerable.Range(0, 6)
+            .Select(index => new LogRecord
+            {
+                Timestamp = 100_000 + (index * 100_000),
+                Volume = index % 2 == 0 ? "High" : "Low",
+                VolumeConfidence = confidences[index]
+            })
+            .ToList();
+
+        var result = new SupplementAnalysisService().Analyze(
+            logs,
+            (timestamp, key, days) => new SupplementSaturationResult(
+                timestamp,
+                key,
+                days,
+                1,
+                1,
+                1,
+                key == "zinc" && (timestamp / 100_000) % 2 == 1));
+
+        Assert.AreEqual(1, result.Zinc.SaturatedObservedCount);
+        Assert.AreEqual(1, result.Zinc.SaturatedEstimatedCount);
+        Assert.AreEqual(1, result.Zinc.SaturatedUnknownCount);
+        Assert.AreEqual(1, result.Zinc.UnsaturatedObservedCount);
+        Assert.AreEqual(1, result.Zinc.UnsaturatedEstimatedCount);
+        Assert.AreEqual(1, result.Zinc.UnsaturatedUnknownCount);
+        Assert.AreEqual(1, result.Zinc.SaturatedObservedSuccesses);
+        Assert.AreEqual(1, result.Zinc.SaturatedEstimatedSuccesses);
+        Assert.AreEqual(1, result.Zinc.SaturatedUnknownSuccesses);
+        Assert.AreEqual(0, result.Zinc.UnsaturatedSuccessesByConfidence.Total);
+        Assert.AreEqual(result.Zinc.SaturatedCount, result.Zinc.SaturatedConfidenceCounts.Total);
+        Assert.AreEqual(result.Zinc.UnsaturatedCount, result.Zinc.UnsaturatedConfidenceCounts.Total);
+    }
+
     private static LogRecord Log(long timestamp, string volume) =>
         new() { Timestamp = timestamp, Volume = volume };
 }

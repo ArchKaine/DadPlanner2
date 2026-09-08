@@ -57,10 +57,14 @@ public sealed class DataExportService
         {
             analysisJsonPath = Path.Combine(exportDirectory, $"dadplanner-analysis-{timestamp}.json");
             analysisCsvPath = Path.Combine(exportDirectory, $"dadplanner-analysis-{timestamp}.csv");
-            File.WriteAllText(analysisJsonPath, JsonSerializer.Serialize(analysis, new JsonSerializerOptions { WriteIndented = true }));
+            File.WriteAllText(analysisJsonPath, JsonSerializer.Serialize(analysis, new JsonSerializerOptions
+            {
+                WriteIndented = true,
+                Converters = { new JsonStringEnumConverter() }
+            }));
 
             using var analysisWriter = new StreamWriter(analysisCsvPath);
-            analysisWriter.WriteLine("Supplement,WindowDays,TargetTimestamp,ReleaseEventCount,SupplementEventCount,SupplementProportion,Classification");
+            analysisWriter.WriteLine("Supplement,WindowDays,TargetTimestamp,ReleaseEventCount,SupplementEventCount,SupplementProportion,Classification,SaturatedCount,UnsaturatedCount,SaturatedObservedCount,SaturatedEstimatedCount,SaturatedUnknownCount,UnsaturatedObservedCount,UnsaturatedEstimatedCount,UnsaturatedUnknownCount,SaturatedSuccesses,UnsaturatedSuccesses,SaturatedObservedSuccesses,SaturatedEstimatedSuccesses,SaturatedUnknownSuccesses,UnsaturatedObservedSuccesses,UnsaturatedEstimatedSuccesses,UnsaturatedUnknownSuccesses");
             foreach (var comparison in new[] { analysis.Zinc, analysis.Maca, analysis.VitaminD, analysis.VitaminC })
             {
                 foreach (var audit in comparison.SaturationAudits)
@@ -72,7 +76,23 @@ public sealed class DataExportService
                         audit.ReleaseEventCount,
                         audit.SupplementEventCount,
                         audit.SupplementProportion.ToString("F4", CultureInfo.InvariantCulture),
-                        audit.IsSaturated ? "SATURATED" : "UNSATURATED"));
+                        audit.IsSaturated ? "SATURATED" : "UNSATURATED",
+                        comparison.SaturatedCount,
+                        comparison.UnsaturatedCount,
+                        comparison.SaturatedObservedCount,
+                        comparison.SaturatedEstimatedCount,
+                        comparison.SaturatedUnknownCount,
+                        comparison.UnsaturatedObservedCount,
+                        comparison.UnsaturatedEstimatedCount,
+                        comparison.UnsaturatedUnknownCount,
+                        comparison.SaturatedSuccesses?.ToString() ?? "",
+                        comparison.UnsaturatedSuccesses?.ToString() ?? "",
+                        comparison.SaturatedObservedSuccesses,
+                        comparison.SaturatedEstimatedSuccesses,
+                        comparison.SaturatedUnknownSuccesses,
+                        comparison.UnsaturatedObservedSuccesses,
+                        comparison.UnsaturatedEstimatedSuccesses,
+                        comparison.UnsaturatedUnknownSuccesses));
                 }
             }
         }

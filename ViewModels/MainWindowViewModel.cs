@@ -677,26 +677,40 @@ namespace DadPlanner2.ViewModels
 
         private static string FormatYieldComparison(string label, SupplementComparison comparison)
         {
-            if (!comparison.HasBothGroups)
-                return $"[{label} - {comparison.WindowDays}-DAY WINDOW]\nInsufficient data: both groups are required.\n\n";
-
-            double saturatedRate = comparison.SaturatedSuccesses!.Value / (double)comparison.SaturatedCount * 100;
-            double unsaturatedRate = comparison.UnsaturatedSuccesses!.Value / (double)comparison.UnsaturatedCount * 100;
+            string saturatedRate = comparison.SaturatedCount == 0
+                ? "n/a"
+                : $"{comparison.SaturatedSuccesses!.Value / (double)comparison.SaturatedCount * 100:F1}%";
+            string unsaturatedRate = comparison.UnsaturatedCount == 0
+                ? "n/a"
+                : $"{comparison.UnsaturatedSuccesses!.Value / (double)comparison.UnsaturatedCount * 100:F1}%";
+            string association = comparison.HasBothGroups
+                ? $"Observed association: {(comparison.SaturatedSuccesses!.Value / (double)comparison.SaturatedCount * 100) - (comparison.UnsaturatedSuccesses!.Value / (double)comparison.UnsaturatedCount * 100):+0.0;-0.0;0.0} percentage points."
+                : "Observed association: not comparable until both groups have data.";
+            string caution = comparison.SaturatedCount < 5 || comparison.UnsaturatedCount < 5
+                ? "Caution: small group size; treat this comparison as exploratory."
+                : "";
             return $"[{label} - {comparison.WindowDays}-DAY WINDOW]\n"
-                + $"Saturated: {comparison.SaturatedSuccesses}/{comparison.SaturatedCount} successful ({saturatedRate:F1}%)\n"
-                + $"Unsaturated: {comparison.UnsaturatedSuccesses}/{comparison.UnsaturatedCount} successful ({unsaturatedRate:F1}%)\n"
-                + $"Observed association: {saturatedRate - unsaturatedRate:+0.0;-0.0;0.0} percentage points.\n\n";
+                + $"Saturated: {comparison.SaturatedSuccesses?.ToString() ?? "n/a"}/{comparison.SaturatedCount} successful ({saturatedRate})\n"
+                + $"Unsaturated: {comparison.UnsaturatedSuccesses?.ToString() ?? "n/a"}/{comparison.UnsaturatedCount} successful ({unsaturatedRate})\n"
+                + $"{association}\n"
+                + (caution.Length > 0 ? $"{caution}\n" : "")
+                + "\n";
         }
 
         private static string FormatGapComparison(string label, SupplementComparison comparison)
         {
-            if (!comparison.HasBothGroups || !comparison.SaturatedAverageGap.HasValue || !comparison.UnsaturatedAverageGap.HasValue)
-                return $"[{label} - {comparison.WindowDays}-DAY WINDOW]\nInsufficient data: both groups are required.\n\n";
-
+            string association = comparison.SaturatedAverageGap.HasValue && comparison.UnsaturatedAverageGap.HasValue
+                ? $"Observed association: {comparison.UnsaturatedAverageGap.Value - comparison.SaturatedAverageGap.Value:+0.0;-0.0;0.0} hours."
+                : "Observed association: not comparable until both groups have data.";
+            string caution = comparison.SaturatedCount < 5 || comparison.UnsaturatedCount < 5
+                ? "Caution: small group size; treat this comparison as exploratory."
+                : "";
             return $"[{label} - {comparison.WindowDays}-DAY WINDOW]\n"
-                + $"Saturated: {comparison.SaturatedAverageGap:F1}h average gap ({comparison.SaturatedCount} gaps)\n"
-                + $"Unsaturated: {comparison.UnsaturatedAverageGap:F1}h average gap ({comparison.UnsaturatedCount} gaps)\n"
-                + $"Observed association: {comparison.UnsaturatedAverageGap - comparison.SaturatedAverageGap:+0.0;-0.0;0.0} hours.\n\n";
+                + $"Saturated: {(comparison.SaturatedAverageGap.HasValue ? $"{comparison.SaturatedAverageGap:F1}h" : "n/a")} average gap ({comparison.SaturatedCount} gaps)\n"
+                + $"Unsaturated: {(comparison.UnsaturatedAverageGap.HasValue ? $"{comparison.UnsaturatedAverageGap:F1}h" : "n/a")} average gap ({comparison.UnsaturatedCount} gaps)\n"
+                + $"{association}\n"
+                + (caution.Length > 0 ? $"{caution}\n" : "")
+                + "\n";
         }
 
         private void CheckThermalShadow()
@@ -767,8 +781,10 @@ namespace DadPlanner2.ViewModels
 
                 for (int i = 0; i < releaseLogs.Count; i++) 
                 {
-                    double xVal = releaseLogs[i].Timestamp; double yVal = i == 0 ? MaxHours : (releaseLogs[i].Timestamp - releaseLogs[i - 1].Timestamp) / 3600.0;
-                    var pt = new ChartLogPoint { X = xVal, Y = yVal, Log = releaseLogs[i] }; gapData.Add(pt);
+                    double xVal = releaseLogs[i].Timestamp;
+                    bool isBaseline = i == 0;
+                    double yVal = isBaseline ? MaxHours : (releaseLogs[i].Timestamp - releaseLogs[i - 1].Timestamp) / 3600.0;
+                    var pt = new ChartLogPoint { X = xVal, Y = yVal, IsBaseline = isBaseline, Log = releaseLogs[i] }; gapData.Add(pt);
 
                     switch (releaseLogs[i].Mode) { case "Maintenance": maintPts.Add(pt); break; case "Playtime": playPts.Add(pt); break; case "Baby-Making": babyPts.Add(pt); break; case "Clinical-Lab": labPts.Add(pt); break; }
                 }
@@ -862,7 +878,8 @@ namespace DadPlanner2.ViewModels
     public class ChartLogPoint : LiveChartsCore.Defaults.ObservablePoint
     {
         public LogRecord Log { get; set; } = null!;
-        public string GapText => $"Gap: {(Y ?? 0):F1} Hrs";
+        public bool IsBaseline { get; set; }
+        public string GapText => IsBaseline ? $"Baseline threshold: {(Y ?? 0):F1} Hrs (no prior gap)" : $"Measured gap: {(Y ?? 0):F1} Hrs";
         public string HeaderText => DateTimeOffset.FromUnixTimeSeconds(Log.Timestamp).ToLocalTime().ToString("MMM dd, yyyy @ HH:mm");
         public string FlagsText { get { var flags = new List<string>(); if (Log.HeatFlag > 0) flags.Add($"[HEAT L{Log.HeatFlag}]"); if (Log.Supplements.Contains("\"zinc\":1")) flags.Add("[Zn]"); if (Log.Supplements.Contains("\"maca\":1")) flags.Add("[Ma]"); if (Log.Supplements.Contains("\"vitD\":1")) flags.Add("[D3]"); if (Log.Supplements.Contains("\"vitC\":1")) flags.Add("[C]"); return string.Join(" ", flags); } }
         public bool HasFlags => FlagsText.Length > 0;

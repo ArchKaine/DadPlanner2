@@ -50,6 +50,26 @@ public sealed class SupplementAnalysisServiceTests
         Assert.AreEqual(0, result.Zinc.UnsaturatedSuccesses);
     }
 
+    [TestMethod]
+    public void Analyze_PreservesSaturationAuditDetails()
+    {
+        var logs = Enumerable.Range(0, 6)
+            .Select(index => Log(100_000 + (index * 100_000), "Normal"))
+            .ToList();
+        var saturation = new SupplementSaturationResult("zinc", 21, 8, 5, 0.625, true);
+
+        var result = new SupplementAnalysisService().Analyze(
+            logs,
+            (_, key, days) => key == "zinc"
+                ? saturation
+                : new SupplementSaturationResult(key, days, 8, 0, 0, false));
+
+        Assert.AreEqual(8, result.Zinc.Saturation.ReleaseEventCount);
+        Assert.AreEqual(5, result.Zinc.Saturation.SupplementEventCount);
+        Assert.AreEqual(0.625, result.Zinc.Saturation.SupplementProportion);
+        Assert.IsTrue(result.Zinc.Saturation.IsSaturated);
+    }
+
     private static LogRecord Log(long timestamp, string volume) =>
         new() { Timestamp = timestamp, Volume = volume };
 }

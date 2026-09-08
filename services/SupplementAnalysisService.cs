@@ -11,6 +11,20 @@ public sealed class SupplementAnalysisService
         IEnumerable<LogRecord> logs,
         Func<long, string, int, bool> isSaturated)
     {
+        return Analyze(logs, (timestamp, supplement, days) =>
+            new SupplementSaturationResult(
+                supplement,
+                days,
+                0,
+                0,
+                0,
+                isSaturated(timestamp, supplement, days)));
+    }
+
+    public SupplementAnalysisResult Analyze(
+        IEnumerable<LogRecord> logs,
+        Func<long, string, int, SupplementSaturationResult> getSaturation)
+    {
         var validLogs = logs
             .Where(log => log.Volume is not "None" and not "N/A")
             .OrderBy(log => log.Timestamp)
@@ -20,10 +34,10 @@ public sealed class SupplementAnalysisService
         if (validLogs.Count < 5)
             return SupplementAnalysisResult.Insufficient;
 
-        var zinc = BuildYieldComparison(validLogs, "zinc", 21, isSaturated);
-        var vitaminD = BuildYieldComparison(validLogs, "vitD", 30, isSaturated);
-        var maca = BuildGapComparison(validLogs, "maca", 21, isSaturated);
-        var vitaminC = BuildGapComparison(validLogs, "vitC", 30, isSaturated);
+        var zinc = BuildYieldComparison(validLogs, "zinc", 21, getSaturation);
+        var vitaminD = BuildYieldComparison(validLogs, "vitD", 30, getSaturation);
+        var maca = BuildGapComparison(validLogs, "maca", 21, getSaturation);
+        var vitaminC = BuildGapComparison(validLogs, "vitC", 30, getSaturation);
 
         return new SupplementAnalysisResult(zinc, maca, vitaminD, vitaminC, false);
     }
@@ -32,10 +46,11 @@ public sealed class SupplementAnalysisService
         IReadOnlyList<LogRecord> logs,
         string key,
         int days,
-        Func<long, string, int, bool> isSaturated)
+        Func<long, string, int, SupplementSaturationResult> getSaturation)
     {
-        var saturated = logs.Where(log => isSaturated(log.Timestamp, key, days)).ToList();
-        var unsaturated = logs.Where(log => !isSaturated(log.Timestamp, key, days)).ToList();
+        var saturated = logs.Where(log => getSaturation(log.Timestamp, key, days).IsSaturated).ToList();
+        var unsaturated = logs.Where(log => !getSaturation(log.Timestamp, key, days).IsSaturated).ToList();
+        var audit = getSaturation(logs[^1].Timestamp, key, days);
         return new SupplementComparison(
             key,
             days,
@@ -44,19 +59,21 @@ public sealed class SupplementAnalysisService
             saturated.Count(log => log.Volume is "Normal" or "High"),
             unsaturated.Count(log => log.Volume is "Normal" or "High"),
             null,
-            null);
+            null,
+            audit);
     }
 
     private static SupplementComparison BuildGapComparison(
         IReadOnlyList<LogRecord> logs,
         string key,
         int days,
-        Func<long, string, int, bool> isSaturated)
+        Func<long, string, int, SupplementSaturationResult> getSaturation)
     {
         var gaps = logs.Zip(logs.Skip(1), (current, previous) =>
             (Current: current, Hours: (current.Timestamp - previous.Timestamp) / 3600.0));
-        var saturated = gaps.Where(item => isSaturated(item.Current.Timestamp, key, days)).Select(item => item.Hours).ToList();
-        var unsaturated = gaps.Where(item => !isSaturated(item.Current.Timestamp, key, days)).Select(item => item.Hours).ToList();
+        var saturated = gaps.Where(item => getSaturation(item.Current.Timestamp, key, days).IsSaturated).Select(item => item.Hours).ToList();
+        var unsaturated = gaps.Where(item => !getSaturation(item.Current.Timestamp, key, days).IsSaturated).Select(item => item.Hours).ToList();
+        var audit = getSaturation(logs[^1].Timestamp, key, days);
         return new SupplementComparison(
             key,
             days,
@@ -65,7 +82,8 @@ public sealed class SupplementAnalysisService
             null,
             null,
             saturated.Count == 0 ? null : saturated.Average(),
-            unsaturated.Count == 0 ? null : unsaturated.Average());
+            unsaturated.Count == 0 ? null : unsaturated.Average(),
+            audit);
     }
 
     private static bool HasThermalShadow(IEnumerable<LogRecord> logs, long timestamp)
@@ -83,7 +101,8 @@ public sealed record SupplementComparison(
     int? SaturatedSuccesses,
     int? UnsaturatedSuccesses,
     double? SaturatedAverageGap,
-    double? UnsaturatedAverageGap)
+    double? UnsaturatedAverageGap,
+    SupplementSaturationResult Saturation)
 {
     public bool HasBothGroups => SaturatedCount > 0 && UnsaturatedCount > 0;
 }
@@ -103,5 +122,6 @@ public sealed record SupplementAnalysisResult(
         true);
 
     private static SupplementComparison Empty(string supplement, int days) =>
-        new(supplement, days, 0, 0, null, null, null, null);
+        new(supplement, days, 0, 0, null, null, null, null,
+            new SupplementSaturationResult(supplement, days, 0, 0, 0, false));
 }

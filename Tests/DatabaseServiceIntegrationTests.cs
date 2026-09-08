@@ -110,11 +110,30 @@ public sealed class DatabaseServiceIntegrationTests
 
         var logs = service.GetAllLogs();
 
-        Assert.IsTrue(logs.Count >= 150);
+        Assert.IsTrue(logs.Count >= 300);
         Assert.IsTrue(logs.Any(log => log.ReleaseCount > 1));
         Assert.IsTrue(logs.Any(log => log.ReleaseCount > 1 && log.VolumeConfidence == VolumeConfidence.Estimated));
         Assert.IsTrue(logs.Any(log => log.ReleaseCount > 1 && log.VolumeConfidence == VolumeConfidence.Unknown));
         Assert.IsTrue(logs.Any(log => log.ReleaseCount == 1 && log.VolumeConfidence == VolumeConfidence.Observed));
+        Assert.IsTrue(logs.Any(log => log.HeatFlag >= 2));
+    }
+
+    [TestMethod]
+    public void TestMode_PreservesProductionEditHistoryWhenDisabled()
+    {
+        var service = new DatabaseService(_testDirectory);
+        service.InsertLog(new LogRecord { Timestamp = 1000, Volume = "Normal" });
+        var productionLog = service.GetAllLogs().Single();
+        productionLog.Volume = "High";
+        service.UpdateLog(productionLog);
+
+        service.ToggleTestMode();
+        Assert.IsEmpty(service.GetLogEditHistory(productionLog.Id));
+
+        service.ToggleTestMode();
+        CollectionAssert.AreEqual(
+            new[] { "Maintenance, Normal volume, 1 release(s), Unknown confidence" },
+            service.GetLogEditHistory(productionLog.Id).Select(history => history.Summary).ToArray());
     }
 
     [TestMethod]

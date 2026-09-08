@@ -240,6 +240,49 @@ namespace DadPlanner2.ViewModels
             ShowAlert("Backup Complete", $"Database successfully backed up to:\n{BackupPath}");
         }
 
+        [RelayCommand]
+        private void RestoreLatestBackup()
+        {
+            string? latestBackup = _dbService.GetLatestBackup(BackupPath);
+            if (latestBackup == null)
+            {
+                ShowAlert("No Backup Found", "Create a backup before attempting to restore one.");
+                return;
+            }
+
+            ShowAlert(
+                "Restore Latest Backup",
+                $"Restore the latest backup?\n\n{latestBackup}\n\nCurrent data will be replaced.",
+                () =>
+                {
+                    try
+                    {
+                        _dbService.RestoreBackup(latestBackup);
+                        IsTestModeActive = _dbService.CheckIfTestModeActive();
+                        LoadData();
+                        ShowAlert("Restore Complete", "The latest database backup has been restored.");
+                    }
+                    catch (Exception ex)
+                    {
+                        ShowAlert("Restore Failed", ex.Message);
+                    }
+                });
+        }
+
+        [RelayCommand]
+        private void ExportData()
+        {
+            try
+            {
+                var exports = _dbService.ExportData(BackupPath);
+                ShowAlert("Export Complete", $"Portable exports created:\n{exports.JsonPath}\n{exports.CsvPath}");
+            }
+            catch (Exception ex)
+            {
+                ShowAlert("Export Failed", ex.Message);
+            }
+        }
+
         // Called automatically by Window.Closing in MainWindow.axaml.cs
         public void HandleShutdown()
         {
@@ -394,6 +437,73 @@ namespace DadPlanner2.ViewModels
             IsAlertOpen = true;
         }
 
+        private bool ValidateLogInput(
+            string mode,
+            double? clinicalVol,
+            int? concentration,
+            int? motility,
+            int? progMotility,
+            int? morphology,
+            double? phLevel,
+            long timestamp,
+            long? existingId = null)
+        {
+            if (timestamp > DateTimeOffset.UtcNow.ToUnixTimeSeconds())
+            {
+                ShowAlert("Invalid Date", "A log cannot be recorded in the future.");
+                return false;
+            }
+
+            if (Logs.Any(log => log.Id != existingId && log.Timestamp == timestamp))
+            {
+                ShowAlert("Duplicate Log", "A log already exists at this exact date and time.");
+                return false;
+            }
+
+            if (mode != "Clinical-Lab")
+            {
+                return true;
+            }
+
+            if (!clinicalVol.HasValue || clinicalVol.Value <= 0)
+            {
+                ShowAlert("Invalid Clinical Data", "Clinical volume must be greater than zero for a lab record.");
+                return false;
+            }
+
+            if (!concentration.HasValue || concentration.Value < 0)
+            {
+                ShowAlert("Invalid Clinical Data", "Concentration is required and cannot be negative.");
+                return false;
+            }
+
+            if (!motility.HasValue || motility.Value is < 0 or > 100)
+            {
+                ShowAlert("Invalid Clinical Data", "Total motility is required and must be between 0 and 100%.");
+                return false;
+            }
+
+            if (!progMotility.HasValue || progMotility.Value is < 0 or > 100 || progMotility.Value > motility.Value)
+            {
+                ShowAlert("Invalid Clinical Data", "Progressive motility must be between 0 and total motility.");
+                return false;
+            }
+
+            if (!morphology.HasValue || morphology.Value is < 0 or > 100)
+            {
+                ShowAlert("Invalid Clinical Data", "Morphology is required and must be between 0 and 100%.");
+                return false;
+            }
+
+            if (!phLevel.HasValue || phLevel.Value is < 0 or > 14)
+            {
+                ShowAlert("Invalid Clinical Data", "pH is required and must be between 0 and 14.");
+                return false;
+            }
+
+            return true;
+        }
+
         private void LoadData()
         {
             var thresholds = _dbService.GetThresholdSettings();
@@ -455,6 +565,11 @@ namespace DadPlanner2.ViewModels
         {
             string supps = $"{{\"zinc\":{(ZincActive ? 1 : 0)},\"maca\":{(MacaActive ? 1 : 0)},\"vitD\":{(VitDActive ? 1 : 0)},\"vitC\":{(VitCActive ? 1 : 0)}}}";
             long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+            if (!ValidateLogInput(mode, ClinicalVol, Concentration, Motility, ProgMotility, Morphology, PhLevel, timestamp))
+            {
+                return;
+            }
             
             string vol = SelectedVolume;
             if (mode == "Clinical-Lab" && (vol == "None" || vol == "N/A")) vol = "Normal";
@@ -474,6 +589,12 @@ namespace DadPlanner2.ViewModels
         {
             if (!ManualDate.HasValue || !ManualTime.HasValue) return;
             DateTime dt = ManualDate.Value.Date + ManualTime.Value; long ts = new DateTimeOffset(dt).ToUnixTimeSeconds();
+
+            if (!ValidateLogInput(ManualMode, ManualClinicalVol, ManualConcentration, ManualMotility, ManualProgMotility, ManualMorphology, ManualPhLevel, ts))
+            {
+                return;
+            }
+
             int z = ManualZinc ? 1 : 0, m = ManualMaca ? 1 : 0, d = ManualVitD ? 1 : 0, c = ManualVitC ? 1 : 0;
             string vol = ManualVolume;
             if (ManualMode == "Clinical-Lab" && (vol == "None" || vol == "N/A")) vol = "Normal";
@@ -504,6 +625,12 @@ namespace DadPlanner2.ViewModels
         {
             if (!EditDate.HasValue || !EditTime.HasValue) return;
             DateTime dt = EditDate.Value.Date + EditTime.Value; long ts = new DateTimeOffset(dt).ToUnixTimeSeconds();
+
+            if (!ValidateLogInput(EditMode, EditClinicalVol, EditConcentration, EditMotility, EditProgMotility, EditMorphology, EditPhLevel, ts, EditId))
+            {
+                return;
+            }
+
             int z = EditZinc ? 1 : 0, m = EditMaca ? 1 : 0, d = EditVitD ? 1 : 0, c = EditVitC ? 1 : 0;
             string vol = EditVolume;
             if (EditMode == "Clinical-Lab" && (vol == "None" || vol == "N/A")) vol = "Normal";

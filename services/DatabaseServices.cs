@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using System.Runtime.InteropServices;
+using System.Text.Json;
 using Microsoft.Data.Sqlite;
 using QuestPDF.Fluent;
 using QuestPDF.Helpers;
@@ -69,6 +70,86 @@ namespace DadPlanner2.Services
             {
                 ShowNotification("Backup Error", $"Could not create a database backup: {ex.Message}");
             }
+        }
+
+        public string? GetLatestBackup(string backupDirectory)
+        {
+            if (!Directory.Exists(backupDirectory)) return null;
+
+            return new DirectoryInfo(backupDirectory)
+                .GetFiles("inventory-*.db")
+                .OrderByDescending(file => file.CreationTimeUtc)
+                .Select(file => file.FullName)
+                .FirstOrDefault();
+        }
+
+        public void RestoreBackup(string backupPath)
+        {
+            if (!File.Exists(backupPath))
+                throw new FileNotFoundException("The selected backup file was not found.", backupPath);
+
+            using (var validationDb = new SqliteConnection($"Data Source={backupPath};Mode=ReadOnly;"))
+            {
+                validationDb.Open();
+                using var validationCommand = validationDb.CreateCommand();
+                validationCommand.CommandText = "PRAGMA integrity_check;";
+                if (!string.Equals(validationCommand.ExecuteScalar()?.ToString(), "ok", StringComparison.OrdinalIgnoreCase))
+                    throw new InvalidDataException("The selected backup failed SQLite integrity validation.");
+            }
+
+            string temporaryPath = $"{_dbPath}.restore-{Guid.NewGuid():N}";
+            File.Copy(backupPath, temporaryPath);
+
+            try
+            {
+                File.Move(temporaryPath, _dbPath, true);
+                _isDirty = false;
+            }
+            catch
+            {
+                if (File.Exists(temporaryPath)) File.Delete(temporaryPath);
+                throw;
+            }
+        }
+
+        public (string JsonPath, string CsvPath) ExportData(string exportDirectory)
+        {
+            Directory.CreateDirectory(exportDirectory);
+            var logs = GetAllLogs().OrderBy(log => log.Timestamp).ToList();
+            string timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmss-fff");
+            string jsonPath = Path.Combine(exportDirectory, $"dadplanner-export-{timestamp}.json");
+            string csvPath = Path.Combine(exportDirectory, $"dadplanner-export-{timestamp}.csv");
+
+            var jsonOptions = new JsonSerializerOptions { WriteIndented = true };
+            File.WriteAllText(jsonPath, JsonSerializer.Serialize(logs, jsonOptions));
+
+            using var writer = new StreamWriter(csvPath);
+            writer.WriteLine("Id,Timestamp,Date,Mode,Volume,HeatFlag,Supplements,ClinicalVol,Concentration,Motility,ProgMotility,Morphology,PhLevel,HasPdf");
+            foreach (var log in logs)
+            {
+                writer.WriteLine(string.Join(",",
+                    log.Id,
+                    log.Timestamp,
+                    CsvEscape(log.DisplayDate),
+                    CsvEscape(log.Mode),
+                    CsvEscape(log.Volume),
+                    log.HeatFlag,
+                    CsvEscape(log.Supplements),
+                    log.ClinicalVol.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    log.Concentration,
+                    log.Motility,
+                    log.ProgMotility,
+                    log.Morphology,
+                    log.PhLevel.ToString(System.Globalization.CultureInfo.InvariantCulture),
+                    log.HasPdf));
+            }
+
+            return (jsonPath, csvPath);
+        }
+
+        private static string CsvEscape(string value)
+        {
+            return $"\"{value.Replace("\"", "\"\"")}\"";
         }
 
         private void InitializeDatabase()

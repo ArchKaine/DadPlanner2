@@ -69,6 +69,13 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private string _hudFrequency = "--";
         
         [ObservableProperty] private DateTime? _appointmentDate;
+        
+        private string _backupPath = "";
+        public string BackupPath
+        {
+            get => _backupPath;
+            set => SetProperty(ref _backupPath, value);
+        }
 
         [ObservableProperty] private string _selectedMode = "Maintenance";
         [ObservableProperty] private string _selectedVolume = "Normal";
@@ -151,6 +158,9 @@ namespace DadPlanner2.ViewModels
             IsTestModeActive = _dbService.CheckIfTestModeActive();
             SetupChartAxes();
             
+            // Standard OS-Safe path for auto-backups (Works perfectly on Linux/Nobara)
+            BackupPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DadPlanner2", "Backups");
+
             var thresholds = _dbService.GetThresholdSettings();
             MinHours = thresholds.Min;
             MaxHours = thresholds.Max;
@@ -182,10 +192,59 @@ namespace DadPlanner2.ViewModels
         [RelayCommand] private void CloseEditLog() => IsEditLogOpen = false;
         [RelayCommand] private void CloseAlert() => IsAlertOpen = false;
         [RelayCommand] private void ConfirmAlert() { _alertConfirmAction?.Invoke(); IsAlertOpen = false; }
-        [RelayCommand] private void ToggleTestMode() { _dbService.ToggleTestMode(); IsTestModeActive = _dbService.CheckIfTestModeActive(); LoadData(); CloseSettings(); }
-        [RelayCommand] private void SaveSettings() { _dbService.SaveThresholdSettings(MinHours, MaxHours); LoadData(); CloseSettings(); }
+        
+        [RelayCommand] 
+        private void ToggleTestMode() 
+        { 
+            _dbService.ToggleTestMode(); 
+            IsTestModeActive = _dbService.CheckIfTestModeActive(); 
+            _dbService.MarkDirty(); 
+            LoadData(); 
+            CloseSettings(); 
+        }
+
+        [RelayCommand] 
+        private void SaveSettings() 
+        { 
+            _dbService.SaveThresholdSettings(MinHours, MaxHours); 
+            _dbService.MarkDirty();
+            LoadData(); 
+            CloseSettings(); 
+        }
+        
         [RelayCommand] private void GeneratePdf() => _dbService.Generate90DayReport();
         [RelayCommand] private void OpenPdf(long id) => _dbService.OpenLabReportPdf(id);
+
+        [RelayCommand]
+        private void OpenBackupFolder()
+        {
+            if (!Directory.Exists(BackupPath)) Directory.CreateDirectory(BackupPath);
+            
+            try
+            {
+                if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = BackupPath, UseShellExecute = true });
+                else if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux))
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "xdg-open", Arguments = BackupPath }); // Safely supports KDE
+                else if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX))
+                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "open", Arguments = BackupPath });
+            }
+            catch { /* Silent fallback if OS blocks execution */ }
+        }
+
+        [RelayCommand]
+        private void RunManualBackup()
+        {
+            _dbService.MarkDirty();
+            _dbService.ExecuteAutoBackup(BackupPath);
+            ShowAlert("Backup Complete", $"Database successfully backed up to:\n{BackupPath}");
+        }
+
+        // Called automatically by Window.Closing in MainWindow.axaml.cs
+        public void HandleShutdown()
+        {
+            _dbService.ExecuteAutoBackup(BackupPath);
+        }
 
         [RelayCommand]
         private void ZoomChart(string range)
@@ -350,8 +409,8 @@ namespace DadPlanner2.ViewModels
             CheckThermalShadow(); UpdateTelemetry(); UpdateCharts(); UpdateHeatmap(); UpdateBlackoutBanner();
         }
 
-        [RelayCommand] private void SetAppointment() { if (AppointmentDate.HasValue) { _dbService.SetAppointment(new DateTimeOffset(AppointmentDate.Value).ToUnixTimeSeconds()); LoadData(); } }
-        [RelayCommand] private void ClearAppointment() { _dbService.ClearAppointment(); AppointmentDate = null; LoadData(); }
+        [RelayCommand] private void SetAppointment() { if (AppointmentDate.HasValue) { _dbService.SetAppointment(new DateTimeOffset(AppointmentDate.Value).ToUnixTimeSeconds()); _dbService.MarkDirty(); LoadData(); } }
+        [RelayCommand] private void ClearAppointment() { _dbService.ClearAppointment(); AppointmentDate = null; _dbService.MarkDirty(); LoadData(); }
 
         private void UpdateBlackoutBanner()
         {
@@ -403,7 +462,10 @@ namespace DadPlanner2.ViewModels
             
             var log = new LogRecord { Timestamp = timestamp, Mode = mode, Volume = vol, HeatFlag = SelectedHeat, Supplements = supps, ClinicalVol = ClinicalVol ?? 0.0, Concentration = Concentration ?? 0, Motility = Motility ?? 0, ProgMotility = ProgMotility ?? 0, Morphology = Morphology ?? 0, PhLevel = PhLevel ?? 0.0 };
 
-            _dbService.InsertLog(log); _dbService.SaveSupplementsState(ZincActive, MacaActive, VitDActive, VitCActive);
+            _dbService.InsertLog(log); 
+            _dbService.SaveSupplementsState(ZincActive, MacaActive, VitDActive, VitCActive);
+            _dbService.MarkDirty();
+
             LoadData(); ClearForm(); DatabaseService.ShowNotification("Event Logged", $"Successfully recorded {mode} event.");
         }
 
@@ -420,6 +482,8 @@ namespace DadPlanner2.ViewModels
             var newLog = new LogRecord { Timestamp = ts, Mode = ManualMode, Volume = vol, HeatFlag = ManualHeat, Supplements = $"{{\"zinc\":{z},\"maca\":{m},\"vitD\":{d},\"vitC\":{c}}}", ClinicalVol = ManualClinicalVol ?? 0.0, Concentration = ManualConcentration ?? 0, Motility = ManualMotility ?? 0, ProgMotility = ManualProgMotility ?? 0, Morphology = ManualMorphology ?? 0, PhLevel = ManualPhLevel ?? 0.0 };
             
             _dbService.InsertLog(newLog, ManualLabFileName, _manualLabFileData);
+            _dbService.MarkDirty();
+
             ManualLabFileName = null; _manualLabFileData = null; CloseManualLog(); LoadData();
         }
 
@@ -448,10 +512,12 @@ namespace DadPlanner2.ViewModels
             var updatedLog = new LogRecord { Id = EditId, Timestamp = ts, Mode = EditMode, Volume = vol, HeatFlag = EditHeat, Supplements = $"{{\"zinc\":{z},\"maca\":{m},\"vitD\":{d},\"vitC\":{c}}}", ClinicalVol = EditClinicalVol ?? 0.0, Concentration = EditConcentration ?? 0, Motility = EditMotility ?? 0, ProgMotility = EditProgMotility ?? 0, Morphology = EditMorphology ?? 0, PhLevel = EditPhLevel ?? 0.0 };
             
             _dbService.UpdateLog(updatedLog, EditLabFileName, _editLabFileData);
+            _dbService.MarkDirty();
+
             CloseEditLog(); LoadData();
         }
 
-        [RelayCommand] private void DeleteLog(long id) { ShowAlert("Confirm Delete", "Are you sure you want to permanently purge this record?", () => { _dbService.DeleteLog(id); LoadData(); }); }
+        [RelayCommand] private void DeleteLog(long id) { ShowAlert("Confirm Delete", "Are you sure you want to permanently purge this record?", () => { _dbService.DeleteLog(id); _dbService.MarkDirty(); LoadData(); }); }
 
         [RelayCommand] private async Task SelectManualPdf(Window window) { var file = await OpenPdfPicker(window); if (file != null) { ManualLabFileName = file.Value.Name; _manualLabFileData = file.Value.Data; } }
         [RelayCommand] private async Task SelectEditPdf(Window window) { var file = await OpenPdfPicker(window); if (file != null) { EditLabFileName = file.Value.Name; _editLabFileData = file.Value.Data; } }

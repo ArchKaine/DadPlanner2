@@ -22,6 +22,7 @@ namespace DadPlanner2.ViewModels
     {
         private readonly DatabaseService _dbService;
         private readonly TelemetryAnalysisService _telemetryAnalysis = new();
+        private readonly LogValidationService _logValidation = new();
 
         public Action<LogRecord>? RequestScrollToLog;
         [ObservableProperty] private LogRecord? _selectedLog;
@@ -449,60 +450,25 @@ namespace DadPlanner2.ViewModels
             long timestamp,
             long? existingId = null)
         {
-            if (timestamp > DateTimeOffset.UtcNow.ToUnixTimeSeconds())
-            {
-                ShowAlert("Invalid Date", "A log cannot be recorded in the future.");
-                return false;
-            }
+            string? error = _logValidation.Validate(
+                Logs,
+                mode,
+                clinicalVol,
+                concentration,
+                motility,
+                progMotility,
+                morphology,
+                phLevel,
+                timestamp,
+                existingId);
 
-            if (Logs.Any(log => log.Id != existingId && log.Timestamp == timestamp))
-            {
-                ShowAlert("Duplicate Log", "A log already exists at this exact date and time.");
-                return false;
-            }
+            if (error == null) return true;
 
-            if (mode != "Clinical-Lab")
-            {
-                return true;
-            }
-
-            if (!clinicalVol.HasValue || clinicalVol.Value <= 0)
-            {
-                ShowAlert("Invalid Clinical Data", "Clinical volume must be greater than zero for a lab record.");
-                return false;
-            }
-
-            if (!concentration.HasValue || concentration.Value < 0)
-            {
-                ShowAlert("Invalid Clinical Data", "Concentration is required and cannot be negative.");
-                return false;
-            }
-
-            if (!motility.HasValue || motility.Value is < 0 or > 100)
-            {
-                ShowAlert("Invalid Clinical Data", "Total motility is required and must be between 0 and 100%.");
-                return false;
-            }
-
-            if (!progMotility.HasValue || progMotility.Value is < 0 or > 100 || progMotility.Value > motility.Value)
-            {
-                ShowAlert("Invalid Clinical Data", "Progressive motility must be between 0 and total motility.");
-                return false;
-            }
-
-            if (!morphology.HasValue || morphology.Value is < 0 or > 100)
-            {
-                ShowAlert("Invalid Clinical Data", "Morphology is required and must be between 0 and 100%.");
-                return false;
-            }
-
-            if (!phLevel.HasValue || phLevel.Value is < 0 or > 14)
-            {
-                ShowAlert("Invalid Clinical Data", "pH is required and must be between 0 and 14.");
-                return false;
-            }
-
-            return true;
+            string title = error.StartsWith("A log", StringComparison.Ordinal)
+                ? error.StartsWith("A log cannot", StringComparison.Ordinal) ? "Invalid Date" : "Duplicate Log"
+                : "Invalid Clinical Data";
+            ShowAlert(title, error);
+            return false;
         }
 
         private void LoadData()

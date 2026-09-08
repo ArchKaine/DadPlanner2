@@ -22,6 +22,7 @@ public sealed class SupplementSaturationServiceTests
 
         var result = new SupplementSaturationService().Calculate(logs, 200, "zinc", 0);
 
+        Assert.AreEqual(200, result.TargetTimestamp);
         Assert.AreEqual(1, result.ReleaseEventCount);
         Assert.AreEqual(1, result.SupplementEventCount);
         Assert.AreEqual(1.0, result.SupplementProportion);

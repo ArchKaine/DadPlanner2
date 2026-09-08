@@ -29,7 +29,7 @@ This is true open-source, and the main repo will remain completely clean of mode
 
 ## 🏗️ Architecture Stack
 
-* **Backend:** C# / .NET 8.0 (Native OS file-handlers, background processing, QuestPDF document generation)
+* **Backend:** C# / .NET 10 (Native OS file-handlers, background processing, QuestPDF document generation)
 * **Frontend:** Avalonia UI 11 (Native, hardware-accelerated cross-platform desktop UI using XAML and MVVM architecture)
 * **Graphics Engine:** SkiaSharp (Headless rendering for PDF chart injection and high-performance UI drawing)
 * **Database:** SQLite3 (Local Only, WAL-mode enabled, direct C# `SqliteConnection` bindings with BLOB storage for raw medical files)
@@ -83,7 +83,7 @@ This is true open-source, and the main repo will remain completely clean of mode
 
 **Prerequisites:**
 
-* .NET SDK 8.0+ installed on your system.
+* .NET SDK 10.0+ installed on your system.
 * *Note for Linux users: By moving to Avalonia, WebKit2GTK is no longer required. The app renders natively via Skia.*
 
 **Running the Application in Dev Mode:**

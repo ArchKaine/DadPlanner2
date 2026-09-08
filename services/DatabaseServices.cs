@@ -23,6 +23,7 @@ namespace DadPlanner2.Services
         private readonly string _dbDir;
         private readonly string _dbPath;
         private readonly string _connectionString;
+        private bool _isDirty;
 
         public DatabaseService()
         {
@@ -32,6 +33,42 @@ namespace DadPlanner2.Services
 
             QuestPDF.Settings.License = LicenseType.Community;
             InitializeDatabase();
+        }
+
+        public void MarkDirty() => _isDirty = true;
+
+        public void ExecuteAutoBackup(string backupDirectory)
+        {
+            if (!_isDirty) return;
+
+            try
+            {
+                Directory.CreateDirectory(backupDirectory);
+                string backupPath = Path.Combine(
+                    backupDirectory,
+                    $"inventory-{DateTime.Now:yyyyMMdd-HHmmss-fff}.db");
+
+                using var db = new SqliteConnection(_connectionString);
+                db.Open();
+
+                using var backupCmd = db.CreateCommand();
+                backupCmd.CommandText = $"VACUUM INTO '{backupPath.Replace("'", "''")}'";
+                backupCmd.ExecuteNonQuery();
+
+                var backups = new DirectoryInfo(backupDirectory)
+                    .GetFiles("inventory-*.db")
+                    .OrderByDescending(file => file.CreationTimeUtc)
+                    .ToList();
+
+                foreach (var oldBackup in backups.Skip(10))
+                    oldBackup.Delete();
+
+                _isDirty = false;
+            }
+            catch (Exception ex)
+            {
+                ShowNotification("Backup Error", $"Could not create a database backup: {ex.Message}");
+            }
         }
 
         private void InitializeDatabase()

@@ -168,11 +168,13 @@ public sealed class ReportDocumentService
                         {
                             table.ColumnsDefinition(columns =>
                             {
-                                columns.ConstantColumn(80);
-                                columns.RelativeColumn(3);
+                                columns.ConstantColumn(70);
+                                columns.RelativeColumn(2);
+                                columns.RelativeColumn(2);
+                                columns.ConstantColumn(38);
                                 columns.RelativeColumn(2);
                                 columns.RelativeColumn(3);
-                                columns.RelativeColumn(7);
+                                columns.RelativeColumn(6);
                             });
 
                             table.Header(header =>
@@ -180,6 +182,8 @@ public sealed class ReportDocumentService
                                 header.Cell().BorderBottom(2).BorderColor(Colors.Black).PaddingBottom(5).Text("Date").SemiBold();
                                 header.Cell().BorderBottom(2).BorderColor(Colors.Black).PaddingBottom(5).Text("Mode").SemiBold();
                                 header.Cell().BorderBottom(2).BorderColor(Colors.Black).PaddingBottom(5).Text("Vol").SemiBold();
+                                header.Cell().BorderBottom(2).BorderColor(Colors.Black).PaddingBottom(5).Text("Count").SemiBold();
+                                header.Cell().BorderBottom(2).BorderColor(Colors.Black).PaddingBottom(5).Text("Confidence").SemiBold();
                                 header.Cell().BorderBottom(2).BorderColor(Colors.Black).PaddingBottom(5).Text("Supplements").SemiBold();
                                 header.Cell().BorderBottom(2).BorderColor(Colors.Black).PaddingBottom(5).Text("Lab Results").SemiBold();
                             });
@@ -212,6 +216,8 @@ public sealed class ReportDocumentService
                                 table.Cell().Background(backgroundColor).PaddingVertical(5).PaddingHorizontal(2).Text(date).FontSize(9);
                                 table.Cell().Background(backgroundColor).PaddingVertical(5).PaddingHorizontal(2).Text(log.Mode).FontSize(9);
                                 table.Cell().Background(backgroundColor).PaddingVertical(5).PaddingHorizontal(2).Text(log.Volume).FontSize(9);
+                                table.Cell().Background(backgroundColor).PaddingVertical(5).PaddingHorizontal(2).Text(log.ReleaseCount.ToString()).FontSize(9);
+                                table.Cell().Background(backgroundColor).PaddingVertical(5).PaddingHorizontal(2).Text(log.VolumeConfidence.ToString()).FontSize(8);
                                 table.Cell().Background(backgroundColor).PaddingVertical(5).PaddingHorizontal(2).Text(combinedSupps).FontSize(9);
                                 table.Cell().Background(backgroundColor).PaddingVertical(5).PaddingHorizontal(2).Text(labStr).FontSize(8).SemiBold();
 

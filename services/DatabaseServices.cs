@@ -109,6 +109,9 @@ namespace DadPlanner2.Services
             try
             {
                 File.Move(temporaryPath, _dbPath, true);
+                using var migratedDb = new SqliteConnection(_connectionString);
+                migratedDb.Open();
+                EnsureLogColumns(migratedDb);
                 _isDirty = false;
             }
             catch
@@ -178,42 +181,57 @@ namespace DadPlanner2.Services
                 ";
                 cmd.ExecuteNonQuery();
 
-                string[] alterStatements = {
-                    "ALTER TABLE Logs ADD COLUMN Mode TEXT DEFAULT 'Maintenance'",
-                    "ALTER TABLE Logs ADD COLUMN Volume TEXT DEFAULT 'Normal'",
-                    "ALTER TABLE Logs ADD COLUMN HeatFlag INTEGER DEFAULT 0",
-                    "ALTER TABLE Logs ADD COLUMN ZincFlag INTEGER DEFAULT 0",
-                    "ALTER TABLE Logs ADD COLUMN MacaFlag INTEGER DEFAULT 0",
-                    "ALTER TABLE Logs ADD COLUMN Concentration INTEGER",
-                    "ALTER TABLE Logs ADD COLUMN Motility INTEGER",
-                    "ALTER TABLE Logs ADD COLUMN Morphology INTEGER",
-                    "ALTER TABLE Logs ADD COLUMN LabReportBlob BLOB",
-                    "ALTER TABLE Logs ADD COLUMN LabReportFileName TEXT",
-                    "ALTER TABLE Logs ADD COLUMN ClinicalVol REAL",
-                    "ALTER TABLE Logs ADD COLUMN ProgMotility INTEGER",
-                    "ALTER TABLE Logs ADD COLUMN PhLevel REAL",
-                    "ALTER TABLE Logs ADD COLUMN Supplements TEXT DEFAULT '{}'"
-                };
-
-                foreach (var stmt in alterStatements)
-                {
-                    try
-                    {
-                        using var alterCmd = db.CreateCommand();
-                        alterCmd.CommandText = stmt;
-                        alterCmd.ExecuteNonQuery();
-                    }
-                    catch (SqliteException ex) when (DatabaseMigrationPolicy.IsAlreadyApplied(ex))
-                    {
-                        // SQLite has no portable ADD COLUMN IF NOT EXISTS syntax.
-                    }
-                }
+                EnsureLogColumns(db);
             }
 
             catch (Exception ex)
             {
                 ShowNotification("Init Error", ex.Message);
             }
+        }
+
+        private static void EnsureLogColumns(SqliteConnection db)
+        {
+            string[] alterStatements = {
+                "ALTER TABLE Logs ADD COLUMN Mode TEXT DEFAULT 'Maintenance'",
+                "ALTER TABLE Logs ADD COLUMN Volume TEXT DEFAULT 'Normal'",
+                "ALTER TABLE Logs ADD COLUMN ReleaseCount INTEGER DEFAULT 1",
+                "ALTER TABLE Logs ADD COLUMN VolumeConfidence TEXT DEFAULT 'Unknown'",
+                "ALTER TABLE Logs ADD COLUMN HeatFlag INTEGER DEFAULT 0",
+                "ALTER TABLE Logs ADD COLUMN ZincFlag INTEGER DEFAULT 0",
+                "ALTER TABLE Logs ADD COLUMN MacaFlag INTEGER DEFAULT 0",
+                "ALTER TABLE Logs ADD COLUMN Concentration INTEGER",
+                "ALTER TABLE Logs ADD COLUMN Motility INTEGER",
+                "ALTER TABLE Logs ADD COLUMN Morphology INTEGER",
+                "ALTER TABLE Logs ADD COLUMN LabReportBlob BLOB",
+                "ALTER TABLE Logs ADD COLUMN LabReportFileName TEXT",
+                "ALTER TABLE Logs ADD COLUMN ClinicalVol REAL",
+                "ALTER TABLE Logs ADD COLUMN ProgMotility INTEGER",
+                "ALTER TABLE Logs ADD COLUMN PhLevel REAL",
+                "ALTER TABLE Logs ADD COLUMN Supplements TEXT DEFAULT '{}'"
+            };
+
+            foreach (var stmt in alterStatements)
+            {
+                try
+                {
+                    using var alterCmd = db.CreateCommand();
+                    alterCmd.CommandText = stmt;
+                    alterCmd.ExecuteNonQuery();
+                }
+                catch (SqliteException ex) when (DatabaseMigrationPolicy.IsAlreadyApplied(ex))
+                {
+                    // SQLite has no portable ADD COLUMN IF NOT EXISTS syntax.
+                }
+            }
+        }
+
+        private static VolumeConfidence ParseVolumeConfidence(string value)
+        {
+            return Enum.TryParse<VolumeConfidence>(value, true, out var confidence) &&
+                   Enum.IsDefined(confidence)
+                ? confidence
+                : VolumeConfidence.Unknown;
         }
 
         public List<LogRecord> GetAllLogs()
@@ -224,7 +242,8 @@ namespace DadPlanner2.Services
 
             using var cmdLogs = db.CreateCommand();
             cmdLogs.CommandText = @"
-                SELECT Id, Timestamp, IFNULL(Mode, 'Maintenance'), IFNULL(Volume, 'Normal'), 
+                SELECT Id, Timestamp, IFNULL(Mode, 'Maintenance'), IFNULL(Volume, 'Normal'),
+                IFNULL(ReleaseCount, 1), IFNULL(VolumeConfidence, 'Unknown'),
                 IFNULL(HeatFlag, 0), IFNULL(Supplements, '{}'), IFNULL(Concentration, 0), 
                 IFNULL(Motility, 0), IFNULL(Morphology, 0), LabReportFileName, 
                 IFNULL(ClinicalVol, 0.0), IFNULL(ProgMotility, 0), IFNULL(PhLevel, 0.0) 
@@ -239,15 +258,17 @@ namespace DadPlanner2.Services
                     Timestamp = reader.GetInt64(1),
                     Mode = reader.GetString(2),
                     Volume = reader.GetString(3),
-                    HeatFlag = Convert.ToInt32(reader.GetValue(4)),
-                    Supplements = reader.GetString(5),
-                    Concentration = Convert.ToInt32(reader.GetValue(6)),
-                    Motility = Convert.ToInt32(reader.GetValue(7)),
-                    Morphology = Convert.ToInt32(reader.GetValue(8)),
-                    HasPdf = !reader.IsDBNull(9),
-                    ClinicalVol = Convert.ToDouble(reader.GetValue(10)),
-                    ProgMotility = Convert.ToInt32(reader.GetValue(11)),
-                    PhLevel = Convert.ToDouble(reader.GetValue(12))
+                    ReleaseCount = Math.Max(1, Convert.ToInt32(reader.GetValue(4))),
+                    VolumeConfidence = ParseVolumeConfidence(reader.GetString(5)),
+                    HeatFlag = Convert.ToInt32(reader.GetValue(6)),
+                    Supplements = reader.GetString(7),
+                    Concentration = Convert.ToInt32(reader.GetValue(8)),
+                    Motility = Convert.ToInt32(reader.GetValue(9)),
+                    Morphology = Convert.ToInt32(reader.GetValue(10)),
+                    HasPdf = !reader.IsDBNull(11),
+                    ClinicalVol = Convert.ToDouble(reader.GetValue(12)),
+                    ProgMotility = Convert.ToInt32(reader.GetValue(13)),
+                    PhLevel = Convert.ToDouble(reader.GetValue(14))
                 });
             }
             return logs;
@@ -260,8 +281,8 @@ namespace DadPlanner2.Services
 
             using var cmd = db.CreateCommand();
             cmd.CommandText = @"
-                INSERT INTO Logs (Timestamp, Mode, Volume, HeatFlag, Supplements, Concentration, Motility, Morphology, ClinicalVol, ProgMotility, PhLevel, LabReportFileName, LabReportBlob) 
-                VALUES ($ts, $mode, $vol, $heat, $supps, $conc, $mot, $morph, $cvol, $pmot, $ph, $fname, $blob)";
+                INSERT INTO Logs (Timestamp, Mode, Volume, ReleaseCount, VolumeConfidence, HeatFlag, Supplements, Concentration, Motility, Morphology, ClinicalVol, ProgMotility, PhLevel, LabReportFileName, LabReportBlob)
+                VALUES ($ts, $mode, $vol, $count, $confidence, $heat, $supps, $conc, $mot, $morph, $cvol, $pmot, $ph, $fname, $blob)";
 
             BindLogParameters(cmd, log, fileName, pdfBlob);
             cmd.ExecuteNonQuery();
@@ -276,7 +297,7 @@ namespace DadPlanner2.Services
             string updateBlob = pdfBlob != null ? ", LabReportFileName = $fname, LabReportBlob = $blob" : "";
             cmd.CommandText = $@"
                 UPDATE Logs SET 
-                    Timestamp = $ts, Mode = $mode, Volume = $vol, 
+                    Timestamp = $ts, Mode = $mode, Volume = $vol, ReleaseCount = $count, VolumeConfidence = $confidence,
                     HeatFlag = $heat, Supplements = $supps, 
                     ClinicalVol = $cvol, Concentration = $conc, Motility = $mot, 
                     ProgMotility = $pmot, Morphology = $morph, PhLevel = $ph 
@@ -303,6 +324,8 @@ namespace DadPlanner2.Services
             cmd.Parameters.AddWithValue("$ts", log.Timestamp);
             cmd.Parameters.AddWithValue("$mode", log.Mode);
             cmd.Parameters.AddWithValue("$vol", log.Volume);
+            cmd.Parameters.AddWithValue("$count", log.ReleaseCount);
+            cmd.Parameters.AddWithValue("$confidence", log.VolumeConfidence.ToString());
             cmd.Parameters.AddWithValue("$heat", log.HeatFlag);
             cmd.Parameters.AddWithValue("$supps", log.Supplements);
             cmd.Parameters.AddWithValue("$conc", log.Concentration);
@@ -432,6 +455,7 @@ namespace DadPlanner2.Services
                     ALTER TABLE Appointments_Backup RENAME TO Appointments;
                 ";
                 restoreCmd.ExecuteNonQuery();
+                EnsureLogColumns(db);
             }
             else
             {
@@ -441,7 +465,7 @@ namespace DadPlanner2.Services
                     ALTER TABLE Settings RENAME TO Settings_Backup;
                     ALTER TABLE Appointments RENAME TO Appointments_Backup;
                     
-                    CREATE TABLE Logs (Id INTEGER PRIMARY KEY AUTOINCREMENT, Timestamp INTEGER, Mode TEXT DEFAULT 'Maintenance', Volume TEXT DEFAULT 'Normal', HeatFlag INTEGER DEFAULT 0, Supplements TEXT DEFAULT '{}', Concentration INTEGER, Motility INTEGER, Morphology INTEGER, ClinicalVol REAL, ProgMotility INTEGER, PhLevel REAL, LabReportBlob BLOB, LabReportFileName TEXT);
+                    CREATE TABLE Logs (Id INTEGER PRIMARY KEY AUTOINCREMENT, Timestamp INTEGER, Mode TEXT DEFAULT 'Maintenance', Volume TEXT DEFAULT 'Normal', ReleaseCount INTEGER DEFAULT 1, VolumeConfidence TEXT DEFAULT 'Unknown', HeatFlag INTEGER DEFAULT 0, Supplements TEXT DEFAULT '{}', Concentration INTEGER, Motility INTEGER, Morphology INTEGER, ClinicalVol REAL, ProgMotility INTEGER, PhLevel REAL, LabReportBlob BLOB, LabReportFileName TEXT);
                     
                     CREATE TABLE Settings (Key TEXT PRIMARY KEY, Value TEXT);
                     INSERT INTO Settings SELECT * FROM Settings_Backup;

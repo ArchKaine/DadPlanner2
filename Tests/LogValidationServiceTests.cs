@@ -56,4 +56,34 @@ public sealed class LogValidationServiceTests
 
         Assert.IsNull(error);
     }
+
+    [TestMethod]
+    public void Validate_RequiresPositiveReleaseCount()
+    {
+        var error = _service.Validate(
+            Array.Empty<LogRecord>(), "Maintenance", null, null, null, null, null, null, 1000,
+            releaseCount: 0);
+
+        Assert.AreEqual("Release count must be a positive whole number.", error);
+    }
+
+    [TestMethod]
+    public void Validate_RejectsInvalidVolumeConfidence()
+    {
+        var error = _service.Validate(
+            Array.Empty<LogRecord>(), "Maintenance", null, null, null, null, null, null, 1000,
+            volumeConfidence: (VolumeConfidence)99);
+
+        Assert.AreEqual("Volume confidence must be Observed, Estimated, or Unknown.", error);
+    }
+
+    [TestMethod]
+    public void Validate_AllowsReleaseCountAndConfidence()
+    {
+        var error = _service.Validate(
+            Array.Empty<LogRecord>(), "Maintenance", null, null, null, null, null, null, 1000,
+            releaseCount: 2, volumeConfidence: VolumeConfidence.Observed);
+
+        Assert.IsNull(error);
+    }
 }

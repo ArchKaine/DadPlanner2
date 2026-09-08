@@ -83,6 +83,8 @@ namespace DadPlanner2.ViewModels
 
         [ObservableProperty] private string _selectedMode = "Maintenance";
         [ObservableProperty] private string _selectedVolume = "Normal";
+        [ObservableProperty] private int _selectedReleaseCount = 1;
+        [ObservableProperty] private VolumeConfidence _selectedVolumeConfidence = VolumeConfidence.Observed;
         [ObservableProperty] private int _selectedHeat = 0;
         [ObservableProperty] private bool _zincActive;
         [ObservableProperty] private bool _macaActive;
@@ -101,6 +103,8 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private TimeSpan? _manualTime = DateTime.Now.TimeOfDay;
         [ObservableProperty] private string _manualMode = "Maintenance";
         [ObservableProperty] private string _manualVolume = "Normal";
+        [ObservableProperty] private int _manualReleaseCount = 1;
+        [ObservableProperty] private VolumeConfidence _manualVolumeConfidence = VolumeConfidence.Observed;
         [ObservableProperty] private int _manualHeat = 0;
         [ObservableProperty] private bool _manualZinc;
         [ObservableProperty] private bool _manualMaca;
@@ -122,6 +126,8 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private TimeSpan? _editTime;
         [ObservableProperty] private string _editMode = "Maintenance";
         [ObservableProperty] private string _editVolume = "Normal";
+        [ObservableProperty] private int _editReleaseCount = 1;
+        [ObservableProperty] private VolumeConfidence _editVolumeConfidence = VolumeConfidence.Unknown;
         [ObservableProperty] private int _editHeat = 0;
         [ObservableProperty] private bool _editZinc;
         [ObservableProperty] private bool _editMaca;
@@ -461,7 +467,9 @@ namespace DadPlanner2.ViewModels
             int? morphology,
             double? phLevel,
             long timestamp,
-            long? existingId = null)
+            long? existingId = null,
+            int releaseCount = 1,
+            VolumeConfidence volumeConfidence = VolumeConfidence.Unknown)
         {
             string? error = _logValidation.Validate(
                 Logs,
@@ -473,13 +481,15 @@ namespace DadPlanner2.ViewModels
                 morphology,
                 phLevel,
                 timestamp,
-                existingId);
+                existingId,
+                releaseCount,
+                volumeConfidence);
 
             if (error == null) return true;
 
             string title = error.StartsWith("A log", StringComparison.Ordinal)
                 ? error.StartsWith("A log cannot", StringComparison.Ordinal) ? "Invalid Date" : "Duplicate Log"
-                : "Invalid Clinical Data";
+                : "Invalid Log Data";
             ShowAlert(title, error);
             return false;
         }
@@ -540,7 +550,7 @@ namespace DadPlanner2.ViewModels
             string supps = $"{{\"zinc\":{(ZincActive ? 1 : 0)},\"maca\":{(MacaActive ? 1 : 0)},\"vitD\":{(VitDActive ? 1 : 0)},\"vitC\":{(VitCActive ? 1 : 0)}}}";
             long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
-            if (!ValidateLogInput(mode, ClinicalVol, Concentration, Motility, ProgMotility, Morphology, PhLevel, timestamp))
+            if (!ValidateLogInput(mode, ClinicalVol, Concentration, Motility, ProgMotility, Morphology, PhLevel, timestamp, null, SelectedReleaseCount, SelectedVolumeConfidence))
             {
                 return;
             }
@@ -548,8 +558,9 @@ namespace DadPlanner2.ViewModels
             string vol = SelectedVolume;
             if (mode == "Clinical-Lab" && (vol == "None" || vol == "N/A")) vol = "Normal";
             if (mode == "Baby-Making") vol = EstimateBabyMakingVolume(timestamp);
+            var confidence = mode == "Baby-Making" ? VolumeConfidence.Estimated : SelectedVolumeConfidence;
             
-            var log = new LogRecord { Timestamp = timestamp, Mode = mode, Volume = vol, HeatFlag = SelectedHeat, Supplements = supps, ClinicalVol = ClinicalVol ?? 0.0, Concentration = Concentration ?? 0, Motility = Motility ?? 0, ProgMotility = ProgMotility ?? 0, Morphology = Morphology ?? 0, PhLevel = PhLevel ?? 0.0 };
+            var log = new LogRecord { Timestamp = timestamp, Mode = mode, Volume = vol, ReleaseCount = SelectedReleaseCount, VolumeConfidence = confidence, HeatFlag = SelectedHeat, Supplements = supps, ClinicalVol = ClinicalVol ?? 0.0, Concentration = Concentration ?? 0, Motility = Motility ?? 0, ProgMotility = ProgMotility ?? 0, Morphology = Morphology ?? 0, PhLevel = PhLevel ?? 0.0 };
 
             _dbService.InsertLog(log); 
             _dbService.SaveSupplementsState(ZincActive, MacaActive, VitDActive, VitCActive);
@@ -564,7 +575,7 @@ namespace DadPlanner2.ViewModels
             if (!ManualDate.HasValue || !ManualTime.HasValue) return;
             DateTime dt = ManualDate.Value.Date + ManualTime.Value; long ts = new DateTimeOffset(dt).ToUnixTimeSeconds();
 
-            if (!ValidateLogInput(ManualMode, ManualClinicalVol, ManualConcentration, ManualMotility, ManualProgMotility, ManualMorphology, ManualPhLevel, ts))
+            if (!ValidateLogInput(ManualMode, ManualClinicalVol, ManualConcentration, ManualMotility, ManualProgMotility, ManualMorphology, ManualPhLevel, ts, null, ManualReleaseCount, ManualVolumeConfidence))
             {
                 return;
             }
@@ -573,8 +584,9 @@ namespace DadPlanner2.ViewModels
             string vol = ManualVolume;
             if (ManualMode == "Clinical-Lab" && (vol == "None" || vol == "N/A")) vol = "Normal";
             if (ManualMode == "Baby-Making") vol = EstimateBabyMakingVolume(ts);
+            var confidence = ManualMode == "Baby-Making" ? VolumeConfidence.Estimated : ManualVolumeConfidence;
 
-            var newLog = new LogRecord { Timestamp = ts, Mode = ManualMode, Volume = vol, HeatFlag = ManualHeat, Supplements = $"{{\"zinc\":{z},\"maca\":{m},\"vitD\":{d},\"vitC\":{c}}}", ClinicalVol = ManualClinicalVol ?? 0.0, Concentration = ManualConcentration ?? 0, Motility = ManualMotility ?? 0, ProgMotility = ManualProgMotility ?? 0, Morphology = ManualMorphology ?? 0, PhLevel = ManualPhLevel ?? 0.0 };
+            var newLog = new LogRecord { Timestamp = ts, Mode = ManualMode, Volume = vol, ReleaseCount = ManualReleaseCount, VolumeConfidence = confidence, HeatFlag = ManualHeat, Supplements = $"{{\"zinc\":{z},\"maca\":{m},\"vitD\":{d},\"vitC\":{c}}}", ClinicalVol = ManualClinicalVol ?? 0.0, Concentration = ManualConcentration ?? 0, Motility = ManualMotility ?? 0, ProgMotility = ManualProgMotility ?? 0, Morphology = ManualMorphology ?? 0, PhLevel = ManualPhLevel ?? 0.0 };
             
             _dbService.InsertLog(newLog, ManualLabFileName, _manualLabFileData);
             _dbService.MarkDirty();
@@ -588,7 +600,7 @@ namespace DadPlanner2.ViewModels
             var log = Logs.FirstOrDefault(l => l.Id == id);
             if (log == null) return;
             EditId = log.Id; var dtOffset = DateTimeOffset.FromUnixTimeSeconds(log.Timestamp).ToLocalTime(); EditDate = dtOffset.Date; EditTime = dtOffset.TimeOfDay;
-            EditMode = log.Mode; EditVolume = log.Volume; EditHeat = log.HeatFlag;
+            EditMode = log.Mode; EditVolume = log.Volume; EditReleaseCount = log.ReleaseCount; EditVolumeConfidence = log.VolumeConfidence; EditHeat = log.HeatFlag;
             EditZinc = log.Supplements.Contains("\"zinc\":1"); EditMaca = log.Supplements.Contains("\"maca\":1"); EditVitD = log.Supplements.Contains("\"vitD\":1"); EditVitC = log.Supplements.Contains("\"vitC\":1");
             EditClinicalVol = log.ClinicalVol > 0 ? log.ClinicalVol : null; EditConcentration = log.Concentration > 0 ? log.Concentration : null; EditMotility = log.Motility > 0 ? log.Motility : null; EditProgMotility = log.ProgMotility > 0 ? log.ProgMotility : null; EditMorphology = log.Morphology > 0 ? log.Morphology : null; EditPhLevel = log.PhLevel > 0 ? log.PhLevel : null;
             EditLabFileName = null; _editLabFileData = null; IsEditLogOpen = true;
@@ -600,7 +612,7 @@ namespace DadPlanner2.ViewModels
             if (!EditDate.HasValue || !EditTime.HasValue) return;
             DateTime dt = EditDate.Value.Date + EditTime.Value; long ts = new DateTimeOffset(dt).ToUnixTimeSeconds();
 
-            if (!ValidateLogInput(EditMode, EditClinicalVol, EditConcentration, EditMotility, EditProgMotility, EditMorphology, EditPhLevel, ts, EditId))
+            if (!ValidateLogInput(EditMode, EditClinicalVol, EditConcentration, EditMotility, EditProgMotility, EditMorphology, EditPhLevel, ts, EditId, EditReleaseCount, EditVolumeConfidence))
             {
                 return;
             }
@@ -609,8 +621,9 @@ namespace DadPlanner2.ViewModels
             string vol = EditVolume;
             if (EditMode == "Clinical-Lab" && (vol == "None" || vol == "N/A")) vol = "Normal";
             if (EditMode == "Baby-Making") vol = EstimateBabyMakingVolume(ts);
+            var confidence = EditMode == "Baby-Making" ? VolumeConfidence.Estimated : EditVolumeConfidence;
 
-            var updatedLog = new LogRecord { Id = EditId, Timestamp = ts, Mode = EditMode, Volume = vol, HeatFlag = EditHeat, Supplements = $"{{\"zinc\":{z},\"maca\":{m},\"vitD\":{d},\"vitC\":{c}}}", ClinicalVol = EditClinicalVol ?? 0.0, Concentration = EditConcentration ?? 0, Motility = EditMotility ?? 0, ProgMotility = EditProgMotility ?? 0, Morphology = EditMorphology ?? 0, PhLevel = EditPhLevel ?? 0.0 };
+            var updatedLog = new LogRecord { Id = EditId, Timestamp = ts, Mode = EditMode, Volume = vol, ReleaseCount = EditReleaseCount, VolumeConfidence = confidence, HeatFlag = EditHeat, Supplements = $"{{\"zinc\":{z},\"maca\":{m},\"vitD\":{d},\"vitC\":{c}}}", ClinicalVol = EditClinicalVol ?? 0.0, Concentration = EditConcentration ?? 0, Motility = EditMotility ?? 0, ProgMotility = EditProgMotility ?? 0, Morphology = EditMorphology ?? 0, PhLevel = EditPhLevel ?? 0.0 };
             
             _dbService.UpdateLog(updatedLog, EditLabFileName, _editLabFileData);
             _dbService.MarkDirty();
@@ -774,20 +787,14 @@ namespace DadPlanner2.ViewModels
             long cutoffTimestamp = now - thirtyDaysInSeconds;
             
             var recentEvents = Logs.Where(l => l.Timestamp >= cutoffTimestamp).ToList();
-            
+
             if (recentEvents.Count == 0)
             {
                 HudFrequency = "0.0/wk";
             }
             else
             {
-                long firstEventEver = Logs.Min(l => l.Timestamp);
-                long effectiveStart = Math.Max(cutoffTimestamp, firstEventEver);
-                double daysActive = (now - effectiveStart) / 86400.0;
-                
-                if (daysActive < 1.0) daysActive = 1.0;
-
-                double eventsPerWeek = (recentEvents.Count / daysActive) * 7.0;
+                double eventsPerWeek = _telemetryAnalysis.CalculateFrequencyPerWeek(Logs, now);
                 HudFrequency = $"{eventsPerWeek:F1}/wk";
             }
         }
@@ -897,7 +904,7 @@ namespace DadPlanner2.ViewModels
             if (point.Index >= 0 && point.Index < releaseLogs.Count) { var log = releaseLogs[point.Index]; SelectedLog = log; RequestScrollToLog?.Invoke(log); }
         }
 
-        private void ClearForm() { SelectedVolume = "Normal"; SelectedHeat = 0; ClinicalVol = null; Concentration = null; Motility = null; ProgMotility = null; Morphology = null; PhLevel = null; }  
+        private void ClearForm() { SelectedVolume = "Normal"; SelectedReleaseCount = 1; SelectedVolumeConfidence = VolumeConfidence.Observed; SelectedHeat = 0; ClinicalVol = null; Concentration = null; Motility = null; ProgMotility = null; Morphology = null; PhLevel = null; }  
         private void SetupChartAxes() { XAxes = new[] { new Axis { LabelsPaint = new SolidColorPaint(SKColors.Gray) } }; YAxes = new[] { new Axis { Name = "Gap (Hrs)", LabelsPaint = new SolidColorPaint(SKColors.Gray) } }; VolumeXAxes = new[] { new Axis { LabelsPaint = new SolidColorPaint(SKColors.Gray) } }; }
     }
 

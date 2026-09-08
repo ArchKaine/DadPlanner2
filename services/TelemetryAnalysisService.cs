@@ -34,6 +34,24 @@ public sealed class TelemetryAnalysisService
         return new RecoveryMetrics(currentHours, gaps.Average(), gaps.Max(), true);
     }
 
+    public double CalculateFrequencyPerWeek(IEnumerable<LogRecord> logs, long now, int windowDays = 30)
+    {
+        if (windowDays <= 0)
+            throw new ArgumentOutOfRangeException(nameof(windowDays));
+
+        var allLogs = logs.ToList();
+        long cutoffTimestamp = now - (windowDays * 24L * 3600L);
+        var recentLogs = allLogs.Where(log => log.Timestamp >= cutoffTimestamp).ToList();
+        if (recentLogs.Count == 0)
+            return 0;
+
+        long firstEventEver = allLogs.Min(log => log.Timestamp);
+        long effectiveStart = Math.Max(cutoffTimestamp, firstEventEver);
+        double daysActive = Math.Max(1.0, (now - effectiveStart) / 86400.0);
+        long releaseCount = recentLogs.Sum(log => Math.Max(1, log.ReleaseCount));
+        return (releaseCount / daysActive) * 7.0;
+    }
+
     public bool HasActiveThermalShadow(IEnumerable<LogRecord> logs, long now, out LogRecord? latestHeat)
     {
         long shadowStart = now - (ThermalShadowDays * 24L * 3600L);

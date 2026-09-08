@@ -532,12 +532,21 @@ namespace DadPlanner2.Services
                     ph = rand.NextDouble() * 0.8 + 7.2;
                     randomVol = "High"; 
                 }
+
+                int releaseCount = i % 15 == 0 ? 3 : i % 7 == 0 ? 2 : 1;
+                string volumeConfidence = randomMode == "Clinical-Lab"
+                    ? nameof(VolumeConfidence.Observed)
+                    : releaseCount > 1
+                        ? (i % 2 == 0 ? nameof(VolumeConfidence.Estimated) : nameof(VolumeConfidence.Unknown))
+                        : nameof(VolumeConfidence.Observed);
                 
                 using var insertCmd = db.CreateCommand();
-                insertCmd.CommandText = "INSERT INTO Logs (Timestamp, Mode, Volume, HeatFlag, Supplements, Concentration, Motility, Morphology, ClinicalVol, ProgMotility, PhLevel) VALUES ($ts, $mode, $vol, $heat, $supps, $conc, $mot, $morph, $cvol, $pmot, $ph)";
+                insertCmd.CommandText = "INSERT INTO Logs (Timestamp, Mode, Volume, ReleaseCount, VolumeConfidence, HeatFlag, Supplements, Concentration, Motility, Morphology, ClinicalVol, ProgMotility, PhLevel) VALUES ($ts, $mode, $vol, $count, $confidence, $heat, $supps, $conc, $mot, $morph, $cvol, $pmot, $ph)";
                 insertCmd.Parameters.AddWithValue("$ts", currentTs);
                 insertCmd.Parameters.AddWithValue("$mode", randomMode);
                 insertCmd.Parameters.AddWithValue("$vol", randomVol);
+                insertCmd.Parameters.AddWithValue("$count", releaseCount);
+                insertCmd.Parameters.AddWithValue("$confidence", volumeConfidence);
                 insertCmd.Parameters.AddWithValue("$heat", randomHeat);
                 insertCmd.Parameters.AddWithValue("$supps", fakeSupps);
                 insertCmd.Parameters.AddWithValue("$conc", conc);

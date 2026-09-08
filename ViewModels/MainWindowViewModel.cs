@@ -653,7 +653,9 @@ namespace DadPlanner2.ViewModels
         {
             if (Logs.Count < 10) { ShowAlert("Error", "Need more data points to run statistical analysis. Keep logging!"); return; }
 
-            var analysis = _supplementAnalysis.Analyze(Logs, GetSupplementSaturation);
+            var analysis = _supplementAnalysis.Analyze(
+                Logs,
+                (timestamp, supplement, days) => _supplementSaturation.Calculate(Logs, timestamp, supplement, days));
             if (analysis.InsufficientData)
             {
                 ShowAlert("Analysis Needs More Data", "Too few uncompromised release events remain after thermal-shadow filtering.");
@@ -690,7 +692,9 @@ namespace DadPlanner2.ViewModels
             string caution = comparison.SaturatedCount < 5 || comparison.UnsaturatedCount < 5
                 ? "Caution: small group size; treat this comparison as exploratory."
                 : "";
+            string audit = FormatSaturationAudit(comparison);
             return $"[{label} - {comparison.WindowDays}-DAY WINDOW]\n"
+                + audit
                 + $"Saturated: {comparison.SaturatedSuccesses?.ToString() ?? "n/a"}/{comparison.SaturatedCount} successful ({saturatedRate})\n"
                 + $"Unsaturated: {comparison.UnsaturatedSuccesses?.ToString() ?? "n/a"}/{comparison.UnsaturatedCount} successful ({unsaturatedRate})\n"
                 + $"{association}\n"
@@ -706,12 +710,23 @@ namespace DadPlanner2.ViewModels
             string caution = comparison.SaturatedCount < 5 || comparison.UnsaturatedCount < 5
                 ? "Caution: small group size; treat this comparison as exploratory."
                 : "";
+            string audit = FormatSaturationAudit(comparison);
             return $"[{label} - {comparison.WindowDays}-DAY WINDOW]\n"
+                + audit
                 + $"Saturated: {(comparison.SaturatedAverageGap.HasValue ? $"{comparison.SaturatedAverageGap:F1}h" : "n/a")} average gap ({comparison.SaturatedCount} gaps)\n"
                 + $"Unsaturated: {(comparison.UnsaturatedAverageGap.HasValue ? $"{comparison.UnsaturatedAverageGap:F1}h" : "n/a")} average gap ({comparison.UnsaturatedCount} gaps)\n"
                 + $"{association}\n"
                 + (caution.Length > 0 ? $"{caution}\n" : "")
                 + "\n";
+        }
+
+        private static string FormatSaturationAudit(SupplementComparison comparison)
+        {
+            var saturation = comparison.Saturation;
+            return $"Saturation audit ({saturation.WindowDays}-day window): "
+                + $"{saturation.SupplementEventCount}/{saturation.ReleaseEventCount} release events "
+                + $"({saturation.SupplementProportion:P1}) -> "
+                + $"{(saturation.IsSaturated ? "SATURATED" : "UNSATURATED")}\n";
         }
 
         private void CheckThermalShadow()

@@ -80,7 +80,7 @@
                 <ScrollViewer Grid.Column="0" Margin="0,0,15,0" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Spacing="15">
                         
-                        <!-- HUD GRID - EXPANDED TO 5 COLUMNS -->
+                        <!-- HUD GRID -->
                         <UniformGrid Columns="5" Height="70">
                             <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0">
                                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
@@ -106,7 +106,6 @@
                                     <TextBlock Text="MAX ENDURANCE" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
-                            <!-- FREQUENCY BOX -->
                             <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6">
                                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                     <TextBlock Text="{Binding HudFrequency}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center"/>
@@ -267,7 +266,6 @@
                         </StackPanel>
                     </Border>
 
-                    <!-- Main Application Log Grid (FIXED OVERFLOW ISSUE) -->
                     <DataGrid x:Name="LogsGrid" Grid.Row="1" ItemsSource="{Binding Logs}" SelectedItem="{Binding SelectedLog}" IsReadOnly="True" AutoGenerateColumns="False" Background="#1e1e1e" Margin="0,15,0,0" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#333">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Date" Binding="{Binding DisplayDate}" />
@@ -279,7 +277,6 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             
-                            <!-- Notice the TextTrimming and Tooltip added here -->
                             <DataGridTemplateColumn Header="Metrics" Width="*">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -288,8 +285,7 @@
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
                             
-                            <!-- Width="Auto" forces the buttons to always remain completely visible -->
-                            <DataGridTemplateColumn Header="Action" Width="Auto">
+                            <DataGridTemplateColumn Header="Action" Width="160">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
@@ -306,14 +302,11 @@
             </Grid>
         </Grid>
 
-        <!-- UI OVERLAY LAYER (100% Native Avalonia) -->
+        <!-- UI OVERLAY LAYER -->
         <Canvas IsHitTestVisible="False" ZIndex="999">
-
-            <!-- Universal Custom Overlay Tooltip Box -->
             <Border IsVisible="{Binding IsTooltipVisible}" Canvas.Left="{Binding TooltipX}" Canvas.Top="{Binding TooltipY}" Background="#1e1e1e" BorderBrush="#555" BorderThickness="1" CornerRadius="6" Padding="15" BoxShadow="0 8 16 0 #B2000000">
                 <StackPanel>
                     
-                    <!-- 1. Timeline Chart Content -->
                     <StackPanel IsVisible="{Binding HoveredTimelinePoint, Converter={x:Static ObjectConverters.IsNotNull}}" Spacing="5">
                         <TextBlock Text="{Binding HoveredTimelinePoint.HeaderText}" FontWeight="Bold" Foreground="#e0e0e0" FontSize="13"/>
                         <TextBlock Text="{Binding HoveredTimelinePoint.GapText}" Foreground="#aaa" FontSize="12"/>
@@ -337,7 +330,6 @@
                         </Border>
                     </StackPanel>
 
-                    <!-- 2. Doughnut (Pie) Chart Content -->
                     <StackPanel IsVisible="{Binding HoveredPie, Converter={x:Static ObjectConverters.IsNotNull}}" Spacing="5">
                         <TextBlock Text="CATEGORY DISTRIBUTION" FontWeight="Bold" Foreground="#e0e0e0" FontSize="13"/>
                         <Rectangle Height="1" Fill="#333" Margin="0,4"/>
@@ -346,7 +338,6 @@
                         <TextBlock Text="{Binding HoveredPie.Percentage, StringFormat='Share: {0}%'}" Foreground="#888" FontSize="12"/>
                     </StackPanel>
 
-                    <!-- 3. Bar (Row) Chart Content -->
                     <StackPanel IsVisible="{Binding HoveredBar, Converter={x:Static ObjectConverters.IsNotNull}}" Spacing="5">
                         <TextBlock Text="YIELD VOLUME" FontWeight="Bold" Foreground="#e0e0e0" FontSize="13"/>
                         <Rectangle Height="1" Fill="#333" Margin="0,4"/>
@@ -372,7 +363,7 @@
             </Border>
         </Border>
 
-        <!-- SETTINGS MODAL -->
+        <!-- SETTINGS MODAL (UPDATED WITH BACKUP CONTROLS) -->
         <Border IsVisible="{Binding IsSettingsOpen}" Background="#B2000000" ZIndex="100">
             <Border Background="#1e1e1e" BorderBrush="#444" BorderThickness="1" CornerRadius="8" Width="550" Padding="25" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 10 30 0 #A8000000">
                 <StackPanel Spacing="20">
@@ -411,6 +402,16 @@
                             <Button Grid.Column="0" Content="Auto-Calibrate" Command="{Binding AutoCalibrateCommand}" Background="#f57c00" Foreground="White" HorizontalAlignment="Stretch" Margin="0,0,5,0"/>
                             <Button Grid.Column="1" Content="Analyze Supps" Command="{Binding AnalyzeSupplementsCommand}" Background="#4caf50" Foreground="White" HorizontalAlignment="Stretch" Margin="5,0,0,0"/>
                         </Grid>
+                    </StackPanel>
+
+                    <StackPanel Spacing="10">
+                        <TextBlock Text="Database Auto-Backup" FontWeight="Bold"/>
+                        <Grid ColumnDefinitions="*, Auto, Auto">
+                            <TextBox Grid.Column="0" Text="{Binding BackupPath}" IsReadOnly="True" Margin="0,0,10,0"/>
+                            <Button Grid.Column="1" Content="Open Folder" Command="{Binding OpenBackupFolderCommand}" Background="#555" Foreground="White" Margin="0,0,5,0"/>
+                            <Button Grid.Column="2" Content="Backup Now" Command="{Binding RunManualBackupCommand}" Background="#007acc" Foreground="White"/>
+                        </Grid>
+                        <TextBlock Text="System automatically retains the last 10 backups on exit." FontSize="10" Foreground="#888"/>
                     </StackPanel>
 
                     <Button Content="{Binding IsTestModeActive, StringFormat='{}Toggle Sandbox Mode (Currently: {0})'}" Command="{Binding ToggleTestModeCommand}" Background="#555" Foreground="White" HorizontalAlignment="Stretch"/>

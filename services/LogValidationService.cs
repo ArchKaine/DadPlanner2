@@ -7,6 +7,20 @@ namespace DadPlanner2.Services;
 
 public sealed class LogValidationService
 {
+    public string? ValidateThresholds(double minHours, double maxHours)
+    {
+        if (double.IsNaN(minHours) || double.IsInfinity(minHours) || minHours < 0)
+            return "Minimum recovery time must be a finite, non-negative number.";
+
+        if (double.IsNaN(maxHours) || double.IsInfinity(maxHours) || maxHours <= 0)
+            return "Maximum recovery time must be a finite number greater than zero.";
+
+        if (maxHours <= minHours)
+            return "Maximum recovery time must be greater than the minimum recovery time.";
+
+        return null;
+    }
+
     public string? Validate(
         IEnumerable<LogRecord> existingLogs,
         string mode,

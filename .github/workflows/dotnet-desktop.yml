@@ -1,0 +1,55 @@
+name: Build and Publish Executables
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+  workflow_dispatch: # Allows manual trigger from the GitHub UI
+
+jobs:
+  build:
+    name: Build for ${{ matrix.os-name }}
+    runs-on: ${{ matrix.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os-name: Windows
+            runner: windows-latest
+            rid: win-x64
+            ext: .exe
+          - os-name: macOS (Intel)
+            runner: macos-13
+            rid: osx-x64
+            ext: ""
+          - os-name: macOS (Apple Silicon)
+            runner: macos-latest
+            rid: osx-arm64
+            ext: ""
+          - os-name: Linux
+            runner: ubuntu-latest
+            rid: linux-x64
+            ext: ""
+
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore Dependencies
+        run: dotnet restore DadPlanner2/DadPlanner2.csproj
+
+      - name: Publish Executable
+        run: dotnet publish DadPlanner2/DadPlanner2.csproj -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -o publish/${{ matrix.rid }}
+
+      - name: Upload Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: DadPlanner2-${{ matrix.os-name }}
+          path: publish/${{ matrix.rid }}/DadPlanner2${{ matrix.ext }}
+          retention-days: 5

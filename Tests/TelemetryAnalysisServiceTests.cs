@@ -72,6 +72,19 @@ public sealed class TelemetryAnalysisServiceTests
         Assert.AreEqual("High", high);
     }
 
+    [TestMethod]
+    public void MultiReleaseSession_IsOneRecoveryEventButCountsReleasesForFrequency()
+    {
+        const long now = 10_000;
+        var session = Log(4_600, "Normal");
+        session.ReleaseCount = 3;
+        var result = _service.CalculateRecoveryMetrics(new[] { session }, now);
+
+        Assert.AreEqual(1.5, result.CurrentHours);
+        Assert.IsNull(result.AverageGapHours);
+        Assert.AreEqual(21, _service.CalculateFrequencyPerWeek(new[] { session }, now));
+    }
+
     private static LogRecord Log(
         long timestamp,
         string volume,

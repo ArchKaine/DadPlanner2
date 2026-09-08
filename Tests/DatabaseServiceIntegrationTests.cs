@@ -37,6 +37,26 @@ public sealed class DatabaseServiceIntegrationTests
     }
 
     [TestMethod]
+    public void LegacyRows_DefaultReleaseCountAndUnknownConfidence()
+    {
+        string databasePath = Path.Combine(_testDirectory, "inventory.db");
+        Directory.CreateDirectory(_testDirectory);
+        using (var connection = new SqliteConnection($"Data Source={databasePath}"))
+        {
+            connection.Open();
+            using var command = connection.CreateCommand();
+            command.CommandText = "CREATE TABLE Logs (Id INTEGER PRIMARY KEY AUTOINCREMENT, Timestamp INTEGER); INSERT INTO Logs (Timestamp) VALUES (1000);";
+            command.ExecuteNonQuery();
+        }
+
+        var service = new DatabaseService(_testDirectory);
+        var saved = service.GetAllLogs().Single();
+
+        Assert.AreEqual(1, saved.ReleaseCount);
+        Assert.AreEqual(VolumeConfidence.Unknown, saved.VolumeConfidence);
+    }
+
+    [TestMethod]
     public void LogRoundTrip_PreservesClinicalFieldsAndPdfMetadata()
     {
         var service = new DatabaseService(_testDirectory);
@@ -45,6 +65,8 @@ public sealed class DatabaseServiceIntegrationTests
             Timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds() - 60,
             Mode = "Clinical-Lab",
             Volume = "Normal",
+            ReleaseCount = 3,
+            VolumeConfidence = VolumeConfidence.Observed,
             HeatFlag = 1,
             Supplements = "{\"zinc\":1}",
             ClinicalVol = 2.4,
@@ -62,6 +84,8 @@ public sealed class DatabaseServiceIntegrationTests
         Assert.AreEqual(log.ClinicalVol, saved.ClinicalVol);
         Assert.AreEqual(log.Concentration, saved.Concentration);
         Assert.AreEqual(log.ProgMotility, saved.ProgMotility);
+        Assert.AreEqual(log.ReleaseCount, saved.ReleaseCount);
+        Assert.AreEqual(log.VolumeConfidence, saved.VolumeConfidence);
         Assert.IsTrue(saved.HasPdf);
     }
 
@@ -132,6 +156,8 @@ public sealed class DatabaseServiceIntegrationTests
             Timestamp = 1000,
             Mode = "Playtime",
             Volume = "High",
+            ReleaseCount = 2,
+            VolumeConfidence = VolumeConfidence.Estimated,
             Supplements = "{\"zinc\":1}"
         });
         string exportDirectory = Path.Combine(_testDirectory, "exports");
@@ -139,7 +165,10 @@ public sealed class DatabaseServiceIntegrationTests
         var exports = service.ExportData(exportDirectory);
 
         StringAssert.Contains(File.ReadAllText(exports.JsonPath), "\"Mode\": \"Playtime\"");
+        StringAssert.Contains(File.ReadAllText(exports.JsonPath), "\"VolumeConfidence\": \"Estimated\"");
         StringAssert.Contains(File.ReadAllText(exports.CsvPath), "\"Playtime\"");
+        StringAssert.Contains(File.ReadAllText(exports.CsvPath), "ReleaseCount,VolumeConfidence");
+        StringAssert.Contains(File.ReadAllText(exports.CsvPath), "2,\"Estimated\"");
         StringAssert.Contains(File.ReadAllText(exports.CsvPath), "\"{\"\"zinc\"\":1}\"");
         Assert.IsNotNull(exports.AnalysisJsonPath);
         Assert.IsNotNull(exports.AnalysisCsvPath);

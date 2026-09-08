@@ -4,6 +4,7 @@ using System.Globalization;
 using System.IO;
 using System.Linq;
 using System.Text.Json;
+using System.Text.Json.Serialization;
 using DadPlanner2.Models;
 
 namespace DadPlanner2.Services;
@@ -21,10 +22,14 @@ public sealed class DataExportService
         string jsonPath = Path.Combine(exportDirectory, $"dadplanner-export-{timestamp}.json");
         string csvPath = Path.Combine(exportDirectory, $"dadplanner-export-{timestamp}.csv");
 
-        File.WriteAllText(jsonPath, JsonSerializer.Serialize(logs, new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(jsonPath, JsonSerializer.Serialize(logs, new JsonSerializerOptions
+        {
+            WriteIndented = true,
+            Converters = { new JsonStringEnumConverter() }
+        }));
 
         using var writer = new StreamWriter(csvPath);
-        writer.WriteLine("Id,Timestamp,Date,Mode,Volume,HeatFlag,Supplements,ClinicalVol,Concentration,Motility,ProgMotility,Morphology,PhLevel,HasPdf");
+        writer.WriteLine("Id,Timestamp,Date,Mode,Volume,ReleaseCount,VolumeConfidence,HeatFlag,Supplements,ClinicalVol,Concentration,Motility,ProgMotility,Morphology,PhLevel,HasPdf");
         foreach (var log in logs)
         {
             writer.WriteLine(string.Join(",",
@@ -33,6 +38,8 @@ public sealed class DataExportService
                 CsvEscape(log.DisplayDate),
                 CsvEscape(log.Mode),
                 CsvEscape(log.Volume),
+                log.ReleaseCount,
+                CsvEscape(log.VolumeConfidence.ToString()),
                 log.HeatFlag,
                 CsvEscape(log.Supplements),
                 log.ClinicalVol.ToString(CultureInfo.InvariantCulture),

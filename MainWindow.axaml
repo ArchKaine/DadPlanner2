@@ -4,6 +4,7 @@
         xmlns:lvc="using:LiveChartsCore.SkiaSharpView.Avalonia"
         xmlns:sys="using:System"
         xmlns:local="using:DadPlanner2"
+        xmlns:models="using:DadPlanner2.Models"
         x:Class="DadPlanner2.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         x:Name="RootWindow"
@@ -230,6 +231,15 @@
                                     <x:String>Low</x:String>
                                     <x:String>High</x:String>
                                     <x:String>None</x:String>
+                                </ComboBox>
+                            </Grid>
+
+                            <Grid ColumnDefinitions="*, *">
+                                <TextBox Grid.Column="0" Text="{Binding SelectedReleaseCount}" Watermark="Release count" Margin="2"/>
+                                <ComboBox Grid.Column="1" SelectedItem="{Binding SelectedVolumeConfidence}" Margin="2">
+                                    <x:Static Member="models:VolumeConfidence.Observed"/>
+                                    <x:Static Member="models:VolumeConfidence.Estimated"/>
+                                    <x:Static Member="models:VolumeConfidence.Unknown"/>
                                 </ComboBox>
                             </Grid>
 
@@ -508,6 +518,15 @@
                             </ComboBox>
                         </StackPanel>
                     </Grid>
+
+                    <Grid ColumnDefinitions="*,*">
+                        <TextBox Grid.Column="0" Text="{Binding ManualReleaseCount}" Watermark="Release count" Margin="2"/>
+                        <ComboBox Grid.Column="1" SelectedItem="{Binding ManualVolumeConfidence}" Margin="2">
+                            <x:Static Member="models:VolumeConfidence.Observed"/>
+                            <x:Static Member="models:VolumeConfidence.Estimated"/>
+                            <x:Static Member="models:VolumeConfidence.Unknown"/>
+                        </ComboBox>
+                    </Grid>
                     
                     <Border Background="#252526" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10">
                         <Grid ColumnDefinitions="Auto, *">
@@ -589,6 +608,15 @@
                                 <x:String>None</x:String>
                             </ComboBox>
                         </StackPanel>
+                    </Grid>
+
+                    <Grid ColumnDefinitions="*,*">
+                        <TextBox Grid.Column="0" Text="{Binding EditReleaseCount}" Watermark="Release count" Margin="2"/>
+                        <ComboBox Grid.Column="1" SelectedItem="{Binding EditVolumeConfidence}" Margin="2">
+                            <x:Static Member="models:VolumeConfidence.Observed"/>
+                            <x:Static Member="models:VolumeConfidence.Estimated"/>
+                            <x:Static Member="models:VolumeConfidence.Unknown"/>
+                        </ComboBox>
                     </Grid>
                     
                     <Border Background="#252526" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10">

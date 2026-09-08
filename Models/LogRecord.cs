@@ -2,12 +2,21 @@ using System;
 
 namespace DadPlanner2.Models
 {
+    public enum VolumeConfidence
+    {
+        Observed,
+        Estimated,
+        Unknown
+    }
+
     public class LogRecord
     {
         public long Id { get; set; }
         public long Timestamp { get; set; }
         public string Mode { get; set; } = "Maintenance";
         public string Volume { get; set; } = "Normal";
+        public int ReleaseCount { get; set; } = 1;
+        public VolumeConfidence VolumeConfidence { get; set; } = VolumeConfidence.Unknown;
         public int HeatFlag { get; set; } = 0;
         public string Supplements { get; set; } = "{}";
         public int Concentration { get; set; } = 0;
@@ -27,6 +36,7 @@ namespace DadPlanner2.Models
                 var parts = new System.Collections.Generic.List<string>();
                 
                 parts.Add($"Vol: {Volume}");
+                parts.Add($"Releases: {ReleaseCount} ({VolumeConfidence})");
                 
                 if (HeatFlag > 0) 
                     parts.Add($"Heat: L{HeatFlag}");

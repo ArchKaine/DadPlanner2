@@ -31,8 +31,16 @@ public sealed class LogValidationService
         int? morphology,
         double? phLevel,
         long timestamp,
-        long? existingId = null)
+        long? existingId = null,
+        int releaseCount = 1,
+        VolumeConfidence volumeConfidence = VolumeConfidence.Unknown)
     {
+        if (releaseCount <= 0)
+            return "Release count must be a positive whole number.";
+
+        if (!Enum.IsDefined(volumeConfidence))
+            return "Volume confidence must be Observed, Estimated, or Unknown.";
+
         if (timestamp > DateTimeOffset.UtcNow.ToUnixTimeSeconds())
             return "A log cannot be recorded in the future.";
 

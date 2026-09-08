@@ -3,6 +3,7 @@ using System.IO;
 using System.Linq;
 using DadPlanner2.Models;
 using DadPlanner2.Services;
+using Microsoft.Data.Sqlite;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 
 namespace DadPlanner2.Tests;
@@ -75,5 +76,64 @@ public sealed class DatabaseServiceIntegrationTests
         Assert.AreEqual((18.5, 80.25), service.GetThresholdSettings());
         Assert.AreEqual((true, false, true, false), service.GetSupplementsState());
         Assert.AreEqual(1_700_000_000L, service.GetAppointment());
+    }
+
+    [TestMethod]
+    public void ExecuteAutoBackup_CreatesReadableBackupAndRetainsTen()
+    {
+        var service = new DatabaseService(_testDirectory);
+        service.InsertLog(new LogRecord { Timestamp = 1000, Volume = "Normal" });
+        string backupDirectory = Path.Combine(_testDirectory, "backups");
+
+        for (int i = 0; i < 11; i++)
+        {
+            service.MarkDirty();
+            service.ExecuteAutoBackup(backupDirectory);
+            File.SetLastWriteTimeUtc(
+                Directory.GetFiles(backupDirectory, "inventory-*.db").OrderByDescending(File.GetLastWriteTimeUtc).First(),
+                DateTime.UtcNow.AddMinutes(-i));
+        }
+
+        Assert.AreEqual(10, Directory.GetFiles(backupDirectory, "inventory-*.db").Length);
+        Assert.IsNotNull(service.GetLatestBackup(backupDirectory));
+    }
+
+    [TestMethod]
+    public void RestoreBackup_CreatesPreRestoreSafetySnapshot()
+    {
+        var service = new DatabaseService(_testDirectory);
+        service.InsertLog(new LogRecord { Timestamp = 1000, Volume = "Normal" });
+        string backupDirectory = Path.Combine(_testDirectory, "backups");
+        service.MarkDirty();
+        service.ExecuteAutoBackup(backupDirectory);
+        string backupPath = service.GetLatestBackup(backupDirectory)!;
+
+        service.RestoreBackup(backupPath);
+
+        Assert.IsTrue(Directory.GetFiles(_testDirectory, "inventory.db.pre-restore-*.db").Length == 1);
+    }
+
+    [TestMethod]
+    public void RestoreBackup_RejectsCorruptBackup()
+    {
+        var service = new DatabaseService(_testDirectory);
+        string corruptPath = Path.Combine(_testDirectory, "corrupt.db");
+        File.WriteAllText(corruptPath, "not a sqlite database");
+
+        Assert.ThrowsException<SqliteException>(() => service.RestoreBackup(corruptPath));
+    }
+
+    [TestMethod]
+    public void ExportData_WritesJsonAndCsvRecords()
+    {
+        var service = new DatabaseService(_testDirectory);
+        service.InsertLog(new LogRecord { Timestamp = 1000, Mode = "Playtime", Volume = "High", Supplements = "{\"zinc\":1}" });
+        string exportDirectory = Path.Combine(_testDirectory, "exports");
+
+        var exports = service.ExportData(exportDirectory);
+
+        StringAssert.Contains(File.ReadAllText(exports.JsonPath), "\"Mode\": \"Playtime\"");
+        StringAssert.Contains(File.ReadAllText(exports.CsvPath), "\"Playtime\"");
+        StringAssert.Contains(File.ReadAllText(exports.CsvPath), "\"{\"\"zinc\"\":1}\"");
     }
 }

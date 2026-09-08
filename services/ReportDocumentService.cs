@@ -1,4 +1,5 @@
 using System;
+using System.Linq;
 using System.Runtime.InteropServices;
 using DadPlanner2.Models;
 using LiveChartsCore;
@@ -20,7 +21,10 @@ public sealed class ReportDocumentService
         QuestPDF.Settings.License = LicenseType.Community;
     }
 
-    public void Generate(ReportData reportData, string pdfPath)
+    public void Generate(
+        ReportData reportData,
+        string pdfPath,
+        SupplementAnalysisResult? supplementAnalysis = null)
     {
         var logs = reportData.Logs;
         var gapData = reportData.GapData;
@@ -214,6 +218,57 @@ public sealed class ReportDocumentService
                                 isAlternate = !isAlternate;
                             }
                         });
+
+                        if (supplementAnalysis != null)
+                        {
+                            col.Item().PaddingTop(15).Text("Observed Supplement Associations")
+                                .SemiBold().FontSize(12).FontColor(Colors.Grey.Darken2);
+                            col.Item().Text("Analysis schema v1. Personal observational comparisons only; not clinical evidence. "
+                                + "Saturation is defined as at least 50% supplement presence in each target window.")
+                                .FontSize(8).Italic();
+
+                            col.Item().PaddingTop(5).Table(table =>
+                            {
+                                table.ColumnsDefinition(columns =>
+                                {
+                                    columns.RelativeColumn(2);
+                                    columns.RelativeColumn(2);
+                                    columns.RelativeColumn(2);
+                                    columns.RelativeColumn(2);
+                                    columns.RelativeColumn(3);
+                                });
+                                table.Header(header =>
+                                {
+                                    header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Supplement").SemiBold();
+                                    header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Window").SemiBold();
+                                    header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Events").SemiBold();
+                                    header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Proportion").SemiBold();
+                                    header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Targets").SemiBold();
+                                });
+
+                                foreach (var comparison in new[]
+                                {
+                                    supplementAnalysis.Zinc,
+                                    supplementAnalysis.Maca,
+                                    supplementAnalysis.VitaminD,
+                                    supplementAnalysis.VitaminC
+                                })
+                                {
+                                    int releaseEvents = comparison.SaturationAudits.Sum(audit => audit.ReleaseEventCount);
+                                    int supplementEvents = comparison.SaturationAudits.Sum(audit => audit.SupplementEventCount);
+                                    double proportion = releaseEvents == 0 ? 0 : supplementEvents / (double)releaseEvents;
+                                    string targets = string.Join(", ", comparison.SaturationAudits.Select(audit =>
+                                        $"{DateTimeOffset.FromUnixTimeSeconds(audit.TargetTimestamp).ToLocalTime():MMM dd} "
+                                        + (audit.IsSaturated ? "S" : "U")));
+
+                                    table.Cell().PaddingVertical(3).Text(comparison.Supplement);
+                                    table.Cell().PaddingVertical(3).Text($"{comparison.WindowDays} days");
+                                    table.Cell().PaddingVertical(3).Text($"{supplementEvents}/{releaseEvents}");
+                                    table.Cell().PaddingVertical(3).Text($"{proportion:P1}");
+                                    table.Cell().PaddingVertical(3).Text(targets.Length == 0 ? "No target events" : targets);
+                                }
+                            });
+                        }
                     }
                 });
 

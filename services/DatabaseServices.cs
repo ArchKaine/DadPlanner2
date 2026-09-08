@@ -547,12 +547,17 @@ namespace DadPlanner2.Services
 
         public void Generate90DayReport()
         {
-            var reportData = _reportData.Create(GetAllLogs(), DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            var logs = GetAllLogs();
+            var reportData = _reportData.Create(logs, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            var supplementAnalysis = _supplementAnalysis.Analyze(
+                logs,
+                (timestamp, supplement, days) =>
+                    _supplementSaturation.Calculate(logs, timestamp, supplement, days));
             string pdfPath = Path.Combine(_dbDir, "Baseline_Summary.pdf");
 
             try
             {
-                _reportDocument.Generate(reportData, pdfPath);
+                _reportDocument.Generate(reportData, pdfPath, supplementAnalysis);
                 OpenFileCrossPlatform(pdfPath);
             }
             catch (IOException)

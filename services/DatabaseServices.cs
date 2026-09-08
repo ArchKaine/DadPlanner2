@@ -26,9 +26,9 @@ namespace DadPlanner2.Services
         private readonly string _connectionString;
         private bool _isDirty;
 
-        public DatabaseService()
+        public DatabaseService(string? dataDirectory = null)
         {
-            _dbDir = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PIMS");
+            _dbDir = dataDirectory ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "PIMS");
             _dbPath = Path.Combine(_dbDir, "inventory.db");
             _connectionString = $"Data Source={_dbPath};Pooling=False;";
 

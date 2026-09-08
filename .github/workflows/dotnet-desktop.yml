@@ -5,7 +5,7 @@ on:
     branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
-  workflow_dispatch: # Allows manual trigger from the GitHub UI
+  workflow_dispatch:
 
 jobs:
   build:
@@ -27,7 +27,7 @@ jobs:
             runner: macos-latest
             rid: osx-arm64
             ext: ""
-          - os-name: Linux
+          - os-name: Linux (Fedora/Ubuntu/etc)
             runner: ubuntu-latest
             rid: linux-x64
             ext: ""
@@ -41,8 +41,9 @@ jobs:
         with:
           dotnet-version: '10.0.x'
 
-      - name: Restore Dependencies
-        run: dotnet restore
+      - name: Install Dependencies from .csproj
+        # This command reads your .csproj and downloads Avalonia, QuestPDF, LiveCharts, etc.
+        run: dotnet restore 
 
       - name: Publish Executable
         run: dotnet publish -c Release -r ${{ matrix.rid }} --self-contained true -p:PublishSingleFile=true -o publish/${{ matrix.rid }}

@@ -659,37 +659,6 @@ namespace DadPlanner2.ViewModels
 
             ShowAlert("Analysis Complete", FormatSupplementAnalysis(analysis));
             CloseSettings();
-#pragma warning disable CS0162
-            return;
-
-            var releaseLogs = Logs.Where(l => l.Volume != "None" && l.Volume != "N/A").OrderBy(l => l.Timestamp).ToList();
-            var validLogs = new List<LogRecord>();
-            foreach (var l in releaseLogs) { long shadowWindow = l.Timestamp - (74 * 24 * 3600); if (!Logs.Any(x => x.Timestamp >= shadowWindow && x.Timestamp < l.Timestamp && x.HeatFlag >= 2)) validLogs.Add(l); }
-            if (validLogs.Count < 5) { ShowAlert("Error", "Insufficient uncompromised data points after filtering out Thermal Shadow periods."); return; }
-
-            int zaTot = 0, zaSuc = 0, ziTot = 0, ziSuc = 0; int dTot = 0, dSuc = 0, diTot = 0, diSuc = 0;
-            var mGaps = new List<double>(); var nmGaps = new List<double>(); var cGaps = new List<double>(); var ncGaps = new List<double>();
-
-            for (int i = 1; i < validLogs.Count; i++)
-            {
-                var cur = validLogs[i]; double gap = (cur.Timestamp - validLogs[i - 1].Timestamp) / 3600.0;
-                bool zSat = GetSupplementSaturation(cur.Timestamp, "zinc", 21); bool mSat = GetSupplementSaturation(cur.Timestamp, "maca", 21);
-                bool dSat = GetSupplementSaturation(cur.Timestamp, "vitD", 30); bool cSat = GetSupplementSaturation(cur.Timestamp, "vitC", 30);
-                bool isSuccess = (cur.Volume == "Normal" || cur.Volume == "High");
-
-                if (cur.Mode == "Maintenance" || cur.Mode == "Clinical-Lab") { if (zSat) { zaTot++; if (isSuccess) zaSuc++; } else { ziTot++; if (isSuccess) ziSuc++; } if (dSat) { dTot++; if (isSuccess) dSuc++; } else { diTot++; if (isSuccess) diSuc++; } }
-                if (mSat) mGaps.Add(gap); else nmGaps.Add(gap); if (cSat) cGaps.Add(gap); else ncGaps.Add(gap);
-            }
-
-            string msg = "--- BIOLOGICAL SATURATION ANALYSIS ---\n\n(Measuring efficacy based on cumulative buildup windows)\n(Thermal Shadow periods removed to prevent data corruption)\n\n";
-
-            if (zaTot > 0 && ziTot > 0) { int zaPct = (int)Math.Round((zaSuc / (double)zaTot) * 100); int ziPct = (int)Math.Round((ziSuc / (double)ziTot) * 100); msg += $"[ZINC - YIELD RATE (21-Day Window)]\nUn-Saturated: {ziPct}% | Saturated: {zaPct}%\nResult: {(zaPct - ziPct > 0 ? $"+{zaPct - ziPct}% optimal yield probability." : "No measurable yield impact.")}\n\n"; } else { msg += "[ZINC] Insufficient baseline data.\n\n"; }
-            if (mGaps.Count > 0 && nmGaps.Count > 0) { double mAvg = mGaps.Average(); double nmAvg = nmGaps.Average(); msg += $"[MACA ROOT - RECOVERY SPEED (21-Day Window)]\nUn-Saturated: {nmAvg:F1}h | Saturated: {mAvg:F1}h\nResult: {(nmAvg - mAvg > 0 ? $"Recovery accelerated by {nmAvg - mAvg:F1} hours." : "No measurable speed impact.")}\n\n"; } else { msg += "[MACA] Insufficient baseline data.\n\n"; }
-            if (dTot > 0 && diTot > 0) { int dPct = (int)Math.Round((dSuc / (double)dTot) * 100); int diPct = (int)Math.Round((diSuc / (double)diTot) * 100); msg += $"[VITAMIN D3 - YIELD RATE (30-Day Window)]\nUn-Saturated: {diPct}% | Saturated: {dPct}%\nResult: {(dPct - diPct > 0 ? $"+{dPct - diPct}% optimal yield probability." : "No measurable yield impact.")}\n\n"; } else { msg += "[VITAMIN D3] Insufficient baseline data.\n\n"; }
-            if (cGaps.Count > 0 && ncGaps.Count > 0) { double cAvg = cGaps.Average(); double ncAvg = ncGaps.Average(); msg += $"[VITAMIN C - RECOVERY SPEED (30-Day Window)]\nUn-Saturated: {ncAvg:F1}h | Saturated: {cAvg:F1}h\nResult: {(ncAvg - cAvg > 0 ? $"Recovery accelerated by {ncAvg - cAvg:F1} hours." : "No measurable speed impact.")}\n"; } else { msg += "[VITAMIN C] Insufficient baseline data.\n"; }
-
-            ShowAlert("Analysis Complete", msg); CloseSettings();
-#pragma warning restore CS0162
         }
 
         private static string FormatSupplementAnalysis(SupplementAnalysisResult analysis)

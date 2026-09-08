@@ -208,6 +208,13 @@ namespace DadPlanner2.ViewModels
         [RelayCommand] 
         private void SaveSettings() 
         { 
+            string? thresholdError = _logValidation.ValidateThresholds(MinHours, MaxHours);
+            if (thresholdError != null)
+            {
+                ShowAlert("Invalid Thresholds", thresholdError);
+                return;
+            }
+
             _dbService.SaveThresholdSettings(MinHours, MaxHours); 
             _dbService.MarkDirty();
             LoadData(); 

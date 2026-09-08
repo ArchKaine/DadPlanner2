@@ -23,6 +23,7 @@ namespace DadPlanner2.ViewModels
         private readonly DatabaseService _dbService;
         private readonly TelemetryAnalysisService _telemetryAnalysis = new();
         private readonly LogValidationService _logValidation = new();
+        private readonly SupplementAnalysisService _supplementAnalysis = new();
 
         public Action<LogRecord>? RequestScrollToLog;
         [ObservableProperty] private LogRecord? _selectedLog;
@@ -649,6 +650,18 @@ namespace DadPlanner2.ViewModels
         {
             if (Logs.Count < 10) { ShowAlert("Error", "Need more data points to run statistical analysis. Keep logging!"); return; }
 
+            var analysis = _supplementAnalysis.Analyze(Logs, GetSupplementSaturation);
+            if (analysis.InsufficientData)
+            {
+                ShowAlert("Analysis Needs More Data", "Too few uncompromised release events remain after thermal-shadow filtering.");
+                return;
+            }
+
+            ShowAlert("Analysis Complete", FormatSupplementAnalysis(analysis));
+            CloseSettings();
+#pragma warning disable CS0162
+            return;
+
             var releaseLogs = Logs.Where(l => l.Volume != "None" && l.Volume != "N/A").OrderBy(l => l.Timestamp).ToList();
             var validLogs = new List<LogRecord>();
             foreach (var l in releaseLogs) { long shadowWindow = l.Timestamp - (74 * 24 * 3600); if (!Logs.Any(x => x.Timestamp >= shadowWindow && x.Timestamp < l.Timestamp && x.HeatFlag >= 2)) validLogs.Add(l); }
@@ -676,6 +689,42 @@ namespace DadPlanner2.ViewModels
             if (cGaps.Count > 0 && ncGaps.Count > 0) { double cAvg = cGaps.Average(); double ncAvg = ncGaps.Average(); msg += $"[VITAMIN C - RECOVERY SPEED (30-Day Window)]\nUn-Saturated: {ncAvg:F1}h | Saturated: {cAvg:F1}h\nResult: {(ncAvg - cAvg > 0 ? $"Recovery accelerated by {ncAvg - cAvg:F1} hours." : "No measurable speed impact.")}\n"; } else { msg += "[VITAMIN C] Insufficient baseline data.\n"; }
 
             ShowAlert("Analysis Complete", msg); CloseSettings();
+#pragma warning restore CS0162
+        }
+
+        private static string FormatSupplementAnalysis(SupplementAnalysisResult analysis)
+        {
+            return "--- OBSERVED SUPPLEMENT ASSOCIATIONS ---\n\n"
+                + "Personal observational comparisons only; this is not clinical evidence.\n"
+                + "Thermal-shadow periods are excluded.\n\n"
+                + FormatYieldComparison("ZINC", analysis.Zinc)
+                + FormatGapComparison("MACA ROOT", analysis.Maca)
+                + FormatYieldComparison("VITAMIN D3", analysis.VitaminD)
+                + FormatGapComparison("VITAMIN C", analysis.VitaminC);
+        }
+
+        private static string FormatYieldComparison(string label, SupplementComparison comparison)
+        {
+            if (!comparison.HasBothGroups)
+                return $"[{label} - {comparison.WindowDays}-DAY WINDOW]\nInsufficient data: both groups are required.\n\n";
+
+            double saturatedRate = comparison.SaturatedSuccesses!.Value / (double)comparison.SaturatedCount * 100;
+            double unsaturatedRate = comparison.UnsaturatedSuccesses!.Value / (double)comparison.UnsaturatedCount * 100;
+            return $"[{label} - {comparison.WindowDays}-DAY WINDOW]\n"
+                + $"Saturated: {comparison.SaturatedSuccesses}/{comparison.SaturatedCount} successful ({saturatedRate:F1}%)\n"
+                + $"Unsaturated: {comparison.UnsaturatedSuccesses}/{comparison.UnsaturatedCount} successful ({unsaturatedRate:F1}%)\n"
+                + $"Observed association: {saturatedRate - unsaturatedRate:+0.0;-0.0;0.0} percentage points.\n\n";
+        }
+
+        private static string FormatGapComparison(string label, SupplementComparison comparison)
+        {
+            if (!comparison.HasBothGroups || !comparison.SaturatedAverageGap.HasValue || !comparison.UnsaturatedAverageGap.HasValue)
+                return $"[{label} - {comparison.WindowDays}-DAY WINDOW]\nInsufficient data: both groups are required.\n\n";
+
+            return $"[{label} - {comparison.WindowDays}-DAY WINDOW]\n"
+                + $"Saturated: {comparison.SaturatedAverageGap:F1}h average gap ({comparison.SaturatedCount} gaps)\n"
+                + $"Unsaturated: {comparison.UnsaturatedAverageGap:F1}h average gap ({comparison.UnsaturatedCount} gaps)\n"
+                + $"Observed association: {comparison.UnsaturatedAverageGap - comparison.SaturatedAverageGap:+0.0;-0.0;0.0} hours.\n\n";
         }
 
         private void CheckThermalShadow()

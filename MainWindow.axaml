@@ -29,9 +29,20 @@
         <Style Selector="Button.btn-icon:pointerover /template/ ContentPresenter">
             <Setter Property="Background" Value="#555"/>
         </Style>
+        
+        <!-- Global ToolTip Override for the Heatmap -->
+        <Style Selector="ToolTip">
+            <Setter Property="Background" Value="#1e1e1e"/>
+            <Setter Property="BorderBrush" Value="#555"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="6"/>
+            <Setter Property="Padding" Value="15"/>
+        </Style>
     </Window.Styles>
 
-    <Grid>
+    <!-- The root grid tracks the pointer to feed the custom overlay tooltip -->
+    <Grid Background="#121212" PointerMoved="MainContainer_PointerMoved">
+        
         <!-- MAIN APP LAYER -->
         <Grid RowDefinitions="Auto, Auto, *" Margin="20">
             <Grid.Effect>
@@ -69,8 +80,8 @@
                 <ScrollViewer Grid.Column="0" Margin="0,0,15,0" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Spacing="15">
                         
-                        <!-- HUD -->
-                        <UniformGrid Columns="4" Height="70">
+                        <!-- HUD GRID - EXPANDED TO 5 COLUMNS -->
+                        <UniformGrid Columns="5" Height="70">
                             <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0">
                                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                     <TextBlock Text="{Binding HudCurrent}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center"/>
@@ -89,19 +100,35 @@
                                     <TextBlock Text="ROLLING AVG" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
-                            <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6">
+                            <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0">
                                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                     <TextBlock Text="{Binding HudMax}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center"/>
                                     <TextBlock Text="MAX ENDURANCE" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
+                            <!-- NEW FREQUENCY BOX -->
+                            <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6">
+                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <TextBlock Text="{Binding HudFrequency}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="30-DAY FREQ" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                            </Border>
                         </UniformGrid>
 
+                        <!-- RECOVERY GAP TIMELINE WITH ZOOM -->
                         <Border Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Height="250">
                             <Grid RowDefinitions="Auto, *">
-                                <TextBlock Grid.Row="0" Text="RECOVERY GAP TIMELINE" FontSize="12" Foreground="#888" Margin="10,10,0,5"/>
-                                <lvc:CartesianChart Grid.Row="1" Series="{Binding ChartSeries}" XAxes="{Binding XAxes}" YAxes="{Binding YAxes}" Margin="10"
-                                                    DataPointerDownCommand="{Binding ChartClickedCommand}"/>
+                                <Grid Grid.Row="0" ColumnDefinitions="Auto, *">
+                                    <TextBlock Grid.Column="0" Text="RECOVERY GAP TIMELINE" FontSize="12" Foreground="#888" VerticalAlignment="Center" Margin="10,10,0,5"/>
+                                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="5" Margin="0,10,10,5">
+                                        <TextBlock Text="ZOOM:" FontSize="10" Foreground="#555" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                        <Button Content="30D" Command="{Binding ZoomChartCommand}" CommandParameter="30" FontSize="10" Padding="6,3" Background="#252526" Foreground="#888"/>
+                                        <Button Content="90D" Command="{Binding ZoomChartCommand}" CommandParameter="90" FontSize="10" Padding="6,3" Background="#252526" Foreground="#888"/>
+                                        <Button Content="ALL" Command="{Binding ZoomChartCommand}" CommandParameter="ALL" FontSize="10" Padding="6,3" Background="#252526" Foreground="#888"/>
+                                    </StackPanel>
+                                </Grid>
+                                
+                                <lvc:CartesianChart x:Name="MainChart" Grid.Row="1" Series="{Binding ChartSeries}" XAxes="{Binding XAxes}" YAxes="{Binding YAxes}" Margin="10,0,10,10" ZoomMode="X" DataPointerDownCommand="{Binding ChartClickedCommand}" TooltipPosition="Hidden" />
                             </Grid>
                         </Border>
 
@@ -114,17 +141,14 @@
                                     <TextBlock Grid.Row="0" Text="EVENT DISTRIBUTION" FontSize="12" Foreground="#888" Margin="10,10,0,5"/>
                                     
                                     <Grid Grid.Row="1" ColumnDefinitions="*, Auto" Margin="10,0,15,10">
-                                        <!-- Doughnut Layer -->
                                         <Grid Grid.Column="0">
-                                            <!-- Hide LiveCharts default ugly legend -->
-                                            <lvc:PieChart Series="{Binding ModeSeries}" LegendPosition="Hidden" TooltipPosition="Hidden"/>
+                                            <lvc:PieChart x:Name="PieChart" Series="{Binding ModeSeries}" LegendPosition="Hidden" TooltipPosition="Hidden"/>
                                             <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                                 <TextBlock Text="{Binding TotalEventCount}" FontSize="22" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
                                                 <TextBlock Text="Total Logs" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
                                             </StackPanel>
                                         </Grid>
                                         
-                                        <!-- Custom UI Side Legend -->
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="10" Margin="10,0,0,0">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
                                                 <Border Width="12" Height="12" CornerRadius="6" Background="#007acc"/>
@@ -151,7 +175,7 @@
                             <Border Grid.Column="1" Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6">
                                 <Grid RowDefinitions="Auto, *">
                                     <TextBlock Grid.Row="0" Text="YIELD PROFILE" FontSize="12" Foreground="#888" Margin="10,10,0,5"/>
-                                    <lvc:CartesianChart Grid.Row="1" Series="{Binding VolumeSeries}" XAxes="{Binding VolumeXAxes}" YAxes="{Binding VolumeYAxes}" Margin="10"/>
+                                    <lvc:CartesianChart x:Name="BarChart" Grid.Row="1" Series="{Binding VolumeSeries}" XAxes="{Binding VolumeXAxes}" YAxes="{Binding VolumeYAxes}" Margin="10" TooltipPosition="Hidden"/>
                                 </Grid>
                             </Border>
                         </Grid>
@@ -161,18 +185,25 @@
                             <StackPanel>
                                 <TextBlock Text="365-DAY ACTIVITY MATRIX" FontSize="12" Foreground="#888" Margin="0,0,0,10"/>
                                 
-                                <!-- Viewbox forces the strict 7-row matrix to scale flawlessly to any window width -->
-                                <Viewbox Height="110" Stretch="Uniform" HorizontalAlignment="Left">
+                                <Viewbox Height="110" Stretch="Uniform" HorizontalAlignment="Center">
                                     <ItemsControl ItemsSource="{Binding HeatmapDays}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
-                                                <!-- Wrapping vertically forces it to column-build like GitHub -->
                                                 <WrapPanel Orientation="Vertical" Height="110" />
                                             </ItemsPanelTemplate>
                                         </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Background="{Binding ColorHex}" Width="12" Height="12" Margin="1.5" CornerRadius="2" ToolTip.Tip="{Binding Tooltip}"/>
+                                                <Border Background="{Binding ColorHex}" Width="12" Height="12" Margin="1.5" CornerRadius="2">
+                                                    <ToolTip.Tip>
+                                                        <StackPanel Spacing="5">
+                                                            <TextBlock Text="{Binding DateText}" FontWeight="Bold" Foreground="#e0e0e0" FontSize="13"/>
+                                                            <TextBlock Text="{Binding MainInfoText}" Foreground="#aaa" FontSize="12"/>
+                                                            <Rectangle IsVisible="{Binding HasData}" Height="1" Fill="#333" Margin="0,4"/>
+                                                            <TextBlock IsVisible="{Binding HasData}" Text="{Binding ModesText}" Foreground="#888" FontSize="12" TextWrapping="Wrap"/>
+                                                        </StackPanel>
+                                                    </ToolTip.Tip>
+                                                </Border>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
@@ -270,6 +301,58 @@
                 </Grid>
             </Grid>
         </Grid>
+
+        <!-- UI OVERLAY LAYER (100% Native Avalonia) -->
+        <Canvas IsHitTestVisible="False" ZIndex="999">
+
+            <!-- Universal Custom Overlay Tooltip Box -->
+            <Border IsVisible="{Binding IsTooltipVisible}" Canvas.Left="{Binding TooltipX}" Canvas.Top="{Binding TooltipY}" Background="#1e1e1e" BorderBrush="#555" BorderThickness="1" CornerRadius="6" Padding="15" BoxShadow="0 8 16 0 #B2000000">
+                <StackPanel>
+                    
+                    <!-- 1. Timeline Chart Content -->
+                    <StackPanel IsVisible="{Binding HoveredTimelinePoint, Converter={x:Static ObjectConverters.IsNotNull}}" Spacing="5">
+                        <TextBlock Text="{Binding HoveredTimelinePoint.HeaderText}" FontWeight="Bold" Foreground="#e0e0e0" FontSize="13"/>
+                        <TextBlock Text="{Binding HoveredTimelinePoint.GapText}" Foreground="#aaa" FontSize="12"/>
+                        <Rectangle Height="1" Fill="#333" Margin="0,4"/>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="Mode:" Foreground="#888" FontSize="12"/>
+                            <TextBlock Text="{Binding HoveredTimelinePoint.Log.Mode}" Foreground="{Binding HoveredTimelinePoint.ModeHex}" FontWeight="Bold" FontSize="12"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="Yield:" Foreground="#888" FontSize="12"/>
+                            <TextBlock Text="{Binding HoveredTimelinePoint.Log.Volume}" Foreground="#ccc" FontSize="12"/>
+                        </StackPanel>
+                        <StackPanel IsVisible="{Binding HoveredTimelinePoint.HasFlags, FallbackValue=False}" Margin="0,4,0,0">
+                            <TextBlock Text="{Binding HoveredTimelinePoint.FlagsText}" Foreground="#ff9800" FontWeight="Bold" FontSize="12"/>
+                        </StackPanel>
+                        <Border IsVisible="{Binding HoveredTimelinePoint.HasLab, FallbackValue=False}" Margin="0,4,0,0" Background="#263238" Padding="6" CornerRadius="4">
+                            <StackPanel>
+                                <TextBlock Text="CLINICAL DATA:" Foreground="#90a4ae" FontSize="10" FontWeight="Bold"/>
+                                <TextBlock Text="{Binding HoveredTimelinePoint.LabText}" Foreground="#fff" FontSize="12" Margin="0,2,0,0"/>
+                            </StackPanel>
+                        </Border>
+                    </StackPanel>
+
+                    <!-- 2. Doughnut (Pie) Chart Content -->
+                    <StackPanel IsVisible="{Binding HoveredPie, Converter={x:Static ObjectConverters.IsNotNull}}" Spacing="5">
+                        <TextBlock Text="CATEGORY DISTRIBUTION" FontWeight="Bold" Foreground="#e0e0e0" FontSize="13"/>
+                        <Rectangle Height="1" Fill="#333" Margin="0,4"/>
+                        <TextBlock Text="{Binding HoveredPie.Category}" Foreground="{Binding HoveredPie.ColorHex}" FontWeight="Bold" FontSize="14"/>
+                        <TextBlock Text="{Binding HoveredPie.Count, StringFormat='Total Events: {0}'}" Foreground="#aaa" FontSize="12"/>
+                        <TextBlock Text="{Binding HoveredPie.Percentage, StringFormat='Share: {0}%'}" Foreground="#888" FontSize="12"/>
+                    </StackPanel>
+
+                    <!-- 3. Bar (Row) Chart Content -->
+                    <StackPanel IsVisible="{Binding HoveredBar, Converter={x:Static ObjectConverters.IsNotNull}}" Spacing="5">
+                        <TextBlock Text="YIELD VOLUME" FontWeight="Bold" Foreground="#e0e0e0" FontSize="13"/>
+                        <Rectangle Height="1" Fill="#333" Margin="0,4"/>
+                        <TextBlock Text="{Binding HoveredBar.Category}" Foreground="{Binding HoveredBar.ColorHex}" FontWeight="Bold" FontSize="14"/>
+                        <TextBlock Text="{Binding HoveredBar.Count, StringFormat='Total Sessions: {0}'}" Foreground="#aaa" FontSize="12"/>
+                    </StackPanel>
+                    
+                </StackPanel>
+            </Border>
+        </Canvas>
 
         <!-- GENERIC ALERT MODAL -->
         <Border IsVisible="{Binding IsAlertOpen}" Background="#B2000000" ZIndex="200">
@@ -448,7 +531,6 @@
                                 <TextBox Text="{Binding ManualPhLevel}" Watermark="pH Level" Margin="2"/>
                             </UniformGrid>
                             
-                            <!-- PDF File Picker for Manual Log -->
                             <Grid ColumnDefinitions="*, Auto" Margin="0,5,0,0">
                                 <TextBlock Text="{Binding ManualLabFileName, TargetNullValue='No PDF attached...'}" VerticalAlignment="Center" Foreground="#888" FontSize="11" TextTrimming="CharacterEllipsis"/>
                                 <Button Grid.Column="1" Content="Attach PDF" Command="{Binding SelectManualPdfCommand}" CommandParameter="{Binding #RootWindow}" Background="#546e7a" Foreground="White" FontSize="10" Padding="8,4"/>
@@ -531,7 +613,6 @@
                                 <TextBox Text="{Binding EditPhLevel}" Watermark="pH Level" Margin="2"/>
                             </UniformGrid>
 
-                            <!-- PDF File Picker for Edit Log -->
                             <Grid ColumnDefinitions="*, Auto" Margin="0,5,0,0">
                                 <TextBlock Text="{Binding EditLabFileName, TargetNullValue='No PDF attached...'}" VerticalAlignment="Center" Foreground="#888" FontSize="11" TextTrimming="CharacterEllipsis"/>
                                 <Button Grid.Column="1" Content="Update PDF" Command="{Binding SelectEditPdfCommand}" CommandParameter="{Binding #RootWindow}" Background="#546e7a" Foreground="White" FontSize="10" Padding="8,4"/>

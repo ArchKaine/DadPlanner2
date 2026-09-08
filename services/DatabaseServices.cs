@@ -300,19 +300,47 @@ namespace DadPlanner2.Services
             db.Open();
             using var transaction = db.BeginTransaction();
 
+            string? historySummary = null;
+            using (var previousCmd = db.CreateCommand())
+            {
+                previousCmd.Transaction = transaction;
+                previousCmd.CommandText = @"
+                    SELECT IFNULL(Mode, 'Maintenance'), IFNULL(Volume, 'Normal'),
+                           IFNULL(ReleaseCount, 1), IFNULL(VolumeConfidence, 'Unknown')
+                    FROM Logs WHERE Id = $id";
+                previousCmd.Parameters.AddWithValue("$id", log.Id);
+                using var previousReader = previousCmd.ExecuteReader();
+                if (previousReader.Read())
+                {
+                    var changes = new List<string>();
+                    string previousMode = previousReader.GetString(0);
+                    string previousVolume = previousReader.GetString(1);
+                    int previousReleaseCount = Convert.ToInt32(previousReader.GetValue(2));
+                    string previousConfidence = previousReader.GetString(3);
+
+                    if (!string.Equals(previousMode, log.Mode, StringComparison.Ordinal))
+                        changes.Add($"mode from {previousMode} to {log.Mode}");
+                    if (!string.Equals(previousVolume, log.Volume, StringComparison.Ordinal))
+                        changes.Add($"volume from {previousVolume} to {log.Volume}");
+                    if (previousReleaseCount != log.ReleaseCount)
+                        changes.Add($"release count from {previousReleaseCount} to {log.ReleaseCount}");
+                    if (!string.Equals(previousConfidence, log.VolumeConfidence.ToString(), StringComparison.Ordinal))
+                        changes.Add($"confidence from {previousConfidence} to {log.VolumeConfidence}");
+
+                    historySummary = changes.Count == 0
+                        ? "No tracked session fields changed"
+                        : string.Join("; ", changes);
+                }
+            }
+
             using var historyCmd = db.CreateCommand();
             historyCmd.Transaction = transaction;
             historyCmd.CommandText = @"
                 INSERT INTO LogEditHistory (LogId, EditedAt, Summary)
-                SELECT Id, $editedAt,
-                    printf('%s, %s volume, %d release(s), %s confidence',
-                        IFNULL(Mode, 'Maintenance'),
-                        IFNULL(Volume, 'Normal'),
-                        IFNULL(ReleaseCount, 1),
-                        IFNULL(VolumeConfidence, 'Unknown'))
-                FROM Logs WHERE Id = $id";
+                VALUES ($id, $editedAt, $summary)";
             historyCmd.Parameters.AddWithValue("$id", log.Id);
             historyCmd.Parameters.AddWithValue("$editedAt", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            historyCmd.Parameters.AddWithValue("$summary", historySummary ?? "Previous session state unavailable");
             historyCmd.ExecuteNonQuery();
 
             using var cmd = db.CreateCommand();

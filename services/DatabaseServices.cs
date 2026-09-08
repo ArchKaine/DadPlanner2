@@ -97,6 +97,16 @@ namespace DadPlanner2.Services
                     throw new InvalidDataException("The selected backup failed SQLite integrity validation.");
             }
 
+            string safetyBackupPath = $"{_dbPath}.pre-restore-{DateTime.Now:yyyyMMdd-HHmmss-fff}.db";
+            if (File.Exists(_dbPath))
+            {
+                using var currentDb = new SqliteConnection(_connectionString);
+                currentDb.Open();
+                using var safetyBackupCommand = currentDb.CreateCommand();
+                safetyBackupCommand.CommandText = $"VACUUM INTO '{safetyBackupPath.Replace("'", "''")}'";
+                safetyBackupCommand.ExecuteNonQuery();
+            }
+
             string temporaryPath = $"{_dbPath}.restore-{Guid.NewGuid():N}";
             File.Copy(backupPath, temporaryPath);
 

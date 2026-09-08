@@ -176,6 +176,12 @@ namespace DadPlanner2.Services
                 cmd.CommandText = @"
                     CREATE TABLE IF NOT EXISTS Logs (Id INTEGER PRIMARY KEY AUTOINCREMENT, Timestamp INTEGER);
                     CREATE TABLE IF NOT EXISTS Appointments (Id INTEGER PRIMARY KEY AUTOINCREMENT, Timestamp INTEGER);
+                    CREATE TABLE IF NOT EXISTS LogEditHistory (
+                        Id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        LogId INTEGER NOT NULL,
+                        EditedAt INTEGER NOT NULL,
+                        Summary TEXT NOT NULL
+                    );
                     CREATE TABLE IF NOT EXISTS Settings (Key TEXT PRIMARY KEY, Value TEXT);
                     INSERT OR IGNORE INTO Settings (Key, Value) VALUES ('min_threshold', '24'), ('max_threshold', '72');
                 ";
@@ -292,8 +298,25 @@ namespace DadPlanner2.Services
         {
             using var db = new SqliteConnection(_connectionString);
             db.Open();
+            using var transaction = db.BeginTransaction();
+
+            using var historyCmd = db.CreateCommand();
+            historyCmd.Transaction = transaction;
+            historyCmd.CommandText = @"
+                INSERT INTO LogEditHistory (LogId, EditedAt, Summary)
+                SELECT Id, $editedAt,
+                    printf('%s, %s volume, %d release(s), %s confidence',
+                        IFNULL(Mode, 'Maintenance'),
+                        IFNULL(Volume, 'Normal'),
+                        IFNULL(ReleaseCount, 1),
+                        IFNULL(VolumeConfidence, 'Unknown'))
+                FROM Logs WHERE Id = $id";
+            historyCmd.Parameters.AddWithValue("$id", log.Id);
+            historyCmd.Parameters.AddWithValue("$editedAt", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            historyCmd.ExecuteNonQuery();
 
             using var cmd = db.CreateCommand();
+            cmd.Transaction = transaction;
             string updateBlob = pdfBlob != null ? ", LabReportFileName = $fname, LabReportBlob = $blob" : "";
             cmd.CommandText = $@"
                 UPDATE Logs SET 
@@ -307,6 +330,34 @@ namespace DadPlanner2.Services
             BindLogParameters(cmd, log, fileName, pdfBlob);
             cmd.Parameters.AddWithValue("$id", log.Id);
             cmd.ExecuteNonQuery();
+            transaction.Commit();
+        }
+
+        public List<LogEditHistory> GetLogEditHistory(long logId)
+        {
+            var history = new List<LogEditHistory>();
+            using var db = new SqliteConnection(_connectionString);
+            db.Open();
+            using var cmd = db.CreateCommand();
+            cmd.CommandText = @"
+                SELECT Id, LogId, EditedAt, Summary
+                FROM LogEditHistory
+                WHERE LogId = $logId
+                ORDER BY EditedAt DESC, Id DESC";
+            cmd.Parameters.AddWithValue("$logId", logId);
+            using var reader = cmd.ExecuteReader();
+            while (reader.Read())
+            {
+                history.Add(new LogEditHistory
+                {
+                    Id = reader.GetInt64(0),
+                    LogId = reader.GetInt64(1),
+                    EditedAt = reader.GetInt64(2),
+                    Summary = reader.GetString(3)
+                });
+            }
+
+            return history;
         }
 
         public void DeleteLog(long id)
@@ -450,9 +501,11 @@ namespace DadPlanner2.Services
                     DROP TABLE IF EXISTS Logs;
                     DROP TABLE IF EXISTS Settings;
                     DROP TABLE IF EXISTS Appointments;
+                    DROP TABLE IF EXISTS LogEditHistory;
                     ALTER TABLE Logs_Backup RENAME TO Logs;
                     ALTER TABLE Settings_Backup RENAME TO Settings;
                     ALTER TABLE Appointments_Backup RENAME TO Appointments;
+                    ALTER TABLE LogEditHistory_Backup RENAME TO LogEditHistory;
                 ";
                 restoreCmd.ExecuteNonQuery();
                 EnsureLogColumns(db);
@@ -464,6 +517,7 @@ namespace DadPlanner2.Services
                     ALTER TABLE Logs RENAME TO Logs_Backup;
                     ALTER TABLE Settings RENAME TO Settings_Backup;
                     ALTER TABLE Appointments RENAME TO Appointments_Backup;
+                    ALTER TABLE LogEditHistory RENAME TO LogEditHistory_Backup;
                     
                     CREATE TABLE Logs (Id INTEGER PRIMARY KEY AUTOINCREMENT, Timestamp INTEGER, Mode TEXT DEFAULT 'Maintenance', Volume TEXT DEFAULT 'Normal', ReleaseCount INTEGER DEFAULT 1, VolumeConfidence TEXT DEFAULT 'Unknown', HeatFlag INTEGER DEFAULT 0, Supplements TEXT DEFAULT '{}', Concentration INTEGER, Motility INTEGER, Morphology INTEGER, ClinicalVol REAL, ProgMotility INTEGER, PhLevel REAL, LabReportBlob BLOB, LabReportFileName TEXT);
                     
@@ -471,6 +525,7 @@ namespace DadPlanner2.Services
                     INSERT INTO Settings SELECT * FROM Settings_Backup;
                     
                     CREATE TABLE Appointments (Id INTEGER PRIMARY KEY AUTOINCREMENT, Timestamp INTEGER);
+                    CREATE TABLE LogEditHistory (Id INTEGER PRIMARY KEY AUTOINCREMENT, LogId INTEGER NOT NULL, EditedAt INTEGER NOT NULL, Summary TEXT NOT NULL);
                 ";
                 backupCmd.ExecuteNonQuery();
 
@@ -484,7 +539,7 @@ namespace DadPlanner2.Services
             var rand = new Random();
             string[] modes = { "Maintenance", "Playtime", "Baby-Making", "Clinical-Lab" };
             
-            int testRecordCount = 150;
+            int testRecordCount = 300;
             int singleHeatEventIndex = rand.Next(0, testRecordCount);
 
             for (int i = 0; i < testRecordCount; i++)
@@ -517,7 +572,7 @@ namespace DadPlanner2.Services
                 
                 if (rand.Next(100) > 90 && randomMode != "Baby-Making") randomVol = "None";
                 
-                int randomHeat = (i == singleHeatEventIndex) ? 1 : 0; 
+                int randomHeat = (i == singleHeatEventIndex) ? 2 : 0;
 
                 int conc = 0, mot = 0, morph = 0, pmot = 0;
                 double cvol = 0.0, ph = 0.0;
@@ -610,7 +665,12 @@ namespace DadPlanner2.Services
                 if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
                     Process.Start(new ProcessStartInfo(path) { UseShellExecute = true });
                 else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
-                    Process.Start("xdg-open", path);
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "gio",
+                        UseShellExecute = false,
+                        ArgumentList = { "open", path }
+                    });
                 else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
                     Process.Start("open", path);
             }

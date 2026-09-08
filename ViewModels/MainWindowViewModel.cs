@@ -49,12 +49,14 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private bool _isManualLogOpen;
         [ObservableProperty] private bool _isEditLogOpen;
         [ObservableProperty] private bool _isAlertOpen;
+        [ObservableProperty] private bool _isAnalysisOpen;
         [ObservableProperty] private bool _isStealthMode;
         
         public double StealthBlurRadius => IsStealthMode ? 12.0 : 0.0;
 
         [ObservableProperty] private string _alertTitle = "";
         [ObservableProperty] private string _alertMessage = "";
+        [ObservableProperty] private string _analysisMessage = "";
         [ObservableProperty] private bool _showAlertConfirm;
         private Action? _alertConfirmAction;
 
@@ -143,6 +145,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private double? _editPhLevel;
         [ObservableProperty] private string? _editLabFileName;
         private byte[]? _editLabFileData;
+        [ObservableProperty] private string _editHistoryText = "No previous edits recorded.";
 
         public ObservableCollection<LogRecord> Logs { get; } = new();
         public ObservableCollection<HeatmapDay> HeatmapDays { get; } = new();
@@ -201,6 +204,7 @@ namespace DadPlanner2.ViewModels
         [RelayCommand] private void CloseManualLog() => IsManualLogOpen = false;
         [RelayCommand] private void CloseEditLog() => IsEditLogOpen = false;
         [RelayCommand] private void CloseAlert() => IsAlertOpen = false;
+        [RelayCommand] private void CloseAnalysis() => IsAnalysisOpen = false;
         [RelayCommand] private void ConfirmAlert() { _alertConfirmAction?.Invoke(); IsAlertOpen = false; }
         
         [RelayCommand] 
@@ -603,6 +607,10 @@ namespace DadPlanner2.ViewModels
             EditMode = log.Mode; EditVolume = log.Volume; EditReleaseCount = log.ReleaseCount; EditVolumeConfidence = log.VolumeConfidence; EditHeat = log.HeatFlag;
             EditZinc = log.Supplements.Contains("\"zinc\":1"); EditMaca = log.Supplements.Contains("\"maca\":1"); EditVitD = log.Supplements.Contains("\"vitD\":1"); EditVitC = log.Supplements.Contains("\"vitC\":1");
             EditClinicalVol = log.ClinicalVol > 0 ? log.ClinicalVol : null; EditConcentration = log.Concentration > 0 ? log.Concentration : null; EditMotility = log.Motility > 0 ? log.Motility : null; EditProgMotility = log.ProgMotility > 0 ? log.ProgMotility : null; EditMorphology = log.Morphology > 0 ? log.Morphology : null; EditPhLevel = log.PhLevel > 0 ? log.PhLevel : null;
+            var history = _dbService.GetLogEditHistory(log.Id);
+            EditHistoryText = history.Count == 0
+                ? "No previous edits recorded."
+                : string.Join(Environment.NewLine, history.Select(entry => entry.DisplayText));
             EditLabFileName = null; _editLabFileData = null; IsEditLogOpen = true;
         }
 
@@ -675,7 +683,8 @@ namespace DadPlanner2.ViewModels
                 return;
             }
 
-            ShowAlert("Analysis Complete", FormatSupplementAnalysis(analysis));
+            AnalysisMessage = FormatSupplementAnalysis(analysis);
+            IsAnalysisOpen = true;
             CloseSettings();
         }
 

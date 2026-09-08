@@ -103,6 +103,21 @@ public sealed class DatabaseServiceIntegrationTests
     }
 
     [TestMethod]
+    public void TestMode_SeedsMultiReleaseSessionsWithConfidenceValues()
+    {
+        var service = new DatabaseService(_testDirectory);
+        service.ToggleTestMode();
+
+        var logs = service.GetAllLogs();
+
+        Assert.IsTrue(logs.Count >= 150);
+        Assert.IsTrue(logs.Any(log => log.ReleaseCount > 1));
+        Assert.IsTrue(logs.Any(log => log.ReleaseCount > 1 && log.VolumeConfidence == VolumeConfidence.Estimated));
+        Assert.IsTrue(logs.Any(log => log.ReleaseCount > 1 && log.VolumeConfidence == VolumeConfidence.Unknown));
+        Assert.IsTrue(logs.Any(log => log.ReleaseCount == 1 && log.VolumeConfidence == VolumeConfidence.Observed));
+    }
+
+    [TestMethod]
     public void ExecuteAutoBackup_CreatesReadableBackupAndRetainsTen()
     {
         var service = new DatabaseService(_testDirectory);

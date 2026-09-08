@@ -361,10 +361,12 @@
 
         <!-- GENERIC ALERT MODAL -->
         <Border IsVisible="{Binding IsAlertOpen}" Background="#B2000000" ZIndex="200">
-            <Border Background="#1e1e1e" BorderBrush="#444" BorderThickness="1" CornerRadius="8" Width="450" Padding="25" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 10 30 0 #A8000000">
+            <Border Background="#1e1e1e" BorderBrush="#444" BorderThickness="1" CornerRadius="8" Width="520" MaxHeight="680" Padding="25" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 10 30 0 #A8000000">
                 <StackPanel Spacing="15">
                     <TextBlock Text="{Binding AlertTitle}" FontSize="18" FontWeight="Bold" Foreground="White"/>
-                    <TextBlock Text="{Binding AlertMessage}" TextWrapping="Wrap" Foreground="#ccc"/>
+                    <ScrollViewer MaxHeight="560" HorizontalScrollBarVisibility="Disabled">
+                        <TextBlock Text="{Binding AlertMessage}" TextWrapping="Wrap" Foreground="#ccc"/>
+                    </ScrollViewer>
                     <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="10" Margin="0,10,0,0">
                         <Button Content="Cancel" Command="{Binding CloseAlertCommand}" Background="#333" Foreground="White"/>
                         <Button IsVisible="{Binding ShowAlertConfirm}" Content="Confirm" Command="{Binding ConfirmAlertCommand}" Background="#007acc" Foreground="White"/>

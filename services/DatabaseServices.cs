@@ -24,6 +24,7 @@ namespace DadPlanner2.Services
         private readonly string _dbPath;
         private readonly string _connectionString;
         private readonly DataExportService _dataExport = new();
+        private readonly ReportDataService _reportData = new();
         private bool _isDirty;
 
         public DatabaseService(string? dataDirectory = null)
@@ -546,35 +547,11 @@ namespace DadPlanner2.Services
 
         public void Generate90DayReport()
         {
-            var allLogs = GetAllLogs();
-            long ninetyDaysAgo = DateTimeOffset.UtcNow.ToUnixTimeSeconds() - (90L * 24 * 3600);
-            var logs = allLogs.Where(l => l.Timestamp >= ninetyDaysAgo).OrderBy(l => l.Timestamp).ToList();
-
-            var releaseLogs = logs.Where(l => l.Volume != "None" && l.Volume != "N/A").ToList();
-            
-            double avgGap = 0;
-            double minGap = 0;
-
-            var gapData = new List<DateTimePoint>();
-
-            if (releaseLogs.Count > 0)
-            {
-                double totalGap = 0;
-                minGap = 999;
-                for (int i = 0; i < releaseLogs.Count; i++)
-                {
-                    var dt = DateTimeOffset.FromUnixTimeSeconds(releaseLogs[i].Timestamp).ToLocalTime().DateTime;
-                    double gap = i == 0 ? 72.0 : (releaseLogs[i].Timestamp - releaseLogs[i - 1].Timestamp) / 3600.0;
-                    gapData.Add(new DateTimePoint(dt, gap));
-
-                    if (i > 0)
-                    {
-                        totalGap += gap;
-                        if (gap < minGap) minGap = gap;
-                    }
-                }
-                if (releaseLogs.Count > 1) avgGap = totalGap / (releaseLogs.Count - 1);
-            }
+            var reportData = _reportData.Create(GetAllLogs(), DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            var logs = reportData.Logs;
+            var gapData = reportData.GapData;
+            double avgGap = reportData.AverageGap;
+            double minGap = reportData.MinimumGap;
             
             var lineChart = new SKCartesianChart
             {
@@ -589,10 +566,10 @@ namespace DadPlanner2.Services
             using (var img = lineChart.GetImage())
             using (var data = img.Encode(SKEncodedImageFormat.Png, 100)) lineBytes = data.ToArray();
 
-            int maint = logs.Count(l => l.Mode == "Maintenance");
-            int play = logs.Count(l => l.Mode == "Playtime");
-            int baby = logs.Count(l => l.Mode == "Baby-Making");
-            int lab = logs.Count(l => l.Mode == "Clinical-Lab");
+            int maint = reportData.MaintenanceCount;
+            int play = reportData.PlaytimeCount;
+            int baby = reportData.BabyMakingCount;
+            int lab = reportData.ClinicalLabCount;
 
             var pieChart = new SKPieChart
             {
@@ -612,10 +589,10 @@ namespace DadPlanner2.Services
             using (var img = pieChart.GetImage())
             using (var data = img.Encode(SKEncodedImageFormat.Png, 100)) pieBytes = data.ToArray();
 
-            int high = logs.Count(l => l.Volume == "High");
-            int norm = logs.Count(l => l.Volume == "Normal");
-            int low = logs.Count(l => l.Volume == "Low");
-            int dry = logs.Count(l => l.Volume == "None" || l.Volume == "N/A");
+            int high = reportData.HighCount;
+            int norm = reportData.NormalCount;
+            int low = reportData.LowCount;
+            int dry = reportData.DryCount;
 
             var barChart = new SKCartesianChart
             {

@@ -17,6 +17,7 @@ public partial class MainWindow : Window
         
         var vm = new MainWindowViewModel();
         DataContext = vm;
+        Closing += (_, _) => vm.HandleShutdown();
 
         vm.RequestScrollToLog = (log) =>
         {

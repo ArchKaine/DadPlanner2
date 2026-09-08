@@ -47,7 +47,7 @@ namespace DadPlanner2.Services
                 Directory.CreateDirectory(backupDirectory);
                 string backupPath = Path.Combine(
                     backupDirectory,
-                    $"inventory-{DateTime.Now:yyyyMMdd-HHmmss-fff}.db");
+                    $"inventory-{DateTime.Now:yyyyMMdd-HHmmss-fff}-{Guid.NewGuid():N}.db");
 
                 using var db = new SqliteConnection(_connectionString);
                 db.Open();

@@ -70,6 +70,7 @@ namespace DadPlanner2.Services
             {
                 ShowNotification("Backup Error", $"Could not create a database backup: {ex.Message}");
             }
+
         }
 
         public string? GetLatestBackup(string backupDirectory)
@@ -176,7 +177,10 @@ namespace DadPlanner2.Services
                     if (File.Exists(legacyDb)) File.Move(legacyDb, _dbPath);
                     else if (File.Exists(altLegacyDb)) File.Copy(altLegacyDb, _dbPath, true);
                 }
-                catch { }
+                catch (IOException ex)
+                {
+                    throw new InvalidOperationException("The legacy database could not be moved into the application data directory.", ex);
+                }
             }
 
             if (File.Exists(_dbPath))
@@ -221,9 +225,19 @@ namespace DadPlanner2.Services
 
                 foreach (var stmt in alterStatements)
                 {
-                    try { using var alterCmd = db.CreateCommand(); alterCmd.CommandText = stmt; alterCmd.ExecuteNonQuery(); } catch { }
+                    try
+                    {
+                        using var alterCmd = db.CreateCommand();
+                        alterCmd.CommandText = stmt;
+                        alterCmd.ExecuteNonQuery();
+                    }
+                    catch (SqliteException ex) when (DatabaseMigrationPolicy.IsAlreadyApplied(ex))
+                    {
+                        // SQLite has no portable ADD COLUMN IF NOT EXISTS syntax.
+                    }
                 }
             }
+
             catch (Exception ex)
             {
                 ShowNotification("Init Error", ex.Message);
@@ -866,6 +880,16 @@ namespace DadPlanner2.Services
                 }
             }
             catch { }
+        }
+
+    }
+
+    internal static class DatabaseMigrationPolicy
+    {
+        public static bool IsAlreadyApplied(SqliteException exception)
+        {
+            return exception.SqliteErrorCode == 1 &&
+                   exception.Message.Contains("duplicate column name", StringComparison.OrdinalIgnoreCase);
         }
     }
 }

@@ -146,6 +146,11 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private string? _editLabFileName;
         private byte[]? _editLabFileData;
         [ObservableProperty] private string _editHistoryText = "No previous edits recorded.";
+        public ObservableCollection<LogEditHistory> EditHistoryEntries { get; } = new();
+        [ObservableProperty] private string _zincAnalysisSummary = "";
+        [ObservableProperty] private string _macaAnalysisSummary = "";
+        [ObservableProperty] private string _vitaminDAnalysisSummary = "";
+        [ObservableProperty] private string _vitaminCAnalysisSummary = "";
 
         public ObservableCollection<LogRecord> Logs { get; } = new();
         public ObservableCollection<HeatmapDay> HeatmapDays { get; } = new();
@@ -609,10 +614,28 @@ namespace DadPlanner2.ViewModels
             EditZinc = log.Supplements.Contains("\"zinc\":1"); EditMaca = log.Supplements.Contains("\"maca\":1"); EditVitD = log.Supplements.Contains("\"vitD\":1"); EditVitC = log.Supplements.Contains("\"vitC\":1");
             EditClinicalVol = log.ClinicalVol > 0 ? log.ClinicalVol : null; EditConcentration = log.Concentration > 0 ? log.Concentration : null; EditMotility = log.Motility > 0 ? log.Motility : null; EditProgMotility = log.ProgMotility > 0 ? log.ProgMotility : null; EditMorphology = log.Morphology > 0 ? log.Morphology : null; EditPhLevel = log.PhLevel > 0 ? log.PhLevel : null;
             var history = _dbService.GetLogEditHistory(log.Id);
+            EditHistoryEntries.Clear();
+            foreach (var entry in history) EditHistoryEntries.Add(entry);
             EditHistoryText = history.Count == 0
                 ? "No previous edits recorded."
                 : string.Join(Environment.NewLine, history.Select(entry => entry.DisplayText));
             EditLabFileName = null; _editLabFileData = null; IsEditLogOpen = true;
+        }
+
+        [RelayCommand]
+        private void RestoreEditHistory(long historyId)
+        {
+            var restored = _dbService.RestoreLogFromHistory(historyId);
+            if (restored == null)
+            {
+                ShowAlert("Restore Unavailable", "The selected edit history entry no longer has a restorable snapshot.");
+                return;
+            }
+
+            _dbService.UpdateLog(restored);
+            _dbService.MarkDirty();
+            CloseEditLog();
+            LoadData();
         }
 
         [RelayCommand]
@@ -684,9 +707,24 @@ namespace DadPlanner2.ViewModels
                 return;
             }
 
+            ZincAnalysisSummary = FormatAnalysisCard("Zinc", analysis.Zinc);
+            MacaAnalysisSummary = FormatAnalysisCard("Maca", analysis.Maca);
+            VitaminDAnalysisSummary = FormatAnalysisCard("Vitamin D3", analysis.VitaminD);
+            VitaminCAnalysisSummary = FormatAnalysisCard("Vitamin C", analysis.VitaminC);
             AnalysisMessage = FormatSupplementAnalysis(analysis);
             IsAnalysisOpen = true;
             CloseSettings();
+        }
+
+        private static string FormatAnalysisCard(string label, SupplementComparison comparison)
+        {
+            string groups = $"Saturated {comparison.SaturatedCount} | Unsaturated {comparison.UnsaturatedCount}";
+            string result = comparison.SaturatedAverageGap.HasValue && comparison.UnsaturatedAverageGap.HasValue
+                ? $"Gap delta: {comparison.UnsaturatedAverageGap.Value - comparison.SaturatedAverageGap.Value:+0.0;-0.0;0.0}h"
+                : comparison.SaturatedSuccesses.HasValue && comparison.UnsaturatedSuccesses.HasValue
+                    ? $"Yield delta: {(comparison.SaturatedSuccesses.Value / (double)Math.Max(1, comparison.SaturatedCount) - comparison.UnsaturatedSuccesses.Value / (double)Math.Max(1, comparison.UnsaturatedCount)):+0.0%;-0.0%;0.0%}"
+                    : "Not comparable yet";
+            return $"{label}  |  {comparison.WindowDays}-day window\n{groups}\n{result}\nConfidence: O {comparison.SaturatedConfidenceCounts.Observed}/{comparison.UnsaturatedConfidenceCounts.Observed}  E {comparison.SaturatedConfidenceCounts.Estimated}/{comparison.UnsaturatedConfidenceCounts.Estimated}  U {comparison.SaturatedConfidenceCounts.Unknown}/{comparison.UnsaturatedConfidenceCounts.Unknown}";
         }
 
         private static string FormatSupplementAnalysis(SupplementAnalysisResult analysis)

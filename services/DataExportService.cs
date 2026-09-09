@@ -14,13 +14,17 @@ public sealed class DataExportService
     public DataExportResult Export(
         IEnumerable<LogRecord> sourceLogs,
         string exportDirectory,
-        SupplementAnalysisResult? analysis = null)
+        SupplementAnalysisResult? analysis = null,
+        IEnumerable<LogEditHistory>? sourceHistory = null)
     {
         Directory.CreateDirectory(exportDirectory);
         var logs = sourceLogs.OrderBy(log => log.Timestamp).ToList();
         string timestamp = DateTime.Now.ToString("yyyyMMdd-HHmmss-fff", CultureInfo.InvariantCulture);
         string jsonPath = Path.Combine(exportDirectory, $"dadplanner-export-{timestamp}.json");
         string csvPath = Path.Combine(exportDirectory, $"dadplanner-export-{timestamp}.csv");
+        var history = sourceHistory?.OrderBy(entry => entry.EditedAt).ToList() ?? new List<LogEditHistory>();
+        string historyJsonPath = Path.Combine(exportDirectory, $"dadplanner-edit-history-{timestamp}.json");
+        string historyCsvPath = Path.Combine(exportDirectory, $"dadplanner-edit-history-{timestamp}.csv");
 
         File.WriteAllText(jsonPath, JsonSerializer.Serialize(logs, new JsonSerializerOptions
         {
@@ -49,6 +53,25 @@ public sealed class DataExportService
                 log.Morphology,
                 log.PhLevel.ToString(CultureInfo.InvariantCulture),
                 log.HasPdf));
+        }
+
+        File.WriteAllText(historyJsonPath, JsonSerializer.Serialize(history, new JsonSerializerOptions
+        {
+            WriteIndented = true
+        }));
+
+        using (var historyWriter = new StreamWriter(historyCsvPath))
+        {
+            historyWriter.WriteLine("Id,LogId,EditedAt,Date,Summary");
+            foreach (var entry in history)
+            {
+                historyWriter.WriteLine(string.Join(",",
+                    entry.Id,
+                    entry.LogId,
+                    entry.EditedAt,
+                    CsvEscape(entry.DisplayText[..entry.DisplayText.IndexOf(" - ", StringComparison.Ordinal)]),
+                    CsvEscape(entry.Summary)));
+            }
         }
 
         string? analysisJsonPath = null;
@@ -97,7 +120,7 @@ public sealed class DataExportService
             }
         }
 
-        return new DataExportResult(jsonPath, csvPath, analysisJsonPath, analysisCsvPath);
+        return new DataExportResult(jsonPath, csvPath, analysisJsonPath, analysisCsvPath, historyJsonPath, historyCsvPath);
     }
 
     private static string CsvEscape(string value) => $"\"{value.Replace("\"", "\"\"")}\"";
@@ -107,4 +130,6 @@ public sealed record DataExportResult(
     string JsonPath,
     string CsvPath,
     string? AnalysisJsonPath,
-    string? AnalysisCsvPath);
+    string? AnalysisCsvPath,
+    string HistoryJsonPath,
+    string HistoryCsvPath);

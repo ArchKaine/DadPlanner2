@@ -132,7 +132,15 @@ public sealed class DatabaseServiceIntegrationTests
 
         service.ToggleTestMode();
         CollectionAssert.AreEqual(
-            new[] { "Maintenance, Normal volume, 1 release(s), Unknown confidence" },
+            new[] { "volume from Normal to High" },
+            service.GetLogEditHistory(productionLog.Id).Select(history => history.Summary).ToArray());
+
+        productionLog.ReleaseCount = 3;
+        productionLog.VolumeConfidence = VolumeConfidence.Estimated;
+        service.UpdateLog(productionLog);
+
+        CollectionAssert.AreEqual(
+            new[] { "release count from 1 to 3; confidence from Unknown to Estimated", "volume from Normal to High" },
             service.GetLogEditHistory(productionLog.Id).Select(history => history.Summary).ToArray());
     }
 
@@ -209,6 +217,9 @@ public sealed class DatabaseServiceIntegrationTests
         Assert.IsTrue(File.Exists(exports.AnalysisJsonPath));
         Assert.IsTrue(File.Exists(exports.AnalysisCsvPath));
         StringAssert.Contains(File.ReadAllText(exports.AnalysisCsvPath), "Supplement,WindowDays,TargetTimestamp");
+        Assert.IsTrue(File.Exists(exports.HistoryJsonPath));
+        Assert.IsTrue(File.Exists(exports.HistoryCsvPath));
+        StringAssert.Contains(File.ReadAllText(exports.HistoryCsvPath), "Id,LogId,EditedAt,Date,Summary");
     }
 
     [TestMethod]

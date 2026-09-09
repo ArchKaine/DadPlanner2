@@ -181,7 +181,20 @@ namespace DadPlanner2.Services
                         Id INTEGER PRIMARY KEY AUTOINCREMENT,
                         LogId INTEGER NOT NULL,
                         EditedAt INTEGER NOT NULL,
-                        Summary TEXT NOT NULL
+                        Summary TEXT NOT NULL,
+                        PreviousTimestamp INTEGER DEFAULT 0,
+                        PreviousMode TEXT DEFAULT 'Maintenance',
+                        PreviousVolume TEXT DEFAULT 'Normal',
+                        PreviousReleaseCount INTEGER DEFAULT 1,
+                        PreviousVolumeConfidence TEXT DEFAULT 'Unknown',
+                        PreviousHeatFlag INTEGER DEFAULT 0,
+                        PreviousSupplements TEXT DEFAULT '{}',
+                        PreviousClinicalVol REAL DEFAULT 0,
+                        PreviousConcentration INTEGER DEFAULT 0,
+                        PreviousMotility INTEGER DEFAULT 0,
+                        PreviousProgMotility INTEGER DEFAULT 0,
+                        PreviousMorphology INTEGER DEFAULT 0,
+                        PreviousPhLevel REAL DEFAULT 0
                     );
                     CREATE TABLE IF NOT EXISTS Settings (Key TEXT PRIMARY KEY, Value TEXT);
                     INSERT OR IGNORE INTO Settings (Key, Value) VALUES ('min_threshold', '24'), ('max_threshold', '72');
@@ -226,9 +239,38 @@ namespace DadPlanner2.Services
                     alterCmd.CommandText = stmt;
                     alterCmd.ExecuteNonQuery();
                 }
+
                 catch (SqliteException ex) when (DatabaseMigrationPolicy.IsAlreadyApplied(ex))
                 {
                     // SQLite has no portable ADD COLUMN IF NOT EXISTS syntax.
+                }
+            }
+
+            string[] historyColumns = {
+                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousTimestamp INTEGER DEFAULT 0",
+                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousMode TEXT DEFAULT 'Maintenance'",
+                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousVolume TEXT DEFAULT 'Normal'",
+                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousReleaseCount INTEGER DEFAULT 1",
+                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousVolumeConfidence TEXT DEFAULT 'Unknown'",
+                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousHeatFlag INTEGER DEFAULT 0",
+                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousSupplements TEXT DEFAULT '{}'",
+                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousClinicalVol REAL DEFAULT 0",
+                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousConcentration INTEGER DEFAULT 0",
+                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousMotility INTEGER DEFAULT 0",
+                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousProgMotility INTEGER DEFAULT 0",
+                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousMorphology INTEGER DEFAULT 0",
+                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousPhLevel REAL DEFAULT 0"
+                };
+            foreach (var stmt in historyColumns)
+            {
+                try
+                {
+                    using var alterCmd = db.CreateCommand();
+                    alterCmd.CommandText = stmt;
+                    alterCmd.ExecuteNonQuery();
+                }
+                catch (SqliteException ex) when (DatabaseMigrationPolicy.IsAlreadyApplied(ex))
+                {
                 }
             }
         }
@@ -306,18 +348,23 @@ namespace DadPlanner2.Services
             {
                 previousCmd.Transaction = transaction;
                 previousCmd.CommandText = @"
-                    SELECT IFNULL(Mode, 'Maintenance'), IFNULL(Volume, 'Normal'),
-                           IFNULL(ReleaseCount, 1), IFNULL(VolumeConfidence, 'Unknown')
+                    SELECT Timestamp, IFNULL(Mode, 'Maintenance'), IFNULL(Volume, 'Normal'),
+                           IFNULL(ReleaseCount, 1), IFNULL(VolumeConfidence, 'Unknown'),
+                           IFNULL(HeatFlag, 0), IFNULL(Supplements, '{}'),
+                           IFNULL(ClinicalVol, 0), IFNULL(Concentration, 0),
+                           IFNULL(Motility, 0), IFNULL(ProgMotility, 0),
+                           IFNULL(Morphology, 0), IFNULL(PhLevel, 0)
                     FROM Logs WHERE Id = $id";
                 previousCmd.Parameters.AddWithValue("$id", log.Id);
                 using var previousReader = previousCmd.ExecuteReader();
                 if (previousReader.Read())
                 {
                     var changes = new List<string>();
-                    string previousMode = previousReader.GetString(0);
-                    string previousVolume = previousReader.GetString(1);
-                    int previousReleaseCount = Convert.ToInt32(previousReader.GetValue(2));
-                    string previousConfidence = previousReader.GetString(3);
+                    long previousTimestamp = previousReader.GetInt64(0);
+                    string previousMode = previousReader.GetString(1);
+                    string previousVolume = previousReader.GetString(2);
+                    int previousReleaseCount = Convert.ToInt32(previousReader.GetValue(3));
+                    string previousConfidence = previousReader.GetString(4);
 
                     if (!string.Equals(previousMode, log.Mode, StringComparison.Ordinal))
                         changes.Add($"mode from {previousMode} to {log.Mode}");
@@ -342,6 +389,22 @@ namespace DadPlanner2.Services
             historyCmd.Parameters.AddWithValue("$id", log.Id);
             historyCmd.Parameters.AddWithValue("$editedAt", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             historyCmd.Parameters.AddWithValue("$summary", historySummary ?? "Previous session state unavailable");
+            if (historySummary != null)
+            {
+                historyCmd.CommandText = @"
+                    INSERT INTO LogEditHistory
+                        (LogId, EditedAt, Summary, PreviousTimestamp, PreviousMode, PreviousVolume,
+                         PreviousReleaseCount, PreviousVolumeConfidence, PreviousHeatFlag, PreviousSupplements,
+                         PreviousClinicalVol, PreviousConcentration, PreviousMotility, PreviousProgMotility,
+                         PreviousMorphology, PreviousPhLevel)
+                    SELECT $id, $editedAt, $summary, Timestamp, IFNULL(Mode, 'Maintenance'),
+                           IFNULL(Volume, 'Normal'), IFNULL(ReleaseCount, 1),
+                           IFNULL(VolumeConfidence, 'Unknown'), IFNULL(HeatFlag, 0),
+                           IFNULL(Supplements, '{}'), IFNULL(ClinicalVol, 0), IFNULL(Concentration, 0),
+                           IFNULL(Motility, 0), IFNULL(ProgMotility, 0), IFNULL(Morphology, 0),
+                           IFNULL(PhLevel, 0)
+                    FROM Logs WHERE Id = $id";
+            }
             historyCmd.ExecuteNonQuery();
 
             using var cmd = db.CreateCommand();
@@ -369,7 +432,10 @@ namespace DadPlanner2.Services
             db.Open();
             using var cmd = db.CreateCommand();
             cmd.CommandText = @"
-                SELECT Id, LogId, EditedAt, Summary
+                SELECT Id, LogId, EditedAt, Summary, PreviousTimestamp, PreviousMode, PreviousVolume,
+                       PreviousReleaseCount, PreviousVolumeConfidence, PreviousHeatFlag, PreviousSupplements,
+                       PreviousClinicalVol, PreviousConcentration, PreviousMotility, PreviousProgMotility,
+                       PreviousMorphology, PreviousPhLevel
                 FROM LogEditHistory
                 WHERE LogId = $logId
                 ORDER BY EditedAt DESC, Id DESC";
@@ -383,10 +449,49 @@ namespace DadPlanner2.Services
                     LogId = reader.GetInt64(1),
                     EditedAt = reader.GetInt64(2),
                     Summary = reader.GetString(3)
+                    ,PreviousTimestamp = reader.GetInt64(4)
+                    ,PreviousMode = reader.GetString(5)
+                    ,PreviousVolume = reader.GetString(6)
+                    ,PreviousReleaseCount = Convert.ToInt32(reader.GetValue(7))
+                    ,PreviousVolumeConfidence = ParseVolumeConfidence(reader.GetString(8))
+                    ,PreviousHeatFlag = Convert.ToInt32(reader.GetValue(9))
+                    ,PreviousSupplements = reader.GetString(10)
+                    ,PreviousClinicalVol = Convert.ToDouble(reader.GetValue(11))
+                    ,PreviousConcentration = Convert.ToInt32(reader.GetValue(12))
+                    ,PreviousMotility = Convert.ToInt32(reader.GetValue(13))
+                    ,PreviousProgMotility = Convert.ToInt32(reader.GetValue(14))
+                    ,PreviousMorphology = Convert.ToInt32(reader.GetValue(15))
+                    ,PreviousPhLevel = Convert.ToDouble(reader.GetValue(16))
                 });
             }
 
             return history;
+        }
+
+        public LogRecord? RestoreLogFromHistory(long historyId)
+        {
+            using var db = new SqliteConnection(_connectionString);
+            db.Open();
+            using var cmd = db.CreateCommand();
+            cmd.CommandText = @"
+                SELECT LogId, PreviousTimestamp, PreviousMode, PreviousVolume, PreviousReleaseCount,
+                       PreviousVolumeConfidence, PreviousHeatFlag, PreviousSupplements,
+                       PreviousClinicalVol, PreviousConcentration, PreviousMotility,
+                       PreviousProgMotility, PreviousMorphology, PreviousPhLevel
+                FROM LogEditHistory WHERE Id = $id";
+            cmd.Parameters.AddWithValue("$id", historyId);
+            using var reader = cmd.ExecuteReader();
+            if (!reader.Read()) return null;
+            return new LogRecord
+            {
+                Id = reader.GetInt64(0), Timestamp = reader.GetInt64(1), Mode = reader.GetString(2),
+                Volume = reader.GetString(3), ReleaseCount = Convert.ToInt32(reader.GetValue(4)),
+                VolumeConfidence = ParseVolumeConfidence(reader.GetString(5)),
+                HeatFlag = Convert.ToInt32(reader.GetValue(6)), Supplements = reader.GetString(7),
+                ClinicalVol = Convert.ToDouble(reader.GetValue(8)), Concentration = Convert.ToInt32(reader.GetValue(9)),
+                Motility = Convert.ToInt32(reader.GetValue(10)), ProgMotility = Convert.ToInt32(reader.GetValue(11)),
+                Morphology = Convert.ToInt32(reader.GetValue(12)), PhLevel = Convert.ToDouble(reader.GetValue(13))
+            };
         }
 
         public void DeleteLog(long id)
@@ -542,6 +647,7 @@ namespace DadPlanner2.Services
                 ";
                 restoreCmd.ExecuteNonQuery();
                 EnsureLogColumns(db);
+                EnsureHistoryColumns(db);
             }
             else
             {
@@ -561,15 +667,41 @@ namespace DadPlanner2.Services
                     CREATE TABLE LogEditHistory (Id INTEGER PRIMARY KEY AUTOINCREMENT, LogId INTEGER NOT NULL, EditedAt INTEGER NOT NULL, Summary TEXT NOT NULL);
                 ";
                 backupCmd.ExecuteNonQuery();
+                EnsureHistoryColumns(db);
 
                 GenerateFakeData(db);
+            }
+        }
+
+        private static void EnsureHistoryColumns(SqliteConnection db)
+            {
+                string[] columns = {
+                    "PreviousTimestamp INTEGER DEFAULT 0", "PreviousMode TEXT DEFAULT 'Maintenance'",
+                    "PreviousVolume TEXT DEFAULT 'Normal'", "PreviousReleaseCount INTEGER DEFAULT 1",
+                    "PreviousVolumeConfidence TEXT DEFAULT 'Unknown'", "PreviousHeatFlag INTEGER DEFAULT 0",
+                    "PreviousSupplements TEXT DEFAULT '{}'", "PreviousClinicalVol REAL DEFAULT 0",
+                    "PreviousConcentration INTEGER DEFAULT 0", "PreviousMotility INTEGER DEFAULT 0",
+                    "PreviousProgMotility INTEGER DEFAULT 0", "PreviousMorphology INTEGER DEFAULT 0",
+                    "PreviousPhLevel REAL DEFAULT 0"
+                };
+                foreach (var column in columns)
+                {
+                    try
+                    {
+                        using var cmd = db.CreateCommand();
+                        cmd.CommandText = $"ALTER TABLE LogEditHistory ADD COLUMN {column}";
+                        cmd.ExecuteNonQuery();
+                    }
+                    catch (SqliteException ex) when (DatabaseMigrationPolicy.IsAlreadyApplied(ex))
+                    {
+                }
             }
         }
 
         private void GenerateFakeData(SqliteConnection db)
         {
             long currentTs = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            var rand = new Random();
+            var rand = new Random(20260908);
             string[] modes = { "Maintenance", "Playtime", "Baby-Making", "Clinical-Lab" };
             
             int testRecordCount = 300;

@@ -30,7 +30,7 @@
         <Style Selector="Button.btn-icon:pointerover /template/ ContentPresenter">
             <Setter Property="Background" Value="#555"/>
         </Style>
-        
+
         <!-- Global ToolTip Override for the Heatmap -->
         <Style Selector="ToolTip">
             <Setter Property="Background" Value="#1e1e1e"/>
@@ -43,7 +43,7 @@
 
     <!-- The root grid tracks the pointer to feed the custom overlay tooltip -->
     <Grid Background="#121212" PointerMoved="MainContainer_PointerMoved">
-        
+
         <!-- MAIN APP LAYER -->
         <Grid RowDefinitions="Auto, Auto, *" Margin="20">
             <Grid.Effect>
@@ -76,11 +76,11 @@
 
             <!-- MAIN SPLIT -->
             <Grid Grid.Row="2" ColumnDefinitions="1.8*, 1.2*">
-                
+
                 <!-- LEFT PANE -->
                 <ScrollViewer Grid.Column="0" Margin="0,0,15,0" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Spacing="15">
-                        
+
                         <!-- HUD GRID -->
                         <UniformGrid Columns="5" Height="70">
                             <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0">
@@ -127,19 +127,19 @@
                                         <Button Content="ALL" Command="{Binding ZoomChartCommand}" CommandParameter="ALL" FontSize="10" Padding="6,3" Background="#252526" Foreground="#888"/>
                                     </StackPanel>
                                 </Grid>
-                                
+
                                 <lvc:CartesianChart x:Name="MainChart" Grid.Row="1" Series="{Binding ChartSeries}" XAxes="{Binding XAxes}" YAxes="{Binding YAxes}" Margin="10,0,10,10" ZoomMode="X" DataPointerDownCommand="{Binding ChartClickedCommand}" TooltipPosition="Hidden" />
                             </Grid>
                         </Border>
 
                         <!-- Analytics Charts -->
                         <Grid ColumnDefinitions="*, *" Height="200">
-                            
+
                             <!-- Doughnut Chart & Custom Legend -->
                             <Border Grid.Column="0" Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0">
                                 <Grid RowDefinitions="Auto, *">
                                     <TextBlock Grid.Row="0" Text="EVENT DISTRIBUTION" FontSize="12" Foreground="#888" Margin="10,10,0,5"/>
-                                    
+
                                     <Grid Grid.Row="1" ColumnDefinitions="*, Auto" Margin="10,0,15,10">
                                         <Grid Grid.Column="0">
                                             <lvc:PieChart x:Name="PieChart" Series="{Binding ModeSeries}" LegendPosition="Hidden" TooltipPosition="Hidden"/>
@@ -148,7 +148,7 @@
                                                 <TextBlock Text="Total Logs" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
                                             </StackPanel>
                                         </Grid>
-                                        
+
                                         <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="10" Margin="10,0,0,0">
                                             <StackPanel Orientation="Horizontal" Spacing="6">
                                                 <Border Width="12" Height="12" CornerRadius="6" Background="#007acc"/>
@@ -170,7 +170,7 @@
                                     </Grid>
                                 </Grid>
                             </Border>
-                            
+
                             <!-- Bar Chart (Yield Profile) -->
                             <Border Grid.Column="1" Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6">
                                 <Grid RowDefinitions="Auto, *">
@@ -184,7 +184,7 @@
                         <Border Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10">
                             <StackPanel>
                                 <TextBlock Text="365-DAY ACTIVITY MATRIX" FontSize="12" Foreground="#888" Margin="0,0,0,10"/>
-                                
+
                                 <Viewbox Height="110" Stretch="Uniform" HorizontalAlignment="Center">
                                     <ItemsControl ItemsSource="{Binding HeatmapDays}">
                                         <ItemsControl.ItemsPanel>
@@ -218,7 +218,7 @@
                     <Border BorderBrush="#333" BorderThickness="1" CornerRadius="8" Padding="15">
                         <StackPanel Spacing="12">
                             <TextBlock Text="LOG NEW EVENT" FontWeight="Bold" Foreground="#888"/>
-                            
+
                             <Grid ColumnDefinitions="*, *">
                                 <ComboBox Grid.Column="0" SelectedIndex="{Binding SelectedHeat}" HorizontalAlignment="Stretch" Margin="0,0,5,0">
                                     <ComboBoxItem>Temp: Normal</ComboBoxItem>
@@ -286,7 +286,7 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            
+
                             <DataGridTemplateColumn Header="Metrics" Width="*">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -294,7 +294,7 @@
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
                             </DataGridTemplateColumn>
-                            
+
                             <DataGridTemplateColumn Header="Action" Width="160">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
@@ -316,7 +316,7 @@
         <Canvas IsHitTestVisible="False" ZIndex="999">
             <Border IsVisible="{Binding IsTooltipVisible}" Canvas.Left="{Binding TooltipX}" Canvas.Top="{Binding TooltipY}" Background="#1e1e1e" BorderBrush="#555" BorderThickness="1" CornerRadius="6" Padding="15" BoxShadow="0 8 16 0 #B2000000">
                 <StackPanel>
-                    
+
                     <StackPanel IsVisible="{Binding HoveredTimelinePoint, Converter={x:Static ObjectConverters.IsNotNull}}" Spacing="5">
                         <TextBlock Text="{Binding HoveredTimelinePoint.HeaderText}" FontWeight="Bold" Foreground="#e0e0e0" FontSize="13"/>
                         <TextBlock Text="{Binding HoveredTimelinePoint.GapText}" Foreground="#aaa" FontSize="12"/>
@@ -354,7 +354,7 @@
                         <TextBlock Text="{Binding HoveredBar.Category}" Foreground="{Binding HoveredBar.ColorHex}" FontWeight="Bold" FontSize="14"/>
                         <TextBlock Text="{Binding HoveredBar.Count, StringFormat='Total Sessions: {0}'}" Foreground="#aaa" FontSize="12"/>
                     </StackPanel>
-                    
+
                 </StackPanel>
             </Border>
         </Canvas>
@@ -395,8 +395,26 @@
                             CornerRadius="4" Padding="18">
                         <ScrollViewer HorizontalScrollBarVisibility="Disabled"
                                       VerticalScrollBarVisibility="Auto">
-                            <TextBlock Text="{Binding AnalysisMessage}" TextWrapping="Wrap"
-                                       FontFamily="monospace" FontSize="13" Foreground="#d6d6d6"/>
+                            <StackPanel Spacing="14">
+                                <UniformGrid Columns="2" Rows="2">
+                                    <Border Background="#202a20" BorderBrush="#4caf50" BorderThickness="1" Padding="12" Margin="0,0,8,8">
+                                        <TextBlock Text="{Binding ZincAnalysisSummary}" TextWrapping="Wrap" Foreground="#d6d6d6"/>
+                                    </Border>
+                                    <Border Background="#202a20" BorderBrush="#4caf50" BorderThickness="1" Padding="12" Margin="8,0,0,8">
+                                        <TextBlock Text="{Binding MacaAnalysisSummary}" TextWrapping="Wrap" Foreground="#d6d6d6"/>
+                                    </Border>
+                                    <Border Background="#202a20" BorderBrush="#4caf50" BorderThickness="1" Padding="12" Margin="0,8,8,0">
+                                        <TextBlock Text="{Binding VitaminDAnalysisSummary}" TextWrapping="Wrap" Foreground="#d6d6d6"/>
+                                    </Border>
+                                    <Border Background="#202a20" BorderBrush="#4caf50" BorderThickness="1" Padding="12" Margin="8,8,0,0">
+                                        <TextBlock Text="{Binding VitaminCAnalysisSummary}" TextWrapping="Wrap" Foreground="#d6d6d6"/>
+                                    </Border>
+                                </UniformGrid>
+                                <Border Background="#151515" Padding="12">
+                                    <TextBlock Text="{Binding AnalysisMessage}" TextWrapping="Wrap"
+                                               FontFamily="monospace" FontSize="13" Foreground="#d6d6d6"/>
+                                </Border>
+                            </StackPanel>
                         </ScrollViewer>
                     </Border>
 
@@ -419,7 +437,7 @@
                         <TextBlock Text="Configuration &amp; Analytics" FontSize="20" FontWeight="Bold" Foreground="White"/>
                         <Button Content="[X]" Command="{Binding CloseSettingsCommand}" Background="Transparent" Foreground="#888" HorizontalAlignment="Right"/>
                     </Grid>
-                    
+
                     <StackPanel Spacing="10">
                         <TextBlock Text="Threshold Limits" FontWeight="Bold"/>
                         <Grid ColumnDefinitions="*,*,Auto">
@@ -477,10 +495,10 @@
                         <TextBlock Text="PIMS User Manual" FontSize="20" FontWeight="Bold" Foreground="White"/>
                         <Button Content="[X]" Command="{Binding CloseHelpCommand}" Background="Transparent" Foreground="#888" HorizontalAlignment="Right"/>
                     </Grid>
-                    
+
                     <ScrollViewer MaxHeight="600" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Spacing="15" Margin="0,0,15,0">
-                            
+
                             <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5">
                                 <TextBlock Text="Quick start" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
                             </Border>
@@ -539,7 +557,7 @@
                 </StackPanel>
             </Border>
         </Border>
-        
+
         <!-- MANUAL LOG MODAL -->
         <Border IsVisible="{Binding IsManualLogOpen}" Background="#B2000000" ZIndex="100">
             <Border Background="#1e1e1e" BorderBrush="#444" BorderThickness="1" CornerRadius="8" Width="550" Padding="25" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 10 30 0 #A8000000">
@@ -548,7 +566,7 @@
                         <TextBlock Text="Add Retroactive Log" FontSize="20" FontWeight="Bold" Foreground="White"/>
                         <Button Content="[X]" Command="{Binding CloseManualLogCommand}" Background="Transparent" Foreground="#888" HorizontalAlignment="Right"/>
                     </Grid>
-                    
+
                     <Grid ColumnDefinitions="*,*">
                         <StackPanel Grid.Column="0" Margin="0,0,5,0">
                             <TextBlock Text="Date" FontSize="11" Foreground="#888"/>
@@ -589,7 +607,7 @@
                             <x:Static Member="models:VolumeConfidence.Unknown"/>
                         </ComboBox>
                     </Grid>
-                    
+
                     <Border Background="#252526" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10">
                         <Grid ColumnDefinitions="Auto, *">
                             <ComboBox Grid.Column="0" SelectedIndex="{Binding ManualHeat}" Width="140" Margin="0,0,10,0">
@@ -618,7 +636,7 @@
                                 <TextBox Text="{Binding ManualMorphology}" Watermark="Morph (%)" Margin="2"/>
                                 <TextBox Text="{Binding ManualPhLevel}" Watermark="pH Level" Margin="2"/>
                             </UniformGrid>
-                            
+
                             <Grid ColumnDefinitions="*, Auto" Margin="0,5,0,0">
                                 <TextBlock Text="{Binding ManualLabFileName, TargetNullValue='No PDF attached...'}" VerticalAlignment="Center" Foreground="#888" FontSize="11" TextTrimming="CharacterEllipsis"/>
                                 <Button Grid.Column="1" Content="Attach PDF" Command="{Binding SelectManualPdfCommand}" CommandParameter="{Binding #RootWindow}" Background="#546e7a" Foreground="White" FontSize="10" Padding="8,4"/>
@@ -639,7 +657,7 @@
                         <TextBlock Text="Modify Existing Log" FontSize="20" FontWeight="Bold" Foreground="White"/>
                         <Button Content="[X]" Command="{Binding CloseEditLogCommand}" Background="Transparent" Foreground="#888" HorizontalAlignment="Right"/>
                     </Grid>
-                    
+
                     <Grid ColumnDefinitions="*,*">
                         <StackPanel Grid.Column="0" Margin="0,0,5,0">
                             <TextBlock Text="Date" FontSize="11" Foreground="#888"/>
@@ -680,7 +698,7 @@
                             <x:Static Member="models:VolumeConfidence.Unknown"/>
                         </ComboBox>
                     </Grid>
-                    
+
                     <Border Background="#252526" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10">
                         <Grid ColumnDefinitions="Auto, *">
                             <ComboBox Grid.Column="0" SelectedIndex="{Binding EditHeat}" Width="140" Margin="0,0,10,0">
@@ -722,6 +740,16 @@
                             <TextBlock Text="Edit history" FontWeight="Bold" Foreground="#9e9e9e"/>
                             <TextBlock Text="{Binding EditHistoryText}" TextWrapping="Wrap"
                                        FontSize="11" Foreground="#aaa"/>
+                            <ItemsControl ItemsSource="{Binding EditHistoryEntries}">
+                                <ItemsControl.ItemTemplate>
+                                    <DataTemplate>
+                                        <Grid ColumnDefinitions="*,Auto" Margin="0,2">
+                                            <TextBlock Text="{Binding DisplayText}" TextWrapping="Wrap" FontSize="10" Foreground="#888"/>
+                                            <Button Grid.Column="1" Content="Restore" Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).RestoreEditHistoryCommand}" CommandParameter="{Binding Id}" FontSize="10" Padding="6,2" Background="#546e7a" Foreground="White"/>
+                                        </Grid>
+                                    </DataTemplate>
+                                </ItemsControl.ItemTemplate>
+                            </ItemsControl>
                         </StackPanel>
                     </Border>
 

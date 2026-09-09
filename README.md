@@ -100,6 +100,16 @@ dotnet test Tests/DadPlanner2.Tests.csproj
 
 ```
 
+**Fedora/Nobara application-menu launcher:**
+
+From the repository root, install a user-local `.desktop` entry:
+
+```bash
+./dadplanner-2-install-desktop.sh
+```
+
+The entry is written to `${XDG_DATA_HOME:-~/.local/share}/applications`, so no root access is required. It launches the repository's existing pre-flight script in a terminal, which checks for the .NET 10 SDK, restores dependencies, and starts the application. If the repository is moved, rerun the installer to refresh the stored path.
+
 ---
 
 ## 🚀 Compilation & Deployment

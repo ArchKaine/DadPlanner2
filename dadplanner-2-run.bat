@@ -1,4 +1,7 @@
 @echo off
+setlocal
+pushd "%~dp0"
+
 echo ======================================
 echo  Dad Planner 2 - Pre-Flight Check
 echo ======================================
@@ -12,7 +15,6 @@ IF %ERRORLEVEL% NEQ 0 (
     exit /b
 )
 
-cd DadPlanner2
 set PROJECT_FILE=DadPlanner2.csproj
 
 IF NOT EXIST "%PROJECT_FILE%" (
@@ -29,22 +31,22 @@ IF %ERRORLEVEL% NEQ 0 (
     
     IF /I "%INSTALL%"=="y" (
         echo Locking in Avalonia UI v11.0.11...
-        dotnet add package Avalonia --version 11.0.11
-        dotnet add package Avalonia.Controls.DataGrid --version 11.0.11
-        dotnet add package Avalonia.Desktop --version 11.0.11
-        dotnet add package Avalonia.Themes.Fluent --version 11.0.11
-        dotnet add package Avalonia.Fonts.Inter --version 11.0.11
-        dotnet add package Avalonia.Diagnostics --version 11.0.11
+        dotnet add "%PROJECT_FILE%" package Avalonia --version 11.0.11
+        dotnet add "%PROJECT_FILE%" package Avalonia.Controls.DataGrid --version 11.0.11
+        dotnet add "%PROJECT_FILE%" package Avalonia.Desktop --version 11.0.11
+        dotnet add "%PROJECT_FILE%" package Avalonia.Themes.Fluent --version 11.0.11
+        dotnet add "%PROJECT_FILE%" package Avalonia.Fonts.Inter --version 11.0.11
+        dotnet add "%PROJECT_FILE%" package Avalonia.Diagnostics --version 11.0.11
         
         echo Locking in MVVM Toolkit v8.4.2...
-        dotnet add package CommunityToolkit.Mvvm --version 8.4.2
+        dotnet add "%PROJECT_FILE%" package CommunityToolkit.Mvvm --version 8.4.2
         
         echo Locking in LiveCharts Engine v2.0.0-rc3...
-        dotnet add package LiveChartsCore.SkiaSharpView.Avalonia --version 2.0.0-rc3
+        dotnet add "%PROJECT_FILE%" package LiveChartsCore.SkiaSharpView.Avalonia --version 2.0.0-rc3
         
         echo Locking in SQLite and QuestPDF...
-        dotnet add package Microsoft.Data.Sqlite --version 10.0.11
-        dotnet add package QuestPDF --version 2026.8.0
+        dotnet add "%PROJECT_FILE%" package Microsoft.Data.Sqlite --version 10.0.11
+        dotnet add "%PROJECT_FILE%" package QuestPDF --version 2026.8.0
         
         echo [OK] Dependencies successfully locked and added.
     ) ELSE (
@@ -54,9 +56,12 @@ IF %ERRORLEVEL% NEQ 0 (
     )
 ) ELSE (
     echo Verifying local dependency cache...
-    dotnet restore
+    dotnet restore "%PROJECT_FILE%"
 )
 
 echo [OK] All dependencies verified.
 echo Launching Dad Planner 2...
-dotnet run --no-restore
+dotnet run --project "%PROJECT_FILE%" --no-restore
+
+popd
+endlocal

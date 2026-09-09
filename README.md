@@ -90,7 +90,13 @@ This is true open-source, and the main repo will remain completely clean of mode
 To launch the desktop UI directly from the source code:
 
 ```bash
-dotnet run
+./dadplanner-2-run.sh
+```
+
+The launcher scripts are stored beside `DadPlanner2.csproj` at the repository root and can be run from any working directory. To run the test project:
+
+```bash
+dotnet test Tests/DadPlanner2.Tests.csproj
 
 ```
 

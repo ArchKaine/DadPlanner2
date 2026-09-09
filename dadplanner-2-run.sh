@@ -1,4 +1,9 @@
-#!/bin/bash
+#!/usr/bin/env bash
+
+set -e
+
+SCRIPT_DIR="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd)"
+cd "$SCRIPT_DIR"
 
 echo "======================================"
 echo " Dad Planner 2 - Pre-Flight Check"
@@ -10,8 +15,6 @@ if ! command -v dotnet &> /dev/null || ! dotnet --version | grep -q "^10\."; the
     echo "Please install it from https://dotnet.microsoft.com/download/dotnet/10.0"
     exit 1
 fi
-
-cd DadPlanner2 || exit
 
 PROJECT_FILE="DadPlanner2.csproj"
 if [ ! -f "$PROJECT_FILE" ]; then
@@ -28,16 +31,16 @@ if ! grep -qi "Include=\"CommunityToolkit.Mvvm\"" "$PROJECT_FILE"; then
     
     if [[ $REPLY =~ ^[Yy]$ ]]; then
         echo "Locking in dependencies..."
-        dotnet add package Avalonia --version 11.0.11
-        dotnet add package Avalonia.Controls.DataGrid --version 11.0.11
-        dotnet add package Avalonia.Desktop --version 11.0.11
-        dotnet add package Avalonia.Themes.Fluent --version 11.0.11
-        dotnet add package Avalonia.Fonts.Inter --version 11.0.11
-        dotnet add package Avalonia.Diagnostics --version 11.0.11
-        dotnet add package CommunityToolkit.Mvvm --version 8.4.2
-        dotnet add package LiveChartsCore.SkiaSharpView.Avalonia --version 2.0.0-rc3
-        dotnet add package Microsoft.Data.Sqlite --version 10.0.11
-        dotnet add package QuestPDF --version 2026.8.0
+        dotnet add "$PROJECT_FILE" package Avalonia --version 11.0.11
+        dotnet add "$PROJECT_FILE" package Avalonia.Controls.DataGrid --version 11.0.11
+        dotnet add "$PROJECT_FILE" package Avalonia.Desktop --version 11.0.11
+        dotnet add "$PROJECT_FILE" package Avalonia.Themes.Fluent --version 11.0.11
+        dotnet add "$PROJECT_FILE" package Avalonia.Fonts.Inter --version 11.0.11
+        dotnet add "$PROJECT_FILE" package Avalonia.Diagnostics --version 11.0.11
+        dotnet add "$PROJECT_FILE" package CommunityToolkit.Mvvm --version 8.4.2
+        dotnet add "$PROJECT_FILE" package LiveChartsCore.SkiaSharpView.Avalonia --version 2.0.0-rc3
+        dotnet add "$PROJECT_FILE" package Microsoft.Data.Sqlite --version 10.0.11
+        dotnet add "$PROJECT_FILE" package QuestPDF --version 2026.8.0
         echo "✅ Packages successfully locked and added."
     else
         echo "Cannot run without dependencies. Exiting."
@@ -46,9 +49,9 @@ if ! grep -qi "Include=\"CommunityToolkit.Mvvm\"" "$PROJECT_FILE"; then
 else
     # If the csproj is populated, run a clean restore just to be safe
     echo "Verifying local dependency cache..."
-    dotnet restore
+    dotnet restore "$PROJECT_FILE"
 fi
 
 echo "✅ All dependencies verified."
 echo "Building and launching Dad Planner 2..."
-dotnet run --no-restore
+dotnet run --project "$PROJECT_FILE" --no-restore

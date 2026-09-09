@@ -75,7 +75,7 @@ This is true open-source, and the main repo will remain completely clean of mode
 * **Fully Air-Gapped:** Zero external API calls, no telemetry, no cloud sync. All data is written exclusively to a local `inventory.db` file located in your secure user AppData directory.
 * **Zero-Corruption Auto-Backups:** Bypasses naive file-copying lock issues by utilizing SQLite's native `VACUUM INTO` command. Triggers transactionally consistent, defragmented backups on application exit (only if data was mutated during the session) and automatically maintains a rolling 10-file retention policy in an OS-safe local directory.
 * **Stealth Mode (Panic Button):** Hardware-level keybinding (Press `Escape`) instantly applies a hardware-accelerated Avalonia `BlurEffect` across the entire UI grid, obfuscating all sensitive data from screen-lookers on demand.
-* **Non-Destructive Sandbox Mode:** Safely swaps your live SQLite database into a backup partition, seeds the UI with 150 records of procedurally generated, biologically weighted fake data for visual testing, and seamlessly restores your real data when toggled off.
+* **Non-Destructive Sandbox Mode:** Safely swaps your live SQLite database into a backup partition, seeds the UI with 300 records of procedurally generated, biologically weighted fake data for visual testing, and seamlessly restores your real data when toggled off.
 
 ---
 

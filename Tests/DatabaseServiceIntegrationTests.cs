@@ -217,6 +217,9 @@ public sealed class DatabaseServiceIntegrationTests
         Assert.IsTrue(File.Exists(exports.AnalysisJsonPath));
         Assert.IsTrue(File.Exists(exports.AnalysisCsvPath));
         StringAssert.Contains(File.ReadAllText(exports.AnalysisCsvPath), "Supplement,WindowDays,TargetTimestamp");
+        Assert.IsTrue(File.Exists(exports.HistoryJsonPath));
+        Assert.IsTrue(File.Exists(exports.HistoryCsvPath));
+        StringAssert.Contains(File.ReadAllText(exports.HistoryCsvPath), "Id,LogId,EditedAt,Date,Summary");
     }
 
     [TestMethod]

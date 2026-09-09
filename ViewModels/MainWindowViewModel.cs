@@ -300,6 +300,7 @@ namespace DadPlanner2.ViewModels
             {
                 var exports = _dbService.ExportData(BackupPath);
                 ShowAlert("Export Complete", $"Portable exports created:\n{exports.JsonPath}\n{exports.CsvPath}"
+                    + $"\n{exports.HistoryJsonPath}\n{exports.HistoryCsvPath}"
                     + (exports.AnalysisJsonPath == null ? "" : $"\n{exports.AnalysisJsonPath}\n{exports.AnalysisCsvPath}"));
             }
             catch (Exception ex)

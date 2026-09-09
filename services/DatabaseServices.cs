@@ -124,11 +124,12 @@ namespace DadPlanner2.Services
         public DataExportResult ExportData(string exportDirectory)
         {
             var logs = GetAllLogs();
+            var history = logs.SelectMany(log => GetLogEditHistory(log.Id)).ToList();
             var analysis = _supplementAnalysis.Analyze(
                 logs,
                 (timestamp, supplement, days) =>
                     _supplementSaturation.Calculate(logs, timestamp, supplement, days));
-            return _dataExport.Export(logs, exportDirectory, analysis);
+            return _dataExport.Export(logs, exportDirectory, analysis, history);
         }
 
         private void InitializeDatabase()
@@ -392,6 +393,10 @@ namespace DadPlanner2.Services
         {
             using var db = new SqliteConnection(_connectionString);
             db.Open();
+            using var historyCmd = db.CreateCommand();
+            historyCmd.CommandText = "DELETE FROM LogEditHistory WHERE LogId = $id";
+            historyCmd.Parameters.AddWithValue("$id", id);
+            historyCmd.ExecuteNonQuery();
             using var cmd = db.CreateCommand();
             cmd.CommandText = "DELETE FROM Logs WHERE Id = $id";
             cmd.Parameters.AddWithValue("$id", id);

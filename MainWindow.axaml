@@ -482,34 +482,58 @@
                         <StackPanel Spacing="15" Margin="0,0,15,0">
                             
                             <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5">
-                                <TextBlock Text="Operating Modes" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                                <TextBlock Text="Quick start" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
                             </Border>
-                            <TextBlock Text="The system classifies biological events into four distinct operational modes to maintain accurate statistical tracking:" TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• Maintenance: Standard self-regulated cycle clearing. Used to establish baseline recovery metrics and enforce system turnover." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
-                            <TextBlock Text="• Playtime: Recreational relational events without reproductive intent. Tracked for system strain analysis but excluded from strict yield optimization." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
-                            <TextBlock Text="• Baby-Making: Active reproductive attempts. The system auto-estimates volume based on historical recovery gap and saturation metrics." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
-                            <TextBlock Text="• Clinical-Lab: Ground-truth baseline data. Used to record lab analytics (Concentration, Motility) to verify system integrity and clear Thermal Shadows." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
-                            
-                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
-                                <TextBlock Text="Thermal Shadows" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
-                            </Border>
-                            <TextBlock Text="Spermatogenesis operates on a 74-day biological cycle. Severe thermal exposure (fevers, hot tubs, saunas) critically degrades system integrity during this window." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• Logging a Heat Event (Level 2 or 3) instantly triggers a Thermal Shadow warning that persists for exactly 74 days." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
-                            <TextBlock Text="• Clinical Baseline testing is highly discouraged during a shadow, as the data will be artificially depressed and inaccurate." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
-                            <TextBlock Text="• A shadow can be overridden early if a Clinical Baseline test is logged with passing metrics (≥15 M/mL Conc and ≥40% Motility) after the heat event occurred." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
-                            
-                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
-                                <TextBlock Text="Biological Saturation Index" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
-                            </Border>
-                            <TextBlock Text="Supplements like Zinc, Maca, and Vitamins D/C do not provide instantaneous benefits. The system tracks Saturation over rolling time windows." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• A supplement is considered 'Saturated' if it was logged during at least 50% of the events within its specific biological buildup window (e.g., 21 days for Zinc, 30 days for D3)." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
-                            <TextBlock Text="• The Analyze Supps tool in Settings calculates the exact yield and recovery time differences between Saturated and Un-Saturated system states." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
+                            <TextBlock Text="Use the four event buttons on the right to record a session. The dashboard, timeline, charts, heatmap, and log table update immediately. Use Add Past Log for an event that happened earlier." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="All data is local and offline. The database is stored in your application data directory; no account, cloud sync, or external API is required." TextWrapping="Wrap" Foreground="#ccc"/>
 
                             <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
-                                <TextBlock Text="Stealth Mode (Panic Key)" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                                <TextBlock Text="Logging a session" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
                             </Border>
-                            <TextBlock Text="To instantly obfuscate all sensitive biological data, charts, and table logs from screen-lookers:" TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• Press the Escape key to blur the UI. Press it again to clear." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
+                            <TextBlock Text="Before selecting an event type, set the fields that describe the session:" TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="- Temperature: Normal or Levels 1-3. Levels 2 and 3 create a 74-day Thermal Shadow and exclude affected events from uncompromised analysis." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
+                            <TextBlock Text="- Volume: Normal, Low, High, or None. None means no release was recorded and is excluded from release-based analysis." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
+                            <TextBlock Text="- Release count: the number of releases remembered for this session. Keep one log for one remembered session; do not invent timestamps for individual releases." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
+                            <TextBlock Text="- Volume confidence: Observed means visually verified, Estimated means inferred, and Unknown means no reliable volume observation. Confidence is preserved in analysis and exports." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
+                            <TextBlock Text="Supplements are session modifiers. Clinical fields and an optional PDF attachment belong on Clinical Lab records." TextWrapping="Wrap" Foreground="#ccc"/>
+
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
+                                <TextBlock Text="Event modes" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="Maintenance is the standard baseline event. Playtime is tracked as a separate activity. Baby-Making records an attempt and automatically estimates volume from available history. Clinical Lab records formal measurements and can provide a ground-truth baseline." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="Recovery gaps are session-based: a multi-release session remains one timeline event. Frequency metrics multiply by Release count where appropriate, but the app never fabricates individual release times." TextWrapping="Wrap" Foreground="#ccc"/>
+
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
+                                <TextBlock Text="Thermal Shadows and clinical baselines" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="A Level 2 or Level 3 heat event starts a 74-day Thermal Shadow. The warning banner shows when the shadow clears. Recovery and supplement comparisons exclude release events with a prior severe heat event in that window." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="A Clinical Lab record with concentration of at least 15 M/mL and motility of at least 40% can override an active shadow after the heat event. Use the Clinical Blackout Window in Settings to mark an upcoming baseline appointment; the dashboard warns as the date approaches." TextWrapping="Wrap" Foreground="#ccc"/>
+
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
+                                <TextBlock Text="Charts and analysis" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="The HUD shows current delta, time to the configured limit, rolling average, maximum endurance, and 30-day frequency. Use the timeline zoom buttons for 30 days, 90 days, or all available data. Hover heatmap cells for daily details and click timeline points to locate their log." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="Settings > Analyze Supps opens the desktop Supplement Analysis view. It compares saturated and unsaturated groups using exact 21-day or 30-day windows, a 50% inclusive saturation rule, recovery gaps, yield outcomes, and confidence counts. Treat associations as exploratory observations, not clinical or causal evidence." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="Settings > Auto-Calibrate recommends Floor and Ceiling thresholds from uncompromised recovery gaps. Review the recommendation before accepting it; it does not silently change your settings." TextWrapping="Wrap" Foreground="#ccc"/>
+
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
+                                <TextBlock Text="Editing and audit history" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="Use EDIT in the log table to correct a date, mode, volume, release count, confidence, supplements, clinical values, or attached PDF. Edited Baby-Making records preserve the volume you explicitly select." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="The edit dialog shows prior changes. Each history entry records the timestamp and tracked transitions, such as volume from Normal to High or confidence from Unknown to Estimated. Deleting a log permanently removes that record." TextWrapping="Wrap" Foreground="#ccc"/>
+
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
+                                <TextBlock Text="Reports, exports, and recovery" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="The PDF button creates a 90-day report with charts, the raw event log, release counts, confidence, and supplement-analysis appendix, then opens it in the desktop PDF viewer. Settings > Export Data creates JSON and CSV raw exports, structured analysis exports, and edit-history exports; use these for complete per-target and correction audit detail." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="Settings > Backup Now creates a consistent SQLite snapshot. The app also backs up changed data on exit and keeps the newest 10 backups. Restore Latest Backup first creates a pre-restore safety snapshot, validates SQLite integrity, and then reloads the restored data." TextWrapping="Wrap" Foreground="#ccc"/>
+
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
+                                <TextBlock Text="Sandbox and privacy" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="Toggle Sandbox Mode in Settings to temporarily replace the live dataset with 300 generated records. Sandbox data includes mixed modes, release counts, volume confidence, clinical values, and severe heat events for exercising charts and analysis. Toggle it off to restore your real database; do not treat sandbox results as personal data." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="Press Escape to toggle Stealth Mode. The dashboard blurs sensitive content for screen privacy; press Escape again to restore it." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="For meaningful comparisons, log consistently, label estimated or unknown observations honestly, and remember that this tool organizes personal observations rather than diagnosing conditions." TextWrapping="Wrap" Foreground="#ccc"/>
                         </StackPanel>
                     </ScrollViewer>
                 </StackPanel>

@@ -33,7 +33,7 @@ This is true open-source, and the main repo will remain completely clean of mode
 * **Frontend:** Avalonia UI 11 (Native, hardware-accelerated cross-platform desktop UI using XAML and MVVM architecture)
 * **Graphics Engine:** SkiaSharp (Headless rendering for PDF chart injection and high-performance UI drawing)
 * **Database:** SQLite3 (Local Only, WAL-mode enabled, direct C# `SqliteConnection` bindings with BLOB storage for raw medical files)
-* **CI/CD:** Automated GitHub Actions pipeline for multi-OS binary compilation
+* **Testing:** MSTest integration and service tests targeting .NET 10
 
 ## 📦 Dependencies & Libraries
 
@@ -43,6 +43,27 @@ This is true open-source, and the main repo will remain completely clean of mode
 * **LiveChartsCore.SkiaSharpView.Avalonia (v2.0.0-rc3)** - Highly interactive, Skia-rendered UI charting for the timeline, event distribution, and yield profiles.
 * **QuestPDF** - Native C# vector graphics engine for synthesizing the 90-Day PDF reports, combined with LiveCharts headless Skia rendering for offline chart generation.
 * **Microsoft.Data.Sqlite** - Lightweight, local database driver for telemetry storage.
+
+---
+
+## 📁 Repository Layout
+
+The application project is at the repository root; tests are kept in the `Tests/` directory.
+
+```text
+DadPlanner2.csproj             Main Avalonia desktop application
+App.axaml, MainWindow.axaml    Application and desktop UI definitions
+ViewModels/                    MVVM presentation logic
+Models/                        Persisted domain models
+services/                      SQLite, export, analysis, reporting, and validation services
+Tests/                         MSTest project and integration coverage
+dadplanner-2-run.sh            Fedora/Nobara and other Linux development launcher
+dadplanner-2-run.bat           Windows development launcher
+dadplanner-2-install-desktop.sh User-local Linux application-menu installer
+```
+
+The launch scripts are intended to be run from a checkout of this repository. They resolve
+their own location, so they also work when started from another current directory.
 
 ---
 
@@ -86,6 +107,13 @@ This is true open-source, and the main repo will remain completely clean of mode
 * .NET SDK 10.0+ installed on your system.
 * *Note for Linux users: By moving to Avalonia, WebKit2GTK is no longer required. The app renders natively via Skia.*
 
+Clone the repository and enter its root directory:
+
+```bash
+git clone https://github.com/ArchKaine/DadPlanner2.git
+cd DadPlanner2
+```
+
 **Running the Application in Dev Mode:**
 To launch the desktop UI directly from the source code:
 
@@ -109,6 +137,16 @@ From the repository root, install a user-local `.desktop` entry:
 ```
 
 The entry is written to `${XDG_DATA_HOME:-~/.local/share}/applications`, so no root access is required. It launches the repository's existing pre-flight script in a terminal, which checks for the .NET 10 SDK, restores dependencies, and starts the application. If the repository is moved, rerun the installer to refresh the stored path.
+
+**Data and backup locations:**
+
+The database is created as `inventory.db` beneath the platform-specific application-data directory selected by .NET. On Fedora/Nobara this is normally under `~/.local/share/PIMS/`; on Windows it is under the current user's local application-data directory. Backups are stored alongside the application data in the configured backup directory and retain the newest 10 snapshots.
+
+**Run tests:**
+
+```bash
+dotnet test Tests/DadPlanner2.Tests.csproj
+```
 
 ---
 
@@ -136,3 +174,20 @@ dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=
 dotnet publish -c Release -r osx-x64 --self-contained true -p:PublishSingleFile=true
 
 ```
+
+Published files are written under `bin/Release/` and should be distributed as a complete publish
+output. The repository launchers are development launchers: they require the .NET 10 SDK and
+restore NuGet packages before starting the project.
+
+---
+
+## ⚠️ Interpretation and Safety
+
+Dad Planner 2 organizes personal observations; it does not diagnose infertility, assess medical
+risk, or establish that a supplement caused an outcome. Recovery gaps, saturation percentages,
+thermal-shadow filtering, and supplement comparisons are observational calculations whose
+quality depends on consistent logging and adequate samples.
+
+Clinical values and attached reports should be reviewed with a qualified medical professional.
+The local database contains sensitive health information: protect the operating-system account,
+backups, exported files, and any published artifacts accordingly.

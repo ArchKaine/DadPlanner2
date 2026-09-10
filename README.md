@@ -124,6 +124,11 @@ To launch the desktop UI directly from the source code, run the launcher corresp
 ```bash
 ./dadplanner-2-run.sh
 
+The launcher scripts are stored beside `DadPlanner2.csproj` at the repository root and can be run from any working directory. To run the test project:
+
+```bash
+dotnet test Tests/DadPlanner2.Tests.csproj
+
 ```
 
 **For macOS:**

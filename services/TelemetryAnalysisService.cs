@@ -71,7 +71,30 @@ public sealed class TelemetryAnalysisService
             log.Concentration >= 15 &&
             log.Motility >= 40);
     }
+    
+    public double CalculateViabilityScore(double currentGapHours, double minHours, double fadeStartHours)
+    {
+        if (currentGapHours < minHours)
+        {
+            // Still rebuilding
+            return currentGapHours / minHours; 
+        }
+        
+        if (currentGapHours <= fadeStartHours)
+        {
+            // Prime window
+            return 1.0; 
+        }
 
+        // The Fade: Degrades by roughly 1.5% per 24 hours over the threshold
+        double hourlyDegradationRate = 0.015 / 24.0; 
+        double hoursOver = currentGapHours - fadeStartHours;
+        double viability = 1.0 - (hoursOver * hourlyDegradationRate);
+
+        // Floor it at a baseline minimum so it doesn't go negative
+        return Math.Max(0.2, viability); 
+    }
+    
     public string EstimateVolume(
         IEnumerable<LogRecord> logs,
         long timestamp,

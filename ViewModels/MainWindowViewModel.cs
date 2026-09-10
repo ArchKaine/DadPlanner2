@@ -73,6 +73,7 @@ namespace DadPlanner2.ViewModels
 
         [ObservableProperty] private string _hudCurrent = "--";
         [ObservableProperty] private string _hudRemaining = "--";
+        [ObservableProperty] private string _hudRemainingLabel = "LIMIT T-MINUS";
         [ObservableProperty] private string _hudAvg = "--";
         [ObservableProperty] private string _hudMax = "--";
         [ObservableProperty] private string _hudFrequency = "--";
@@ -840,7 +841,7 @@ namespace DadPlanner2.ViewModels
             else IsShadowActive = false;
         }
 
-        private void UpdateTelemetry()
+       private void UpdateTelemetry()
         {
             // 1. Core Recovery Telemetry
             var metrics = _telemetryAnalysis.CalculateRecoveryMetrics(
@@ -850,26 +851,43 @@ namespace DadPlanner2.ViewModels
             if (metrics.HasRelease)
             {
                 var current = TimeSpan.FromHours(metrics.CurrentHours);
-                var remainingHours = MaxHours - metrics.CurrentHours;
-                
                 HudCurrent = $"{(int)current.TotalHours}h {current.Minutes:D2}m";
-                
-                if (remainingHours > 0)
+    
+                double fadeStartHours = 120.0; // 5 days optimal biological window
+
+                if (metrics.CurrentHours > fadeStartHours)
                 {
-                    var remaining = TimeSpan.FromHours(remainingHours);
-                    HudRemaining = $"{(int)remaining.TotalHours}h {remaining.Minutes:D2}m";
+                    // PHASE 3: The Fade (Past 120 hours, quality degrades regardless of MaxHours goal)
+                    double hourlyDegradationRate = 0.015 / 24.0; 
+                    double hoursOver = metrics.CurrentHours - fadeStartHours;
+                    double viability = 1.0 - (hoursOver * hourlyDegradationRate);
+                    viability = Math.Max(0.2, viability); // Floor at 20%
+        
+                    // Math.Floor forces 99.9% down to 99%, preventing the "100% (FADING)" visual bug
+                    HudRemaining = $"{Math.Floor(viability * 100)}%"; 
+                    HudRemainingLabel = "VIABILITY (FADING)";
+                }
+                else if (metrics.CurrentHours >= MaxHours)
+                {
+                    // PHASE 2: Peak (Target reached, but still within the optimal 120h window)
+                    HudRemaining = "100%"; 
+                    HudRemainingLabel = "VIABILITY (PEAK)";
                 }
                 else
                 {
-                    HudRemaining = "OVERDUE";
+                    // PHASE 1: Rebuilding (Target not yet reached)
+                    var remainingHours = MaxHours - metrics.CurrentHours;
+                    var remaining = TimeSpan.FromHours(remainingHours);
+                    HudRemaining = $"{(int)remaining.TotalHours}h {remaining.Minutes:D2}m";
+                    HudRemainingLabel = "LIMIT T-MINUS";
                 }
-                
+    
                 HudAvg = metrics.AverageGapHours.HasValue ? $"{metrics.AverageGapHours:F1}h" : "--";
                 HudMax = metrics.MaximumGapHours.HasValue ? $"{metrics.MaximumGapHours:F1}h" : "--";
             }
             else
             {
-                HudCurrent = "--"; HudRemaining = "--"; HudAvg = "--"; HudMax = "--";
+                HudCurrent = "--"; HudRemaining = "--"; HudRemainingLabel = "LIMIT T-MINUS"; HudAvg = "--"; HudMax = "--";
             }
 
             // 2. Dynamic Rolling Frequency Telemetry (Up to 30 days)

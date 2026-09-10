@@ -95,7 +95,7 @@
                             <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0">
                                 <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
                                     <TextBlock Text="{Binding HudRemaining}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center"/>
-                                    <TextBlock Text="LIMIT T-MINUS" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
+                                    <TextBlock Text="{Binding HudRemainingLabel}" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
                                 </StackPanel>
                             </Border>
                             <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0">

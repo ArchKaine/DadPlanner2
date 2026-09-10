@@ -5,6 +5,7 @@
         xmlns:sys="using:System"
         xmlns:local="using:DadPlanner2"
         xmlns:models="using:DadPlanner2.Models"
+        xmlns:converters="using:DadPlanner2.Converters"
         x:Class="DadPlanner2.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         x:Name="RootWindow"
@@ -14,6 +15,8 @@
 
     <Window.Resources>
         <local:ModeToColorConverter x:Key="ModeColorConverter"/>
+        <converters:RelativeTimeConverter x:Key="RelTimeConverter"/>
+        <converters:CountdownConverter x:Key="CountConverter"/>
     </Window.Resources>
 
     <Window.KeyBindings>
@@ -278,7 +281,7 @@
 
                     <DataGrid x:Name="LogsGrid" Grid.Row="1" ItemsSource="{Binding Logs}" SelectedItem="{Binding SelectedLog}" IsReadOnly="True" AutoGenerateColumns="False" Background="#1e1e1e" Margin="0,15,0,0" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#333">
                         <DataGrid.Columns>
-                            <DataGridTextColumn Header="Date" Binding="{Binding DisplayDate}" />
+                            <DataGridTextColumn Header="Date" Binding="{Binding Timestamp, Converter={StaticResource RelTimeConverter}}" />
                             <DataGridTemplateColumn Header="Mode">
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>

@@ -6,6 +6,7 @@ using System.Collections.ObjectModel;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
+using Avalonia.Threading;
 using CommunityToolkit.Mvvm.ComponentModel;
 using CommunityToolkit.Mvvm.Input;
 using DadPlanner2.Models;
@@ -25,6 +26,8 @@ namespace DadPlanner2.ViewModels
         private readonly LogValidationService _logValidation = new();
         private readonly SupplementAnalysisService _supplementAnalysis = new();
         private readonly SupplementSaturationService _supplementSaturation = new();
+        private readonly UIRefreshService _uiRefresh = new();
+        private int _tickCount = 0;
 
         public Action<LogRecord>? RequestScrollToLog;
         [ObservableProperty] private LogRecord? _selectedLog;
@@ -193,6 +196,25 @@ namespace DadPlanner2.ViewModels
             VitCActive = savedSupps.vitC;
             
             LoadData();
+
+            _uiRefresh.OnRefreshTick += () =>
+            {
+                UpdateTelemetry();
+                UpdateBlackoutBanner();
+
+                _tickCount++;
+                if (_tickCount >= 60)
+                {
+                    _tickCount = 0;
+                    if (Logs.Count > 0)
+                    {
+                        var selected = SelectedLog;
+                        for (int i = 0; i < Logs.Count; i++) Logs[i] = Logs[i]; 
+                        SelectedLog = selected;
+                    }
+                }
+            };
+            _uiRefresh.Start();
         }
 
         partial void OnSelectedModeChanged(string value) => OnPropertyChanged(nameof(ShowClinicalFields));
@@ -317,6 +339,8 @@ namespace DadPlanner2.ViewModels
         // Called automatically by Window.Closing in MainWindow.axaml.cs
         public void HandleShutdown()
         {
+            _uiRefresh.Stop();
+            _uiRefresh.Dispose();
             _dbService.ExecuteAutoBackup(BackupPath);
         }
 
@@ -822,10 +846,24 @@ namespace DadPlanner2.ViewModels
             var metrics = _telemetryAnalysis.CalculateRecoveryMetrics(
                 Logs,
                 DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+            
             if (metrics.HasRelease)
             {
-                HudCurrent = $"{metrics.CurrentHours:F1}h";
-                HudRemaining = (MaxHours - metrics.CurrentHours) > 0 ? $"{(MaxHours - metrics.CurrentHours):F1}h" : "OVERDUE";
+                var current = TimeSpan.FromHours(metrics.CurrentHours);
+                var remainingHours = MaxHours - metrics.CurrentHours;
+                
+                HudCurrent = $"{(int)current.TotalHours}h {current.Minutes:D2}m";
+                
+                if (remainingHours > 0)
+                {
+                    var remaining = TimeSpan.FromHours(remainingHours);
+                    HudRemaining = $"{(int)remaining.TotalHours}h {remaining.Minutes:D2}m";
+                }
+                else
+                {
+                    HudRemaining = "OVERDUE";
+                }
+                
                 HudAvg = metrics.AverageGapHours.HasValue ? $"{metrics.AverageGapHours:F1}h" : "--";
                 HudMax = metrics.MaximumGapHours.HasValue ? $"{metrics.MaximumGapHours:F1}h" : "--";
             }

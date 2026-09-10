@@ -1,28 +1,27 @@
 using System;
-using System.Timers;
+using Avalonia.Threading;
 
 namespace DadPlanner2.Services;
 
 /// <summary>
-/// Lightweight timer-based service to refresh UI elements showing time-relative data.
-/// Fires every minute to update displays like "X hours ago" or "Y hours until appointment".
+/// Lightweight native UI timer to refresh time-relative data.
+/// Fires every 1 second natively on the Avalonia UI thread.
 /// </summary>
 public class UIRefreshService : IDisposable
 {
-    private readonly Timer _refreshTimer;
+    private readonly DispatcherTimer _refreshTimer;
     public event Action? OnRefreshTick;
 
     public UIRefreshService()
     {
-        _refreshTimer = new Timer(60_000) // 60 seconds
+        _refreshTimer = new DispatcherTimer
         {
-            AutoReset = true,
-            Enabled = false
+            Interval = TimeSpan.FromSeconds(1) // Tick every second
         };
-        _refreshTimer.Elapsed += (_, _) => OnRefreshTick?.Invoke();
+        _refreshTimer.Tick += (_, _) => OnRefreshTick?.Invoke();
     }
 
     public void Start() => _refreshTimer.Start();
     public void Stop() => _refreshTimer.Stop();
-    public void Dispose() => _refreshTimer?.Dispose();
+    public void Dispose() => _refreshTimer.Stop();
 }

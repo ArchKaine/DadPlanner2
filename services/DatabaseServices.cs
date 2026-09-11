@@ -753,12 +753,29 @@ namespace DadPlanner2.Services
                     randomVol = "High"; 
                 }
 
-                int releaseCount = i % 15 == 0 ? 3 : i % 7 == 0 ? 2 : 1;
+                int releaseCount = 1;
+                switch (randomMode)
+                {
+                    case "Clinical-Lab":
+                        releaseCount = 1;
+                        break;
+                    case "Maintenance":
+                        releaseCount = rand.Next(100) > 95 ? 2 : 1;
+                        break;
+                    case "Playtime":
+                    case "Baby-Making":
+                        int roll = rand.Next(100);
+                        releaseCount = roll > 85 ? 3 : (roll > 50 ? 2 : 1);
+                        break;
+                }
+
                 string volumeConfidence = randomMode == "Clinical-Lab"
                     ? nameof(VolumeConfidence.Observed)
-                    : releaseCount > 1
-                        ? (i % 2 == 0 ? nameof(VolumeConfidence.Estimated) : nameof(VolumeConfidence.Unknown))
-                        : nameof(VolumeConfidence.Observed);
+                    : randomMode == "Baby-Making"
+                        ? nameof(VolumeConfidence.Estimated)
+                        : releaseCount > 1
+                            ? (i % 2 == 0 ? nameof(VolumeConfidence.Estimated) : nameof(VolumeConfidence.Unknown))
+                            : nameof(VolumeConfidence.Observed);
                 
                 using var insertCmd = db.CreateCommand();
                 insertCmd.CommandText = "INSERT INTO Logs (Timestamp, Mode, Volume, ReleaseCount, VolumeConfidence, HeatFlag, Supplements, Concentration, Motility, Morphology, ClinicalVol, ProgMotility, PhLevel) VALUES ($ts, $mode, $vol, $count, $confidence, $heat, $supps, $conc, $mot, $morph, $cvol, $pmot, $ph)";

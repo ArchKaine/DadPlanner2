@@ -173,6 +173,12 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private string _legendPlay = "";
         [ObservableProperty] private string _legendBaby = "";
         [ObservableProperty] private string _legendLab = "";
+        
+        // The gag toggle (defaulting to true so you can test it)
+        [ObservableProperty] private bool _enableAggressiveNotifications = true;
+
+        // The UI trigger
+        [ObservableProperty] private bool _showWankAlert;
 
         public MainWindowViewModel()
         {
@@ -840,8 +846,15 @@ namespace DadPlanner2.ViewModels
             }
             else IsShadowActive = false;
         }
-
-       private void UpdateTelemetry()
+        
+        [RelayCommand]
+        private void DismissWankAlert()
+        {
+            EnableAggressiveNotifications = false;
+            ShowWankAlert = false;
+        }
+        
+        private void UpdateTelemetry()
         {
             // 1. Core Recovery Telemetry
             var metrics = _telemetryAnalysis.CalculateRecoveryMetrics(
@@ -852,8 +865,11 @@ namespace DadPlanner2.ViewModels
             {
                 var current = TimeSpan.FromHours(metrics.CurrentHours);
                 HudCurrent = $"{(int)current.TotalHours}h {current.Minutes:D2}m";
-    
+                
                 double fadeStartHours = 120.0; // 5 days optimal biological window
+                
+                // Dynamically hunt for the floor based on your past lab data
+                double dynamicFloor = _telemetryAnalysis.GetDynamicViabilityFloor(Logs, fadeStartHours);
 
                 if (metrics.CurrentHours > fadeStartHours)
                 {
@@ -861,8 +877,10 @@ namespace DadPlanner2.ViewModels
                     double hourlyDegradationRate = 0.015 / 24.0; 
                     double hoursOver = metrics.CurrentHours - fadeStartHours;
                     double viability = 1.0 - (hoursOver * hourlyDegradationRate);
-                    viability = Math.Max(0.2, viability); // Floor at 20%
-        
+                    
+                    // Clamp the drop at your personal observed floor (or 20% if no data yet)
+                    viability = Math.Max(dynamicFloor, viability);
+                    
                     // Math.Floor forces 99.9% down to 99%, preventing the "100% (FADING)" visual bug
                     HudRemaining = $"{Math.Floor(viability * 100)}%"; 
                     HudRemainingLabel = "VIABILITY (FADING)";
@@ -881,13 +899,33 @@ namespace DadPlanner2.ViewModels
                     HudRemaining = $"{(int)remaining.TotalHours}h {remaining.Minutes:D2}m";
                     HudRemainingLabel = "LIMIT T-MINUS";
                 }
-    
+                
                 HudAvg = metrics.AverageGapHours.HasValue ? $"{metrics.AverageGapHours:F1}h" : "--";
                 HudMax = metrics.MaximumGapHours.HasValue ? $"{metrics.MaximumGapHours:F1}h" : "--";
+
+                // THE WANK ALERT TRIGGER
+                double criticalFadeHours = 144.0;
+        
+                // The Tripwire: Silently re-arm the trap whenever you are safely back under the limit
+                if (metrics.CurrentHours < criticalFadeHours)
+                {
+                    EnableAggressiveNotifications = true;
+                }
+
+                // Fire the klaxon if overdue and the trap is armed
+                if (metrics.CurrentHours > criticalFadeHours && EnableAggressiveNotifications)
+                {
+                    ShowWankAlert = true;
+                }
+                else
+                {
+                    ShowWankAlert = false;
+                }
             }
             else
             {
                 HudCurrent = "--"; HudRemaining = "--"; HudRemainingLabel = "LIMIT T-MINUS"; HudAvg = "--"; HudMax = "--";
+                ShowWankAlert = false; // Reset if no logs
             }
 
             // 2. Dynamic Rolling Frequency Telemetry (Up to 30 days)

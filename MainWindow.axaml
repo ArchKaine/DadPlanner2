@@ -760,5 +760,62 @@
                 </StackPanel>
             </Border>
         </Border>
+        <!-- ========================================== -->
+        <!-- ========================================== -->
+<!-- CRITICAL SENESCENCE NOTIFICATION OVERLAY   -->
+<!-- ========================================== -->
+<Grid IsVisible="{Binding ShowWankAlert}" ZIndex="9999" Background="Red">
+    <Grid.Styles>
+        <Style Selector="Grid">
+            <Style.Animations>
+                <Animation Duration="0:0:0.4" IterationCount="Infinite" PlaybackDirection="Alternate">
+                    <KeyFrame Cue="0%">
+                        <Setter Property="Opacity" Value="0.5"/>
+                    </KeyFrame>
+                    <KeyFrame Cue="100%">
+                        <Setter Property="Opacity" Value="0.95"/>
+                    </KeyFrame>
+                </Animation>
+            </Style.Animations>
+        </Style>
+    </Grid.Styles>
+
+    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="50">
+        <Grid>
+            <!-- Drop Shadow Text Layer -->
+            <TextBlock Text="GO BEAT YER MEAT,&#x0a;YA DAFT BASTARD!"
+                       FontSize="80" 
+                       FontWeight="Black"
+                       Foreground="Black"
+                       TextAlignment="Center"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"
+                       Margin="8,8,0,0"/>
+
+            <!-- Main White Text Layer -->
+            <TextBlock Text="GO BEAT YER MEAT,&#x0a;YA DAFT BASTARD!"
+                       FontSize="80" 
+                       FontWeight="Black"
+                       Foreground="White"
+                       TextAlignment="Center"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center"/>
+        </Grid>
+
+        <!-- The Escape Hatch -->
+        <Button Content="ALRIGHT, I'M ON IT! (Dismiss)"
+                Command="{Binding DismissWankAlertCommand}"
+                FontSize="28"
+                FontWeight="Bold"
+                Background="#1e1e1e"
+                Foreground="White"
+                Padding="30,15"
+                CornerRadius="8"
+                HorizontalAlignment="Center"
+                BorderBrush="White"
+                BorderThickness="2"
+                Cursor="Hand"/>
+    </StackPanel>
+</Grid>
     </Grid>
 </Window>

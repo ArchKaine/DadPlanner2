@@ -1,8 +1,5 @@
 # Dad-Planner 2 (DP2)
 
-<img width="1287" height="935" alt="DP2" src="https://github.com/user-attachments/assets/b54460a6-311c-47df-bdf0-8daafe4cab7a" />
-
-
 This software is intended for guys like me who want to be a dad, and who are interested in taking full control of their data and their telemetry.
 
 Standard calendar apps aren't built for clinical reproductive health. When you need to manage strict medical testing requirements (like OHSU semen analysis protocols), maintain baseline prostate health with rigid turnover limits, and track supplement efficacy, you need precise telemetry. More importantly, you need that data kept completely offline.
@@ -43,6 +40,7 @@ This is true open-source, and the main repo will remain completely clean of mode
 * **LiveChartsCore.SkiaSharpView.Avalonia (v2.0.0-rc3)** - Highly interactive, Skia-rendered UI charting for the timeline, event distribution, and yield profiles.
 * **QuestPDF** - Native C# vector graphics engine for synthesizing the 90-Day PDF reports, combined with LiveCharts headless Skia rendering for offline chart generation.
 * **Microsoft.Data.Sqlite** - Lightweight, local database driver for telemetry storage.
+* **SkiaSharp.NativeAssets.Linux / .macOS / .Win32** - Required platform-specific native binaries. Without these OS-specific libraries, headless PDF generation and hardware-accelerated charting fail to render.
 
 ---
 
@@ -59,7 +57,9 @@ services/                      SQLite, export, analysis, reporting, and validati
 Tests/                         MSTest project and integration coverage
 dadplanner-2-run.sh            Fedora/Nobara and other Linux development launcher
 dadplanner-2-run.bat           Windows development launcher
+dadplanner-2-run.command       macOS development launcher
 dadplanner-2-install-desktop.sh User-local Linux application-menu installer
+
 ```
 
 The launch scripts are intended to be run from a checkout of this repository. They resolve
@@ -112,19 +112,34 @@ Clone the repository and enter its root directory:
 ```bash
 git clone https://github.com/ArchKaine/DadPlanner2.git
 cd DadPlanner2
+
 ```
 
 **Running the Application in Dev Mode:**
-To launch the desktop UI directly from the source code:
+
+To launch the desktop UI directly from the source code, run the launcher corresponding to your operating system. The scripts are stored beside `DadPlanner2.csproj` at the repository root and run from any working directory.
+
+**For Linux (Fedora/Nobara):**
 
 ```bash
 ./dadplanner-2-run.sh
+
 ```
 
-The launcher scripts are stored beside `DadPlanner2.csproj` at the repository root and can be run from any working directory. To run the test project:
+**For macOS:**
+Apple's Gatekeeper flags unsigned scripts by default. Grant execution permissions and clear the quarantine flag before running:
 
 ```bash
-dotnet test Tests/DadPlanner2.Tests.csproj
+chmod +x dadplanner-2-run.command
+xattr -c dadplanner-2-run.command
+./dadplanner-2-run.command
+
+```
+
+**For Windows:**
+
+```cmd
+dadplanner-2-run.bat
 
 ```
 
@@ -134,18 +149,20 @@ From the repository root, install a user-local `.desktop` entry:
 
 ```bash
 ./dadplanner-2-install-desktop.sh
+
 ```
 
 The entry is written to `${XDG_DATA_HOME:-~/.local/share}/applications`, so no root access is required. It launches the repository's existing pre-flight script in a terminal, which checks for the .NET 10 SDK, restores dependencies, and starts the application. If the repository is moved, rerun the installer to refresh the stored path.
 
 **Data and backup locations:**
 
-The database is created as `inventory.db` beneath the platform-specific application-data directory selected by .NET. On Fedora/Nobara this is normally under `~/.local/share/PIMS/`; on Windows it is under the current user's local application-data directory. Backups are stored alongside the application data in the configured backup directory and retain the newest 10 snapshots.
+The database is created as `inventory.db` beneath the platform-specific application-data directory selected by .NET. On Fedora/Nobara this is normally under `~/.local/share/PIMS/`; on Windows it is under the current user's local application-data directory; on macOS it resides in `~/Library/Application Support/PIMS/`. Backups are stored alongside the application data in the configured backup directory and retain the newest 10 snapshots.
 
 **Run tests:**
 
 ```bash
 dotnet test Tests/DadPlanner2.Tests.csproj
+
 ```
 
 ---
@@ -175,9 +192,7 @@ dotnet publish -c Release -r osx-x64 --self-contained true -p:PublishSingleFile=
 
 ```
 
-Published files are written under `bin/Release/` and should be distributed as a complete publish
-output. The repository launchers are development launchers: they require the .NET 10 SDK and
-restore NuGet packages before starting the project.
+Published files are written under `bin/Release/` and distribute as a complete publish output. The repository launchers serve as development launchers: they require the .NET 10 SDK and restore NuGet packages before starting the project.
 
 ---
 
@@ -188,6 +203,6 @@ risk, or establish that a supplement caused an outcome. Recovery gaps, saturatio
 thermal-shadow filtering, and supplement comparisons are observational calculations whose
 quality depends on consistent logging and adequate samples.
 
-Clinical values and attached reports should be reviewed with a qualified medical professional.
+Clinical values and attached reports require review with a qualified medical professional.
 The local database contains sensitive health information: protect the operating-system account,
 backups, exported files, and any published artifacts accordingly.

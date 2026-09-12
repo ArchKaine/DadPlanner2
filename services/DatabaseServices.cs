@@ -32,6 +32,55 @@ namespace DadPlanner2.Services
 
         public void MarkDirty() => _isDirty = true;
 
+        private SqliteConnection CreateConnection()
+        {
+            var db = new SqliteConnection(_connectionString);
+            db.Open();
+
+            using var cmd = db.CreateCommand();
+            cmd.CommandText = @"
+                PRAGMA journal_mode=WAL;
+                PRAGMA foreign_keys=ON;
+                PRAGMA busy_timeout=5000;
+            ";
+            cmd.ExecuteNonQuery();
+
+            return db;
+        }
+
+        private void CreatePreMigrationSafetySnapshot()
+        {
+            if (!File.Exists(_dbPath)) return;
+
+            try
+            {
+                string safetyDir = Path.Combine(_dbDir, "SafetyBackups");
+                Directory.CreateDirectory(safetyDir);
+                string snapshotPath = Path.Combine(
+                    safetyDir,
+                    $"inventory-pre-migration-{DateTime.Now:yyyyMMdd-HHmmss-fff}.db");
+
+                using var db = new SqliteConnection(_connectionString);
+                db.Open();
+                using var cmd = db.CreateCommand();
+                cmd.CommandText = $"VACUUM INTO '{snapshotPath.Replace("'", "''")}'";
+                cmd.ExecuteNonQuery();
+
+                var oldSnapshots = new DirectoryInfo(safetyDir)
+                    .GetFiles("inventory-pre-migration-*.db")
+                    .OrderByDescending(f => f.CreationTimeUtc)
+                    .Skip(5)
+                    .ToList();
+
+                foreach (var old in oldSnapshots)
+                    old.Delete();
+            }
+            catch (Exception ex)
+            {
+                Debug.WriteLine($"Pre-migration snapshot skipped: {ex.Message}");
+            }
+        }
+
         public bool ExecuteAutoBackup(string backupDirectory)
         {
             if (!_isDirty) return false;
@@ -43,8 +92,7 @@ namespace DadPlanner2.Services
                     backupDirectory,
                     $"inventory-{DateTime.Now:yyyyMMdd-HHmmss-fff}-{Guid.NewGuid():N}.db");
 
-                using var db = new SqliteConnection(_connectionString);
-                db.Open();
+                using var db = CreateConnection();
 
                 using var backupCmd = db.CreateCommand();
                 backupCmd.CommandText = $"VACUUM INTO '{backupPath.Replace("'", "''")}'";
@@ -96,8 +144,7 @@ namespace DadPlanner2.Services
             string safetyBackupPath = $"{_dbPath}.pre-restore-{DateTime.Now:yyyyMMdd-HHmmss-fff}.db";
             if (File.Exists(_dbPath))
             {
-                using var currentDb = new SqliteConnection(_connectionString);
-                currentDb.Open();
+                using var currentDb = CreateConnection();
                 using var safetyBackupCommand = currentDb.CreateCommand();
                 safetyBackupCommand.CommandText = $"VACUUM INTO '{safetyBackupPath.Replace("'", "''")}'";
                 safetyBackupCommand.ExecuteNonQuery();
@@ -109,8 +156,7 @@ namespace DadPlanner2.Services
             try
             {
                 File.Move(temporaryPath, _dbPath, true);
-                using var migratedDb = new SqliteConnection(_connectionString);
-                migratedDb.Open();
+                using var migratedDb = CreateConnection();
                 EnsureLogColumns(migratedDb);
                 _isDirty = false;
             }
@@ -164,14 +210,12 @@ namespace DadPlanner2.Services
                 }
             }
 
+            // Create pre-migration safety snapshot prior to running schema alterations
+            CreatePreMigrationSafetySnapshot();
+
             try
             {
-                using var db = new SqliteConnection(_connectionString);
-                db.Open();
-
-                using var walCmd = db.CreateCommand();
-                walCmd.CommandText = "PRAGMA journal_mode=WAL;";
-                walCmd.ExecuteNonQuery();
+                using var db = CreateConnection();
 
                 using var cmd = db.CreateCommand();
                 cmd.CommandText = @"
@@ -203,7 +247,6 @@ namespace DadPlanner2.Services
 
                 EnsureLogColumns(db);
             }
-
             catch (Exception ex)
             {
                 ShowNotification("Init Error", ex.Message);
@@ -239,28 +282,27 @@ namespace DadPlanner2.Services
                     alterCmd.CommandText = stmt;
                     alterCmd.ExecuteNonQuery();
                 }
-
                 catch (SqliteException ex) when (DatabaseMigrationPolicy.IsAlreadyApplied(ex))
                 {
-                    // SQLite has no portable ADD COLUMN IF NOT EXISTS syntax.
                 }
             }
 
             string[] historyColumns = {
-                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousTimestamp INTEGER DEFAULT 0",
-                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousMode TEXT DEFAULT 'Maintenance'",
-                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousVolume TEXT DEFAULT 'Normal'",
-                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousReleaseCount INTEGER DEFAULT 1",
-                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousVolumeConfidence TEXT DEFAULT 'Unknown'",
-                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousHeatFlag INTEGER DEFAULT 0",
-                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousSupplements TEXT DEFAULT '{}'",
-                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousClinicalVol REAL DEFAULT 0",
-                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousConcentration INTEGER DEFAULT 0",
-                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousMotility INTEGER DEFAULT 0",
-                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousProgMotility INTEGER DEFAULT 0",
-                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousMorphology INTEGER DEFAULT 0",
-                    "ALTER TABLE LogEditHistory ADD COLUMN PreviousPhLevel REAL DEFAULT 0"
-                };
+                "ALTER TABLE LogEditHistory ADD COLUMN PreviousTimestamp INTEGER DEFAULT 0",
+                "ALTER TABLE LogEditHistory ADD COLUMN PreviousMode TEXT DEFAULT 'Maintenance'",
+                "ALTER TABLE LogEditHistory ADD COLUMN PreviousVolume TEXT DEFAULT 'Normal'",
+                "ALTER TABLE LogEditHistory ADD COLUMN PreviousReleaseCount INTEGER DEFAULT 1",
+                "ALTER TABLE LogEditHistory ADD COLUMN PreviousVolumeConfidence TEXT DEFAULT 'Unknown'",
+                "ALTER TABLE LogEditHistory ADD COLUMN PreviousHeatFlag INTEGER DEFAULT 0",
+                "ALTER TABLE LogEditHistory ADD COLUMN PreviousSupplements TEXT DEFAULT '{}'",
+                "ALTER TABLE LogEditHistory ADD COLUMN PreviousClinicalVol REAL DEFAULT 0",
+                "ALTER TABLE LogEditHistory ADD COLUMN PreviousConcentration INTEGER DEFAULT 0",
+                "ALTER TABLE LogEditHistory ADD COLUMN PreviousMotility INTEGER DEFAULT 0",
+                "ALTER TABLE LogEditHistory ADD COLUMN PreviousProgMotility INTEGER DEFAULT 0",
+                "ALTER TABLE LogEditHistory ADD COLUMN PreviousMorphology INTEGER DEFAULT 0",
+                "ALTER TABLE LogEditHistory ADD COLUMN PreviousPhLevel REAL DEFAULT 0"
+            };
+
             foreach (var stmt in historyColumns)
             {
                 try
@@ -286,8 +328,7 @@ namespace DadPlanner2.Services
         public List<LogRecord> GetAllLogs()
         {
             var logs = new List<LogRecord>();
-            using var db = new SqliteConnection(_connectionString);
-            db.Open();
+            using var db = CreateConnection();
 
             using var cmdLogs = db.CreateCommand();
             cmdLogs.CommandText = @"
@@ -325,8 +366,7 @@ namespace DadPlanner2.Services
 
         public void InsertLog(LogRecord log, string? fileName = null, byte[]? pdfBlob = null)
         {
-            using var db = new SqliteConnection(_connectionString);
-            db.Open();
+            using var db = CreateConnection();
 
             using var cmd = db.CreateCommand();
             cmd.CommandText = @"
@@ -339,8 +379,7 @@ namespace DadPlanner2.Services
 
         public void UpdateLog(LogRecord log, string? fileName = null, byte[]? pdfBlob = null)
         {
-            using var db = new SqliteConnection(_connectionString);
-            db.Open();
+            using var db = CreateConnection();
             using var transaction = db.BeginTransaction();
 
             string? historySummary = null;
@@ -384,27 +423,21 @@ namespace DadPlanner2.Services
             using var historyCmd = db.CreateCommand();
             historyCmd.Transaction = transaction;
             historyCmd.CommandText = @"
-                INSERT INTO LogEditHistory (LogId, EditedAt, Summary)
-                VALUES ($id, $editedAt, $summary)";
+                INSERT INTO LogEditHistory
+                    (LogId, EditedAt, Summary, PreviousTimestamp, PreviousMode, PreviousVolume,
+                     PreviousReleaseCount, PreviousVolumeConfidence, PreviousHeatFlag, PreviousSupplements,
+                     PreviousClinicalVol, PreviousConcentration, PreviousMotility, PreviousProgMotility,
+                     PreviousMorphology, PreviousPhLevel)
+                SELECT $id, $editedAt, $summary, Timestamp, IFNULL(Mode, 'Maintenance'),
+                       IFNULL(Volume, 'Normal'), IFNULL(ReleaseCount, 1),
+                       IFNULL(VolumeConfidence, 'Unknown'), IFNULL(HeatFlag, 0),
+                       IFNULL(Supplements, '{}'), IFNULL(ClinicalVol, 0), IFNULL(Concentration, 0),
+                       IFNULL(Motility, 0), IFNULL(ProgMotility, 0), IFNULL(Morphology, 0),
+                       IFNULL(PhLevel, 0)
+                FROM Logs WHERE Id = $id";
             historyCmd.Parameters.AddWithValue("$id", log.Id);
             historyCmd.Parameters.AddWithValue("$editedAt", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
             historyCmd.Parameters.AddWithValue("$summary", historySummary ?? "Previous session state unavailable");
-            if (historySummary != null)
-            {
-                historyCmd.CommandText = @"
-                    INSERT INTO LogEditHistory
-                        (LogId, EditedAt, Summary, PreviousTimestamp, PreviousMode, PreviousVolume,
-                         PreviousReleaseCount, PreviousVolumeConfidence, PreviousHeatFlag, PreviousSupplements,
-                         PreviousClinicalVol, PreviousConcentration, PreviousMotility, PreviousProgMotility,
-                         PreviousMorphology, PreviousPhLevel)
-                    SELECT $id, $editedAt, $summary, Timestamp, IFNULL(Mode, 'Maintenance'),
-                           IFNULL(Volume, 'Normal'), IFNULL(ReleaseCount, 1),
-                           IFNULL(VolumeConfidence, 'Unknown'), IFNULL(HeatFlag, 0),
-                           IFNULL(Supplements, '{}'), IFNULL(ClinicalVol, 0), IFNULL(Concentration, 0),
-                           IFNULL(Motility, 0), IFNULL(ProgMotility, 0), IFNULL(Morphology, 0),
-                           IFNULL(PhLevel, 0)
-                    FROM Logs WHERE Id = $id";
-            }
             historyCmd.ExecuteNonQuery();
 
             using var cmd = db.CreateCommand();
@@ -428,8 +461,7 @@ namespace DadPlanner2.Services
         public List<LogEditHistory> GetLogEditHistory(long logId)
         {
             var history = new List<LogEditHistory>();
-            using var db = new SqliteConnection(_connectionString);
-            db.Open();
+            using var db = CreateConnection();
             using var cmd = db.CreateCommand();
             cmd.CommandText = @"
                 SELECT Id, LogId, EditedAt, Summary, PreviousTimestamp, PreviousMode, PreviousVolume,
@@ -448,30 +480,28 @@ namespace DadPlanner2.Services
                     Id = reader.GetInt64(0),
                     LogId = reader.GetInt64(1),
                     EditedAt = reader.GetInt64(2),
-                    Summary = reader.GetString(3)
-                    ,PreviousTimestamp = reader.GetInt64(4)
-                    ,PreviousMode = reader.GetString(5)
-                    ,PreviousVolume = reader.GetString(6)
-                    ,PreviousReleaseCount = Convert.ToInt32(reader.GetValue(7))
-                    ,PreviousVolumeConfidence = ParseVolumeConfidence(reader.GetString(8))
-                    ,PreviousHeatFlag = Convert.ToInt32(reader.GetValue(9))
-                    ,PreviousSupplements = reader.GetString(10)
-                    ,PreviousClinicalVol = Convert.ToDouble(reader.GetValue(11))
-                    ,PreviousConcentration = Convert.ToInt32(reader.GetValue(12))
-                    ,PreviousMotility = Convert.ToInt32(reader.GetValue(13))
-                    ,PreviousProgMotility = Convert.ToInt32(reader.GetValue(14))
-                    ,PreviousMorphology = Convert.ToInt32(reader.GetValue(15))
-                    ,PreviousPhLevel = Convert.ToDouble(reader.GetValue(16))
+                    Summary = reader.GetString(3),
+                    PreviousTimestamp = reader.GetInt64(4),
+                    PreviousMode = reader.GetString(5),
+                    PreviousVolume = reader.GetString(6),
+                    PreviousReleaseCount = Convert.ToInt32(reader.GetValue(7)),
+                    PreviousVolumeConfidence = ParseVolumeConfidence(reader.GetString(8)),
+                    PreviousHeatFlag = Convert.ToInt32(reader.GetValue(9)),
+                    PreviousSupplements = reader.GetString(10),
+                    PreviousClinicalVol = Convert.ToDouble(reader.GetValue(11)),
+                    PreviousConcentration = Convert.ToInt32(reader.GetValue(12)),
+                    PreviousMotility = Convert.ToInt32(reader.GetValue(13)),
+                    PreviousProgMotility = Convert.ToInt32(reader.GetValue(14)),
+                    PreviousMorphology = Convert.ToInt32(reader.GetValue(15)),
+                    PreviousPhLevel = Convert.ToDouble(reader.GetValue(16))
                 });
             }
-
             return history;
         }
 
         public LogRecord? RestoreLogFromHistory(long historyId)
         {
-            using var db = new SqliteConnection(_connectionString);
-            db.Open();
+            using var db = CreateConnection();
             using var cmd = db.CreateCommand();
             cmd.CommandText = @"
                 SELECT LogId, PreviousTimestamp, PreviousMode, PreviousVolume, PreviousReleaseCount,
@@ -496,12 +526,12 @@ namespace DadPlanner2.Services
 
         public void DeleteLog(long id)
         {
-            using var db = new SqliteConnection(_connectionString);
-            db.Open();
+            using var db = CreateConnection();
             using var historyCmd = db.CreateCommand();
             historyCmd.CommandText = "DELETE FROM LogEditHistory WHERE LogId = $id";
             historyCmd.Parameters.AddWithValue("$id", id);
             historyCmd.ExecuteNonQuery();
+
             using var cmd = db.CreateCommand();
             cmd.CommandText = "DELETE FROM Logs WHERE Id = $id";
             cmd.Parameters.AddWithValue("$id", id);
@@ -529,15 +559,13 @@ namespace DadPlanner2.Services
 
         public (double Min, double Max) GetThresholdSettings()
         {
-            using var db = new SqliteConnection(_connectionString);
-            db.Open();
+            using var db = CreateConnection();
             return (GetSetting(db, "min_threshold", 24.0), GetSetting(db, "max_threshold", 72.0));
         }
 
         public void SaveThresholdSettings(double min, double max)
         {
-            using var db = new SqliteConnection(_connectionString);
-            db.Open();
+            using var db = CreateConnection();
             using var cmd = db.CreateCommand();
             cmd.CommandText = "INSERT OR REPLACE INTO Settings (Key, Value) VALUES ('min_threshold', $min), ('max_threshold', $max)";
             cmd.Parameters.AddWithValue("$min", min.ToString());
@@ -547,8 +575,7 @@ namespace DadPlanner2.Services
 
         public void SaveSupplementsState(bool zn, bool ma, bool vitD, bool vitC)
         {
-            using var db = new SqliteConnection(_connectionString);
-            db.Open();
+            using var db = CreateConnection();
             using var cmd = db.CreateCommand();
             cmd.CommandText = "INSERT OR REPLACE INTO Settings (Key, Value) VALUES ('supp_zn', $zn), ('supp_ma', $ma), ('supp_vitD', $vitD), ('supp_vitC', $vitC)";
             cmd.Parameters.AddWithValue("$zn", zn.ToString());
@@ -560,8 +587,7 @@ namespace DadPlanner2.Services
 
         public (bool zn, bool ma, bool vitD, bool vitC) GetSupplementsState()
         {
-            using var db = new SqliteConnection(_connectionString);
-            db.Open();
+            using var db = CreateConnection();
             return (
                 GetSettingStr(db, "supp_zn") == "True",
                 GetSettingStr(db, "supp_ma") == "True",
@@ -581,8 +607,7 @@ namespace DadPlanner2.Services
 
         public long GetAppointment()
         {
-            using var db = new SqliteConnection(_connectionString);
-            db.Open();
+            using var db = CreateConnection();
             using var cmd = db.CreateCommand();
             cmd.CommandText = "SELECT Timestamp FROM Appointments ORDER BY Timestamp DESC LIMIT 1";
             var result = cmd.ExecuteScalar();
@@ -591,8 +616,7 @@ namespace DadPlanner2.Services
 
         public void SetAppointment(long timestamp)
         {
-            using var db = new SqliteConnection(_connectionString);
-            db.Open();
+            using var db = CreateConnection();
             using var cmd = db.CreateCommand();
             cmd.CommandText = "INSERT INTO Appointments (Timestamp) VALUES ($ts)";
             cmd.Parameters.AddWithValue("$ts", timestamp);
@@ -601,8 +625,7 @@ namespace DadPlanner2.Services
 
         public void ClearAppointment()
         {
-            using var db = new SqliteConnection(_connectionString);
-            db.Open();
+            using var db = CreateConnection();
             using var cmd = db.CreateCommand();
             cmd.CommandText = "DELETE FROM Appointments";
             cmd.ExecuteNonQuery();
@@ -620,8 +643,7 @@ namespace DadPlanner2.Services
 
         public bool CheckIfTestModeActive()
         {
-            using var db = new SqliteConnection(_connectionString);
-            db.Open();
+            using var db = CreateConnection();
             using var cmd = db.CreateCommand();
             cmd.CommandText = "SELECT name FROM sqlite_master WHERE type='table' AND name='Logs_Backup'";
             return cmd.ExecuteScalar() != null;
@@ -629,9 +651,8 @@ namespace DadPlanner2.Services
 
         public void ToggleTestMode()
         {
-            using var db = new SqliteConnection(_connectionString);
-            db.Open();
-            
+            using var db = CreateConnection();
+
             if (CheckIfTestModeActive())
             {
                 using var restoreCmd = db.CreateCommand();
@@ -657,12 +678,12 @@ namespace DadPlanner2.Services
                     ALTER TABLE Settings RENAME TO Settings_Backup;
                     ALTER TABLE Appointments RENAME TO Appointments_Backup;
                     ALTER TABLE LogEditHistory RENAME TO LogEditHistory_Backup;
-                    
+
                     CREATE TABLE Logs (Id INTEGER PRIMARY KEY AUTOINCREMENT, Timestamp INTEGER, Mode TEXT DEFAULT 'Maintenance', Volume TEXT DEFAULT 'Normal', ReleaseCount INTEGER DEFAULT 1, VolumeConfidence TEXT DEFAULT 'Unknown', HeatFlag INTEGER DEFAULT 0, Supplements TEXT DEFAULT '{}', Concentration INTEGER, Motility INTEGER, Morphology INTEGER, ClinicalVol REAL, ProgMotility INTEGER, PhLevel REAL, LabReportBlob BLOB, LabReportFileName TEXT);
-                    
+
                     CREATE TABLE Settings (Key TEXT PRIMARY KEY, Value TEXT);
                     INSERT INTO Settings SELECT * FROM Settings_Backup;
-                    
+
                     CREATE TABLE Appointments (Id INTEGER PRIMARY KEY AUTOINCREMENT, Timestamp INTEGER);
                     CREATE TABLE LogEditHistory (Id INTEGER PRIMARY KEY AUTOINCREMENT, LogId INTEGER NOT NULL, EditedAt INTEGER NOT NULL, Summary TEXT NOT NULL);
                 ";
@@ -674,26 +695,26 @@ namespace DadPlanner2.Services
         }
 
         private static void EnsureHistoryColumns(SqliteConnection db)
+        {
+            string[] columns = {
+                "PreviousTimestamp INTEGER DEFAULT 0", "PreviousMode TEXT DEFAULT 'Maintenance'",
+                "PreviousVolume TEXT DEFAULT 'Normal'", "PreviousReleaseCount INTEGER DEFAULT 1",
+                "PreviousVolumeConfidence TEXT DEFAULT 'Unknown'", "PreviousHeatFlag INTEGER DEFAULT 0",
+                "PreviousSupplements TEXT DEFAULT '{}'", "PreviousClinicalVol REAL DEFAULT 0",
+                "PreviousConcentration INTEGER DEFAULT 0", "PreviousMotility INTEGER DEFAULT 0",
+                "PreviousProgMotility INTEGER DEFAULT 0", "PreviousMorphology INTEGER DEFAULT 0",
+                "PreviousPhLevel REAL DEFAULT 0"
+            };
+            foreach (var column in columns)
             {
-                string[] columns = {
-                    "PreviousTimestamp INTEGER DEFAULT 0", "PreviousMode TEXT DEFAULT 'Maintenance'",
-                    "PreviousVolume TEXT DEFAULT 'Normal'", "PreviousReleaseCount INTEGER DEFAULT 1",
-                    "PreviousVolumeConfidence TEXT DEFAULT 'Unknown'", "PreviousHeatFlag INTEGER DEFAULT 0",
-                    "PreviousSupplements TEXT DEFAULT '{}'", "PreviousClinicalVol REAL DEFAULT 0",
-                    "PreviousConcentration INTEGER DEFAULT 0", "PreviousMotility INTEGER DEFAULT 0",
-                    "PreviousProgMotility INTEGER DEFAULT 0", "PreviousMorphology INTEGER DEFAULT 0",
-                    "PreviousPhLevel REAL DEFAULT 0"
-                };
-                foreach (var column in columns)
+                try
                 {
-                    try
-                    {
-                        using var cmd = db.CreateCommand();
-                        cmd.CommandText = $"ALTER TABLE LogEditHistory ADD COLUMN {column}";
-                        cmd.ExecuteNonQuery();
-                    }
-                    catch (SqliteException ex) when (DatabaseMigrationPolicy.IsAlreadyApplied(ex))
-                    {
+                    using var cmd = db.CreateCommand();
+                    cmd.CommandText = $"ALTER TABLE LogEditHistory ADD COLUMN {column}";
+                    cmd.ExecuteNonQuery();
+                }
+                catch (SqliteException ex) when (DatabaseMigrationPolicy.IsAlreadyApplied(ex))
+                {
                 }
             }
         }
@@ -702,70 +723,106 @@ namespace DadPlanner2.Services
         {
             long currentTs = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             var rand = new Random(20260908);
-            string[] modes = { "Maintenance", "Playtime", "Baby-Making", "Clinical-Lab" };
-            
+
             int testRecordCount = 300;
             int singleHeatEventIndex = rand.Next(0, testRecordCount);
 
             for (int i = 0; i < testRecordCount; i++)
             {
+                int cycleDay = (int)((currentTs / 86400) % 28);
+                if (cycleDay < 0) cycleDay += 28;
+
+                bool isOvulationWindow = cycleDay >= 12 && cycleDay <= 16;
+                int gapHours = rand.Next(24, 72);
+                string randomMode;
+
+                if (isOvulationWindow)
+                {
+                    randomMode = rand.Next(100) > 15 ? "Baby-Making" : "Playtime";
+                    gapHours = rand.Next(12, 36);
+                }
+                else
+                {
+                    int modeRoll = rand.Next(100);
+                    if (modeRoll < 3)
+                    {
+                        randomMode = "Clinical-Lab";
+                        gapHours = rand.Next(72, 120);
+                    }
+                    else if (modeRoll < 40)
+                    {
+                        randomMode = "Playtime";
+                    }
+                    else
+                    {
+                        randomMode = "Maintenance";
+                    }
+                }
+
                 int randomZinc = (i < 75) ? 1 : 0;
                 int randomMaca = (i < 75) ? 1 : 0;
                 int randomVitD = (i < 75) ? 1 : 0;
                 int randomVitC = (i < 75) ? 1 : 0;
-                
+
                 string fakeSupps = $"{{\"zinc\":{randomZinc},\"maca\":{randomMaca},\"vitD\":{randomVitD},\"vitC\":{randomVitC}}}";
-                
-                int gapHours = rand.Next(35, 80);
-                if (randomMaca == 1) gapHours -= rand.Next(10, 20); 
-                
+
+                if (randomMaca == 1) gapHours -= rand.Next(5, 12);
+                if (gapHours < 8) gapHours = 8;
+
                 currentTs -= (gapHours * 3600);
-                
-                string randomMode = modes[rand.Next(modes.Length)];
-                if (rand.Next(100) > 5 && randomMode == "Clinical-Lab") randomMode = "Maintenance";
 
                 string randomVol = "Normal";
-                if (randomZinc == 1) 
+                if (randomZinc == 1)
                 {
-                    randomVol = rand.Next(100) > 15 ? "High" : "Normal"; 
+                    randomVol = rand.Next(100) > 15 ? "High" : "Normal";
                 }
-                else 
+                else
                 {
                     int spread = rand.Next(100);
                     randomVol = spread < 40 ? "Low" : (spread < 80 ? "Normal" : "High");
                 }
-                
-                if (rand.Next(100) > 90 && randomMode != "Baby-Making") randomVol = "None";
-                
-                int randomHeat = (i == singleHeatEventIndex) ? 2 : 0;
 
+                if (rand.Next(100) > 90 && randomMode != "Baby-Making" && randomMode != "Clinical-Lab") randomVol = "None";
+
+                int randomHeat = (i == singleHeatEventIndex) ? 2 : 0;
                 int conc = 0, mot = 0, morph = 0, pmot = 0;
                 double cvol = 0.0, ph = 0.0;
 
                 if (randomMode == "Clinical-Lab")
                 {
-                    cvol = rand.NextDouble() * 3 + 1.5; 
+                    cvol = Math.Round(rand.NextDouble() * 6.0 + 0.5, 1);
                     conc = rand.Next(15, 120);
                     mot = rand.Next(40, 85);
                     pmot = mot - rand.Next(5, 15);
                     morph = rand.Next(2, 8);
-                    ph = rand.NextDouble() * 0.8 + 7.2;
-                    randomVol = "High"; 
+                    ph = Math.Round(rand.NextDouble() * 0.8 + 7.2, 1);
+
+                    if (cvol < 1.5) randomVol = "Low";
+                    else if (cvol > 5.0) randomVol = "High";
+                    else randomVol = "Normal";
                 }
 
                 int releaseCount = 1;
+                int countRoll = rand.Next(100);
+
                 switch (randomMode)
                 {
                     case "Clinical-Lab":
                         releaseCount = 1;
                         break;
                     case "Maintenance":
-                        releaseCount = rand.Next(100) > 95 ? 2 : 1;
+                        if (countRoll > 97) releaseCount = rand.Next(5, 8);
+                        else if (countRoll > 92) releaseCount = 4;
+                        else if (countRoll > 85) releaseCount = 3;
+                        else if (countRoll > 75) releaseCount = 2;
+                        else releaseCount = 1;
                         break;
-                    case "Playtime":
                     case "Baby-Making":
-                        int roll = rand.Next(100);
-                        releaseCount = roll > 85 ? 3 : (roll > 50 ? 2 : 1);
+                    case "Playtime":
+                        if (countRoll > 90) releaseCount = rand.Next(4, 7);
+                        else if (countRoll > 75) releaseCount = 3;
+                        else if (countRoll > 45) releaseCount = 2;
+                        else releaseCount = 1;
                         break;
                 }
 
@@ -776,7 +833,7 @@ namespace DadPlanner2.Services
                         : releaseCount > 1
                             ? (i % 2 == 0 ? nameof(VolumeConfidence.Estimated) : nameof(VolumeConfidence.Unknown))
                             : nameof(VolumeConfidence.Observed);
-                
+
                 using var insertCmd = db.CreateCommand();
                 insertCmd.CommandText = "INSERT INTO Logs (Timestamp, Mode, Volume, ReleaseCount, VolumeConfidence, HeatFlag, Supplements, Concentration, Motility, Morphology, ClinicalVol, ProgMotility, PhLevel) VALUES ($ts, $mode, $vol, $count, $confidence, $heat, $supps, $conc, $mot, $morph, $cvol, $pmot, $ph)";
                 insertCmd.Parameters.AddWithValue("$ts", currentTs);
@@ -798,13 +855,12 @@ namespace DadPlanner2.Services
 
         public void OpenLabReportPdf(long logId)
         {
-            using var db = new SqliteConnection(_connectionString);
-            db.Open();
+            using var db = CreateConnection();
             using var cmd = db.CreateCommand();
             cmd.CommandText = "SELECT LabReportBlob, LabReportFileName FROM Logs WHERE Id = $id AND LabReportBlob IS NOT NULL";
             cmd.Parameters.AddWithValue("$id", logId);
             using var reader = cmd.ExecuteReader();
-            
+
             if (reader.Read())
             {
                 byte[] pdfBytes = (byte[])reader["LabReportBlob"];
@@ -901,7 +957,22 @@ namespace DadPlanner2.Services
             }
             catch { }
         }
+        
+        // Add these two helper methods into DatabaseService:
+        public bool GetSenescenceAlertSetting()
+        {
+            using var db = CreateConnection();
+            return GetSettingStr(db, "enable_senescence_alert") != "False"; // Defaults to true
+        }
 
+        public void SaveSenescenceAlertSetting(bool enabled)
+        {
+            using var db = CreateConnection();
+            using var cmd = db.CreateCommand();
+            cmd.CommandText = "INSERT OR REPLACE INTO Settings (Key, Value) VALUES ('enable_senescence_alert', $val)";
+            cmd.Parameters.AddWithValue("$val", enabled.ToString());
+            cmd.ExecuteNonQuery();
+        }  
     }
 
     internal static class DatabaseMigrationPolicy

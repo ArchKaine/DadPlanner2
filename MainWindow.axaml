@@ -9,7 +9,7 @@
         x:Class="DadPlanner2.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         x:Name="RootWindow"
-        Title="Dad-Planner System Utility" Width="1300" Height="900"
+        Title="Dad-Planner System Utility" Width="1864" Height="1048"
         Background="#121212" Foreground="#e0e0e0"
         WindowStartupLocation="CenterScreen">
 
@@ -32,6 +32,24 @@
         </Style>
         <Style Selector="Button.btn-icon:pointerover /template/ ContentPresenter">
             <Setter Property="Background" Value="#555"/>
+        </Style>
+
+        <!-- Clickable Heatmap Square Style -->
+        <Style Selector="Button.heatmap-cell">
+            <Setter Property="Padding" Value="0"/>
+            <Setter Property="BorderThickness" Value="0"/>
+            <Setter Property="Cursor" Value="Hand"/>
+            <Setter Property="Template">
+                <ControlTemplate>
+                    <Border Background="{TemplateBinding Background}"
+                            CornerRadius="{TemplateBinding CornerRadius}"
+                            Width="{TemplateBinding Width}"
+                            Height="{TemplateBinding Height}"/>
+                </ControlTemplate>
+            </Setter>
+        </Style>
+        <Style Selector="Button.heatmap-cell:pointerover">
+            <Setter Property="Opacity" Value="0.75"/>
         </Style>
 
         <!-- Global ToolTip Override for the Heatmap -->
@@ -66,14 +84,35 @@
 
             <!-- BANNERS -->
             <StackPanel Grid.Row="1" Spacing="10" Margin="0,0,0,15">
+                <!-- TEST MODE BANNER -->
                 <Border IsVisible="{Binding IsTestModeActive}" Background="#d32f2f" CornerRadius="6" Padding="10,5">
                     <TextBlock Text="WARNING: TEST MODE ACTIVE. FAKE DATA DISPLAYED." FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
                 </Border>
-                <Border IsVisible="{Binding IsShadowActive}" Background="#f57c00" CornerRadius="6" Padding="10,5">
-                    <TextBlock Text="{Binding ShadowMessage}" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+
+                <!-- ENHANCED THERMAL SHADOW BANNER -->
+                <Border IsVisible="{Binding IsShadowActive}" Background="#873600" BorderBrush="#ff9800" BorderThickness="1" CornerRadius="6" Padding="14,10">
+                    <StackPanel Spacing="6">
+                        <Grid ColumnDefinitions="Auto, *, Auto">
+                            <TextBlock Grid.Column="0" Text="THERMAL SHADOW ACTIVE" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="{Binding ShadowStageTitle}" FontWeight="SemiBold" Foreground="#ffe0b2" Margin="15,0,0,0" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="2" Text="{Binding ShadowProgressPercent, StringFormat='{}{0:F0}% Complete'}" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
+                        </Grid>
+                        <ProgressBar Value="{Binding ShadowProgressPercent}" Minimum="0" Maximum="100" Height="5" Foreground="#ffb74d" Background="#4e2600" CornerRadius="2.5"/>
+                        <Grid ColumnDefinitions="*, Auto">
+                            <TextBlock Grid.Column="0" Text="{Binding ShadowStageDesc}" FontSize="11" Foreground="#ffcc80" VerticalAlignment="Center"/>
+                            <TextBlock Grid.Column="1" Text="{Binding ShadowMessage}" FontSize="11" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
+                        </Grid>
+                    </StackPanel>
                 </Border>
-                <Border IsVisible="{Binding IsBlackoutActive}" Background="{Binding BlackoutColor}" BorderBrush="{Binding BlackoutBorder}" BorderThickness="1" CornerRadius="6" Padding="10,5">
-                    <TextBlock Text="{Binding BlackoutMessage}" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+
+                <!-- ENHANCED CLINICAL BLACKOUT BANNER -->
+                <Border IsVisible="{Binding IsBlackoutActive}" Background="{Binding BlackoutColor}" BorderBrush="{Binding BlackoutBorder}" BorderThickness="1" CornerRadius="6" Padding="14,10">
+                    <Grid ColumnDefinitions="*, Auto">
+                        <TextBlock Grid.Column="0" Text="{Binding BlackoutMessage}" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
+                        <Border Grid.Column="1" IsVisible="{Binding ClinicalComplianceMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" Background="#1e1e1e" BorderBrush="{Binding ClinicalComplianceColor}" BorderThickness="1" CornerRadius="4" Padding="8,3" Margin="10,0,0,0">
+                            <TextBlock Text="{Binding ClinicalComplianceMessage}" FontSize="11" FontWeight="Bold" Foreground="{Binding ClinicalComplianceColor}" VerticalAlignment="Center"/>
+                        </Border>
+                    </Grid>
                 </Border>
             </StackPanel>
 
@@ -84,37 +123,49 @@
                 <ScrollViewer Grid.Column="0" Margin="0,0,15,0" HorizontalScrollBarVisibility="Disabled">
                     <StackPanel Spacing="15">
 
-                        <!-- HUD GRID -->
-                        <UniformGrid Columns="5" Height="70">
-                            <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0">
-                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                    <TextBlock Text="{Binding HudCurrent}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center"/>
-                                    <TextBlock Text="CURRENT DELTA" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
-                                </StackPanel>
+                        <!-- ENHANCED HUD GRID WITH BIOLOGICAL PHASES -->
+                        <UniformGrid Columns="5" Height="80">
+                            <!-- 1: Current Delta -->
+                            <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0" Padding="8">
+                                <Grid RowDefinitions="*, Auto">
+                                    <TextBlock Grid.Row="0" Text="{Binding HudCurrent}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Row="1" Text="CURRENT DELTA" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
+                                </Grid>
                             </Border>
-                            <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0">
-                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                    <TextBlock Text="{Binding HudRemaining}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center"/>
-                                    <TextBlock Text="{Binding HudRemainingLabel}" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
-                                </StackPanel>
+
+                            <!-- 2: Phase & Viability / Limit (Dynamic Color + Progress Bar) -->
+                            <Border Background="#1e1e1e" BorderBrush="{Binding HudPhaseColor}" BorderThickness="1.5" CornerRadius="6" Margin="0,0,10,0" Padding="8">
+                                <Grid RowDefinitions="*, Auto, Auto">
+                                    <StackPanel Grid.Row="0" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                        <TextBlock Text="{Binding HudRemaining}" FontSize="22" FontWeight="Bold" Foreground="{Binding HudPhaseColor}" HorizontalAlignment="Center"/>
+                                    </StackPanel>
+                                    <ProgressBar Grid.Row="1" Value="{Binding HudProgressValue}" Minimum="0" Maximum="1" Height="3" Foreground="{Binding HudPhaseColor}" Background="#2a2a2a" CornerRadius="1.5" Margin="4,2,4,4"/>
+                                    <TextBlock Grid.Row="2" Text="{Binding HudRemainingLabel}" FontSize="9" FontWeight="Bold" Foreground="{Binding HudPhaseColor}" HorizontalAlignment="Center"/>
+                                </Grid>
                             </Border>
-                            <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0">
-                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                    <TextBlock Text="{Binding HudAvg}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center"/>
-                                    <TextBlock Text="ROLLING AVG" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
-                                </StackPanel>
+
+                            <!-- 3: Rolling Average -->
+                            <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0" Padding="8">
+                                <Grid RowDefinitions="*, Auto">
+                                    <TextBlock Grid.Row="0" Text="{Binding HudAvg}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Row="1" Text="ROLLING AVG" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
+                                </Grid>
                             </Border>
-                            <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0">
-                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                    <TextBlock Text="{Binding HudMax}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center"/>
-                                    <TextBlock Text="MAX ENDURANCE" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
-                                </StackPanel>
+
+                            <!-- 4: Max Endurance -->
+                            <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0" Padding="8">
+                                <Grid RowDefinitions="*, Auto">
+                                    <TextBlock Grid.Row="0" Text="{Binding HudMax}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Row="1" Text="MAX ENDURANCE" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
+                                </Grid>
                             </Border>
-                            <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6">
-                                <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                    <TextBlock Text="{Binding HudFrequency}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center"/>
-                                    <TextBlock Text="30-DAY FREQ" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
-                                </StackPanel>
+
+                            <!-- 5: 30-Day Frequency -->
+                            <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="8">
+                                <Grid RowDefinitions="*, Auto">
+                                    <TextBlock Grid.Row="0" Text="{Binding HudFrequency}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                    <TextBlock Grid.Row="1" Text="30-DAY FREQ" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
+                                </Grid>
                             </Border>
                         </UniformGrid>
 
@@ -183,10 +234,13 @@
                             </Border>
                         </Grid>
 
-                        <!-- GitHub-Style Auto-Scaling Heatmap -->
+                        <!-- GitHub-Style Auto-Scaling Heatmap with Interactive Drill-Down -->
                         <Border Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10">
                             <StackPanel>
-                                <TextBlock Text="365-DAY ACTIVITY MATRIX" FontSize="12" Foreground="#888" Margin="0,0,0,10"/>
+                                <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,10">
+                                    <TextBlock Grid.Column="0" Text="365-DAY ACTIVITY MATRIX (CLICK DAY TO LOCATE)" FontSize="12" Foreground="#888" VerticalAlignment="Center"/>
+                                    <ToggleSwitch Grid.Column="1" OffContent="Release Frequency" OnContent="Clinical Volume" IsChecked="{Binding IsVolumeMode}" FontSize="11" Foreground="#aaa" MinWidth="0" Margin="0" Padding="0"/>
+                                </Grid>
 
                                 <Viewbox Height="110" Stretch="Uniform" HorizontalAlignment="Center">
                                     <ItemsControl ItemsSource="{Binding HeatmapDays}">
@@ -197,20 +251,57 @@
                                         </ItemsControl.ItemsPanel>
                                         <ItemsControl.ItemTemplate>
                                             <DataTemplate>
-                                                <Border Background="{Binding ColorHex}" Width="12" Height="12" Margin="1.5" CornerRadius="2">
+                                                <Button Classes="heatmap-cell"
+                                                        Background="{Binding ColorHex}"
+                                                        Width="12" Height="12" Margin="1.5" CornerRadius="2"
+                                                        Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).HeatmapDayClickedCommand}"
+                                                        CommandParameter="{Binding}">
                                                     <ToolTip.Tip>
                                                         <StackPanel Spacing="5">
                                                             <TextBlock Text="{Binding DateText}" FontWeight="Bold" Foreground="#e0e0e0" FontSize="13"/>
                                                             <TextBlock Text="{Binding MainInfoText}" Foreground="#aaa" FontSize="12"/>
                                                             <Rectangle IsVisible="{Binding HasData}" Height="1" Fill="#333" Margin="0,4"/>
                                                             <TextBlock IsVisible="{Binding HasData}" Text="{Binding ModesText}" Foreground="#888" FontSize="12" TextWrapping="Wrap"/>
+                                                            <TextBlock Text="Click cell to jump to log" FontSize="9" Foreground="#007acc" FontStyle="Italic"/>
                                                         </StackPanel>
                                                     </ToolTip.Tip>
-                                                </Border>
+                                                </Button>
                                             </DataTemplate>
                                         </ItemsControl.ItemTemplate>
                                     </ItemsControl>
                                 </Viewbox>
+                                
+                                <!-- Explicit Heatmap Legend -->
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4" Margin="0,5,30,0">
+                                    <TextBlock Text="Base Color = Mode" FontSize="9" FontWeight="Bold" Foreground="#777" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                    <TextBlock Text="Intensity:" FontSize="9" Foreground="#666" VerticalAlignment="Center" Margin="0,0,2,0"/>
+                                    <TextBlock Text="Low" FontSize="9" Foreground="#666" VerticalAlignment="Center" Margin="0,0,2,0"/>
+                                    <Border Width="10" Height="10" CornerRadius="2" Background="#252526" BorderBrush="#333" BorderThickness="1"/>
+                                    <Border Width="10" Height="10" CornerRadius="2" Background="#1e4a6d"/>
+                                    <Border Width="10" Height="10" CornerRadius="2" Background="#007acc"/>
+                                    <Border Width="10" Height="10" CornerRadius="2" Background="#64b5f6"/>
+                                    <TextBlock Text="High" FontSize="9" Foreground="#666" VerticalAlignment="Center" Margin="2,0,0,0"/>
+                                </StackPanel>
+
+                                <!-- ENTHUSIASM MACRO-TREND GRAPH -->
+                                <Viewbox Height="140" Stretch="Uniform" HorizontalAlignment="Center" Margin="0,5,0,0">
+                                    <Grid Width="795" Height="140"> 
+                                        <lvc:CartesianChart x:Name="EnthusiasmChart" Series="{Binding EnthusiasmSeries}" XAxes="{Binding EnthusiasmXAxes}" YAxes="{Binding EnthusiasmYAxes}" TooltipPosition="Hidden" />
+                                        
+                                        <!-- Ghost Line & Actual Line Legends -->
+                                        <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,10,0,0" IsHitTestVisible="False" Spacing="4">
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <Border Width="12" Height="3" Background="#f57c00" VerticalAlignment="Center"/>
+                                                <TextBlock Text="ACTUAL 14-DAY EXPENDITURE" FontSize="9" FontWeight="Bold" Foreground="#888" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="6">
+                                                <TextBlock Text="- - -" FontWeight="Bold" Foreground="#777" VerticalAlignment="Center" Margin="0,0,0,2"/>
+                                                <TextBlock Text="{Binding EnthusiasmTargetScore, StringFormat='TARGET EXPENDITURE: {0:F1}'}" FontSize="9" FontWeight="Bold" Foreground="#777" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </StackPanel>
+                                    </Grid>
+                                </Viewbox>
+                                
                             </StackPanel>
                         </Border>
                     </StackPanel>
@@ -358,6 +449,20 @@
                         <TextBlock Text="{Binding HoveredBar.Count, StringFormat='Total Sessions: {0}'}" Foreground="#aaa" FontSize="12"/>
                     </StackPanel>
 
+                    <StackPanel IsVisible="{Binding HoveredEnthusiasm, Converter={x:Static ObjectConverters.IsNotNull}}" Spacing="5">
+                        <TextBlock Text="MACRO-TREND EXPENDITURE" FontWeight="Bold" Foreground="#e0e0e0" FontSize="13"/>
+                        <Rectangle Height="1" Fill="#333" Margin="0,4"/>
+                        <TextBlock Text="{Binding HoveredEnthusiasm.DateText}" Foreground="#aaa" FontSize="12"/>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="14-Day Actual:" Foreground="#888" FontSize="12" Width="85"/>
+                            <TextBlock Text="{Binding HoveredEnthusiasm.Score, StringFormat='{}{0:F1}'}" Foreground="#f57c00" FontWeight="Bold" FontSize="12"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="14-Day Target:" Foreground="#666" FontSize="12" Width="85"/>
+                            <TextBlock Text="{Binding EnthusiasmTargetScore, StringFormat='{}{0:F1}'}" Foreground="#888" FontWeight="Bold" FontSize="12"/>
+                        </StackPanel>
+                    </StackPanel>
+
                 </StackPanel>
             </Border>
         </Canvas>
@@ -432,7 +537,7 @@
             </Border>
         </Border>
 
-        <!-- SETTINGS MODAL (UPDATED WITH BACKUP CONTROLS) -->
+        <!-- SETTINGS MODAL -->
         <Border IsVisible="{Binding IsSettingsOpen}" Background="#B2000000" ZIndex="100">
             <Border Background="#1e1e1e" BorderBrush="#444" BorderThickness="1" CornerRadius="8" Width="550" Padding="25" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 10 30 0 #A8000000">
                 <StackPanel Spacing="20">
@@ -441,7 +546,7 @@
                         <Button Content="[X]" Command="{Binding CloseSettingsCommand}" Background="Transparent" Foreground="#888" HorizontalAlignment="Right"/>
                     </Grid>
 
-                    <StackPanel Spacing="10">
+<StackPanel Spacing="10">
                         <TextBlock Text="Threshold Limits" FontWeight="Bold"/>
                         <Grid ColumnDefinitions="*,*,Auto">
                             <StackPanel Grid.Column="0" Margin="0,0,10,0">
@@ -454,7 +559,13 @@
                             </StackPanel>
                             <Button Grid.Column="2" Content="Save" Command="{Binding SaveSettingsCommand}" Background="#007acc" Foreground="White" VerticalAlignment="Bottom"/>
                         </Grid>
+                        <!-- NEW: Klaxon toggle checkbox -->
+                        <CheckBox Content="Enable Senescence Klaxon ('Daft Bastard' Alert past 144h)"
+                                  IsChecked="{Binding EnableSenescenceAlert}"
+                                  Foreground="#ccc"
+                                  Margin="0,5,0,0"/>
                     </StackPanel>
+
 
                     <StackPanel Spacing="10">
                         <TextBlock Text="Clinical Blackout Window" FontWeight="Bold"/>
@@ -490,71 +601,120 @@
             </Border>
         </Border>
 
-        <!-- HELP MODAL -->
+        <!-- COMPREHENSIVE PIMS CLINICAL & OPERATIONAL USER MANUAL -->
         <Border IsVisible="{Binding IsHelpOpen}" Background="#B2000000" ZIndex="100">
-            <Border Background="#1e1e1e" BorderBrush="#444" BorderThickness="1" CornerRadius="8" Width="700" Padding="25" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 10 30 0 #A8000000">
+            <Border Background="#1e1e1e" BorderBrush="#444" BorderThickness="1" CornerRadius="8" Width="780" Padding="25" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 10 30 0 #A8000000">
                 <StackPanel Spacing="15">
                     <Grid>
-                        <TextBlock Text="PIMS User Manual" FontSize="20" FontWeight="Bold" Foreground="White"/>
+                        <TextBlock Text="PIMS Clinical &amp; Operational Manual" FontSize="20" FontWeight="Bold" Foreground="White"/>
                         <Button Content="[X]" Command="{Binding CloseHelpCommand}" Background="Transparent" Foreground="#888" HorizontalAlignment="Right"/>
                     </Grid>
 
-                    <ScrollViewer MaxHeight="600" HorizontalScrollBarVisibility="Disabled">
+                    <ScrollViewer MaxHeight="620" HorizontalScrollBarVisibility="Disabled">
                         <StackPanel Spacing="15" Margin="0,0,15,0">
 
+                            <!-- Section 1: Quick Start -->
                             <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5">
-                                <TextBlock Text="Quick start" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                                <TextBlock Text="1. Quick Start &amp; Overview" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
                             </Border>
-                            <TextBlock Text="Use the four event buttons on the right to record a session. The dashboard, timeline, charts, heatmap, and log table update immediately. Use Add Past Log for an event that happened earlier." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="All data is local and offline. The database is stored in your application data directory; no account, cloud sync, or external API is required." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="PIMS (Personal Inventory Management System) tracks recovery windows, release events, reproductive habits, and clinical semen analysis records. Use the right-hand panel to log events as they happen, or open 'Add Past Log' from the header to record historical sessions." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Navigation: The top header provides one-click access to this Help manual, the 90-Day Clinical PDF Report, Retroactive Manual Logging, and System Settings." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Data Grid: Displays recent recorded events in descending order. Each row displays timestamp, mode color badge, categorical volume, supplements taken, and direct action buttons (PDF, EDIT, PURGE)." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
 
+                            <!-- Section 2: Logging a Session -->
                             <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
-                                <TextBlock Text="Logging a session" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                                <TextBlock Text="2. Logging Controls &amp; Parameters" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
                             </Border>
-                            <TextBlock Text="Before selecting an event type, set the fields that describe the session:" TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="- Temperature: Normal or Levels 1-3. Levels 2 and 3 create a 74-day Thermal Shadow and exclude affected events from uncompromised analysis." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
-                            <TextBlock Text="- Volume: Normal, Low, High, or None. None means no release was recorded and is excluded from release-based analysis." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
-                            <TextBlock Text="- Release count: the number of releases remembered for this session. Keep one log for one remembered session; do not invent timestamps for individual releases." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
-                            <TextBlock Text="- Volume confidence: Observed means visually verified, Estimated means inferred, and Unknown means no reliable volume observation. Confidence is preserved in analysis and exports." TextWrapping="Wrap" Foreground="#ccc" Margin="15,0,0,0"/>
-                            <TextBlock Text="Supplements are session modifiers. Clinical fields and an optional PDF attachment belong on Clinical Lab records." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="The right-hand logging panel captures biological, physical, and pharmaceutical factors for each session:" TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Scrotal Temp Flag: Captures thermal exposure. Normal represents baseline body temperature; L1 is mild elevated warmth; L2 represents febrile illness or prolonged hot tub/sauna exposure; L3 represents severe thermal shock." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Volume: Categorical yield estimate (Normal, Low, High, None/Dry)." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Release Count: Number of releases completed in the session. Multi-release sessions count as one recovery event for gap calculations, but contribute the full count toward frequency metrics." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Volume Confidence: Reliability rating of the volume estimate. Observed indicates direct visual inspection; Estimated indicates an algorithmically inferred volume; Unknown is unverified." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Supps Checkboxes: Supplements active during the lookback period (Zn = Zinc, Ma = Maca Root, D3 = Vitamin D3, C = Vitamin C). State persists automatically across sessions." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Clinical Metrics: Optional laboratory inputs (volume in mL, concentration in M/mL, total motility %, progressive motility %, normal morphology %, and pH) for formal diagnostic evaluations." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
 
+                            <!-- Section 3: Event Modes -->
                             <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
-                                <TextBlock Text="Event modes" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                                <TextBlock Text="3. Event Modes &amp; Automated Logic" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
                             </Border>
-                            <TextBlock Text="Maintenance is the standard baseline event. Playtime is tracked as a separate activity. Baby-Making records an attempt and automatically estimates volume from available history. Clinical Lab records formal measurements and can provide a ground-truth baseline." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="Recovery gaps are session-based: a multi-release session remains one timeline event. Frequency metrics multiply by Release count where appropriate, but the app never fabricates individual release times." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Maintenance (Blue): Standard personal clearance session to maintain healthy turnover." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Playtime (Purple): Partnered recreational session. Defaults to observed volume." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Baby-Making (Green): Conception attempt. Automatically applies an estimated volume based on recovery gap telemetry and Zinc saturation unless manually overridden." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Clinical-Lab (Slate): Diagnostic semen sample. Prompts for formal laboratory measurements and PDF lab report attachments." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
 
+                            <!-- Section 4: Biological Recovery Phases -->
                             <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
-                                <TextBlock Text="Thermal Shadows and clinical baselines" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                                <TextBlock Text="4. Biological Recovery Phases (HUD Telemetry)" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
                             </Border>
-                            <TextBlock Text="A Level 2 or Level 3 heat event starts a 74-day Thermal Shadow. The warning banner shows when the shadow clears. Recovery and supplement comparisons exclude release events with a prior severe heat event in that window." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="A Clinical Lab record with concentration of at least 15 M/mL and motility of at least 40% can override an active shadow after the heat event. Use the Clinical Blackout Window in Settings to mark an upcoming baseline appointment; the dashboard warns as the date approaches." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="The telemetry engine models recovery using a 4-phase biological state machine rather than a simple countdown timer:" TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• RECHARGING (0h to Min Rest): The oligospermic rebound window. Volume and concentration are rapidly rebuilding. The progress bar visualizes progression toward the calibrated baseline floor. Displayed in Blue." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• OPTIMAL VIABILITY (Peak Window, e.g. 24h–72h): The biological sweet spot. Sperm concentration and progressive motility achieve optimal balance with minimal DNA Fragmentation Index (DFI). Displayed in Vibrant Green." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• EXTENDED RESERVE (Ceiling to 120h): Seminal volume and total count remain high, but prolonged epididymal storage begins to elevate oxidative stress. Displayed in Amber." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• VIABILITY FADING (&gt;120h): Accelerated senescence. Telemetry applies a non-linear Gompertz/Sigmoid decay curve modeling rapid DFI escalation down to a 55% dynamic floor. Past 144 hours, aggressive turnover alerts activate. Displayed in Red." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
 
+                            <!-- Section 5: Thermal Shadow & Stages -->
                             <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
-                                <TextBlock Text="Charts and analysis" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                                <TextBlock Text="5. The 74-Day Thermal Shadow &amp; Spermatogenesis Stages" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
                             </Border>
-                            <TextBlock Text="The HUD shows current delta, time to the configured limit, rolling average, maximum endurance, and 30-day frequency. Use the timeline zoom buttons for 30 days, 90 days, or all available data. Hover heatmap cells for daily details and click timeline points to locate their log." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="Settings > Analyze Supps opens the desktop Supplement Analysis view. It compares saturated and unsaturated groups using exact 21-day or 30-day windows, a 50% inclusive saturation rule, recovery gaps, yield outcomes, and confidence counts. Treat associations as exploratory observations, not clinical or causal evidence." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="Settings > Auto-Calibrate recommends Floor and Ceiling thresholds from uncompromised recovery gaps. Review the recommendation before accepting it; it does not silently change your settings." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="Human spermatogenesis requires approximately 74 days from germ cell division to mature ejaculation. Scrotal heat exposure (Level 2 fever or Level 3 severe heat/sauna) triggers a 74-day compromised state tracked across three clinical developmental stages:" TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Stage 1 (Days 1–14): Epididymal Transit. Heat directly damaged already-formed stored cells. Motility and vitality exhibit immediate, noticeable drops." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Stage 2 (Days 15–45): Spermiogenesis Transition. Affects maturing spermatids undergoing nuclear compaction. Morphology variations and abnormal forms peak in this phase." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Stage 3 (Days 46–74): Meiotic Regeneration. Early spermatocytes regenerate. Sperm count begins rebounding toward pre-insult baseline as the undamaged cohort matures." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Clinical Override: A formal Clinical Lab record with concentration &gt;= 15 M/mL and progressive motility &gt;= 40% executed after the heat event acts as an empirical ground-truth override, instantly clearing the shadow." TextWrapping="Wrap" Foreground="#ffe0b2" Margin="10,0,0,0"/>
 
+                            <!-- Section 6: WHO Abstinence Standards -->
                             <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
-                                <TextBlock Text="Editing and audit history" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                                <TextBlock Text="6. WHO 2021 Clinical Abstinence Compliance" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
                             </Border>
-                            <TextBlock Text="Use EDIT in the log table to correct a date, mode, volume, release count, confidence, supplements, clinical values, or attached PDF. Edited Baby-Making records preserve the volume you explicitly select." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="The edit dialog shows prior changes. Each history entry records the timestamp and tracked transitions, such as volume from Normal to High or confidence from Unknown to Estimated. Deleting a log permanently removes that record." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="The World Health Organization (WHO 6th Edition, 2021) establishes strict abstinence guidelines prior to diagnostic semen analysis:" TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• WHO Gold Standard: 48 to 72 hours (2 to 3 days). Produces the most accurate clinical balance of volume, concentration, and progressive motility." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• WHO Acceptable: 48 to 168 hours (2 to 7 days)." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Sub-48h (&lt;48h): Results in falsely depressed concentration and volume metrics." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Extended (&gt;7d): Results in artificially elevated counts but significantly diminished motility and elevated DNA fragmentation." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="Setting your appointment date in Settings activates an automated compliance calculator in the Blackout banner that tracks whether your projected abstinence will hit the 48–72h window on testing day." TextWrapping="Wrap" Foreground="#ccc"/>
 
+                            <!-- Section 7: Pharmacokinetics -->
                             <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
-                                <TextBlock Text="Reports, exports, and recovery" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                                <TextBlock Text="7. Pharmacokinetics &amp; Supplement Tolerance Cycling" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
                             </Border>
-                            <TextBlock Text="The PDF button creates a 90-day report with charts, the raw event log, release counts, confidence, and supplement-analysis appendix, then opens it in the desktop PDF viewer. Settings > Export Data creates JSON and CSV raw exports, structured analysis exports, and edit-history exports; use these for complete per-target and correction audit detail." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="Settings > Backup Now creates a consistent SQLite snapshot. The app also backs up changed data on exit and keeps the newest 10 backups. Restore Latest Backup first creates a pre-restore safety snapshot, validates SQLite integrity, and then reloads the restored data." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="Supplement analysis evaluates both empirical frequency and exponential elimination kinetics (C = C₀ · e⁻ᵏᵗ):" TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Zinc (t½ ≈ 12 Days): Essential for chromatin packaging and seminal volume. Active Zinc saturation upgrades volume expectations during rapid recovery gaps. Caution: chronic high-dose zinc (&gt;40mg/day) competes with copper absorption; dietary copper balance is recommended." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Maca Root (t½ ≈ 20 Hours): Rapid clearance of macamides requiring daily consistency. Adaptogenic modulation builds receptor tolerance after 8–10 continuous weeks; the system actively notifies you when a 1-week washout period is recommended to reset receptor sensitivity." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Vitamin D3 (t½ ≈ 18 Days): Strongly correlates with progressive motility. Requires 6–8 weeks to achieve cellular steady-state. Fat-soluble: always take with dietary lipids." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Vitamin C (t½ ≈ 24 Hours): Rapid plasma clearance. Acts as the primary water-soluble seminal antioxidant, preventing sperm agglutination and reactive oxygen damage." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
 
+                            <!-- Section 8: Interactive Charts -->
                             <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
-                                <TextBlock Text="Sandbox and privacy" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                                <TextBlock Text="8. Charts, Analytics &amp; Activity Matrix" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
                             </Border>
-                            <TextBlock Text="Toggle Sandbox Mode in Settings to temporarily replace the live dataset with 300 generated records. Sandbox data includes mixed modes, release counts, volume confidence, clinical values, and severe heat events for exercising charts and analysis. Toggle it off to restore your real database; do not treat sandbox results as personal data." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="Press Escape to toggle Stealth Mode. The dashboard blurs sensitive content for screen privacy; press Escape again to restore it." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="For meaningful comparisons, log consistently, label estimated or unknown observations honestly, and remember that this tool organizes personal observations rather than diagnosing conditions." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Recovery Gap Timeline: Plots hours between consecutive releases over time. Color-coded dots indicate event mode. Click any point to select and scroll to that log entry in the table." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Event Distribution: Donut chart showing the proportion of sessions by mode." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Yield Profile: Bar chart showing distribution of categorical volume levels." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• 365-Day Activity Matrix: GitHub-style annual heatmap. Toggle between Release Frequency and Clinical Volume. Darker tiles represent higher activity." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Interactive Drill-Down: Click any day's square in the matrix to immediately select and scroll to that day's session in the raw event log table on the right." TextWrapping="Wrap" Foreground="#90caf9"/>
+                            <TextBlock Text="• 14-Day Enthusiasm: Rolling 14-day cumulative release expenditure compared against an optimal baseline derived from your calibrated minimum recovery threshold." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Analyze Supps: Compares saturated versus unsaturated release windows for each supplement. Saturated means the supplement was present in at least 50% of releases during the lookback window." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Auto-Calibrate: Calculates recommended Min Rest (average successful gap) and Max Limit (mean + 1 std dev, capped at 120h) from uncompromised historical logs." TextWrapping="Wrap" Foreground="#ccc"/>
+
+                            <!-- Section 9: Editing & History -->
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
+                                <TextBlock Text="9. Editing &amp; Audit History" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="• Edit Log: Click EDIT on any row in the log table to modify timestamps, volume, release count, confidence, flags, or lab metrics. Every edit creates an immutable snapshot in the LogEditHistory table." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Restore: Previous versions of an edited record can be inspected and restored directly from the edit dialog." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Purge: Permanently removes a log record and its associated history snapshots." TextWrapping="Wrap" Foreground="#ccc"/>
+
+                            <!-- Section 10: Reports & Safety -->
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
+                                <TextBlock Text="10. Reports, Database Safety &amp; Privacy" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="• 90-Day Report: Generates a clinical-grade PDF report (Baseline_Summary.pdf) containing the recovery timeline, event distribution, volume profile, raw event log, and supplement correlation tables." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Data Export: Exports all logs, edit history, and supplement analysis tables to portable JSON and CSV files in the backup directory." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• SQLite WAL Mode &amp; Safety: The database uses Write-Ahead Logging with busy timeouts and automatic pre-migration safety snapshots to prevent locks or corruption." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Auto-Backup: Database snapshots are created on exit (retaining the last 10). Manual backups can be triggered in Settings." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Stealth Mode: Press ESC at any time to instantly toggle stealth mode, which blurs the entire interface for privacy." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Sandbox Mode: Toggle in Settings to swap the live database with a synthetic dataset containing 300 simulated records with biological cycles and thermal events." TextWrapping="Wrap" Foreground="#ccc"/>
+
                         </StackPanel>
                     </ScrollViewer>
                 </StackPanel>
@@ -760,62 +920,62 @@
                 </StackPanel>
             </Border>
         </Border>
-        <!-- ========================================== -->
-        <!-- ========================================== -->
-<!-- CRITICAL SENESCENCE NOTIFICATION OVERLAY   -->
-<!-- ========================================== -->
-<Grid IsVisible="{Binding ShowWankAlert}" ZIndex="9999" Background="Red">
-    <Grid.Styles>
-        <Style Selector="Grid">
-            <Style.Animations>
-                <Animation Duration="0:0:0.4" IterationCount="Infinite" PlaybackDirection="Alternate">
-                    <KeyFrame Cue="0%">
-                        <Setter Property="Opacity" Value="0.5"/>
-                    </KeyFrame>
-                    <KeyFrame Cue="100%">
-                        <Setter Property="Opacity" Value="0.95"/>
-                    </KeyFrame>
-                </Animation>
-            </Style.Animations>
-        </Style>
-    </Grid.Styles>
 
-    <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="50">
-        <Grid>
-            <!-- Drop Shadow Text Layer -->
-            <TextBlock Text="GO BEAT YER MEAT,&#x0a;YA DAFT BASTARD!"
-                       FontSize="80" 
-                       FontWeight="Black"
-                       Foreground="Black"
-                       TextAlignment="Center"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"
-                       Margin="8,8,0,0"/>
+        <!-- ========================================== -->
+        <!-- CRITICAL SENESCENCE NOTIFICATION OVERLAY   -->
+        <!-- ========================================== -->
+        <Grid IsVisible="{Binding ShowWankAlert}" ZIndex="9999" Background="Red">
+            <Grid.Styles>
+                <Style Selector="Grid">
+                    <Style.Animations>
+                        <Animation Duration="0:0:0.4" IterationCount="Infinite" PlaybackDirection="Alternate">
+                            <KeyFrame Cue="0%">
+                                <Setter Property="Opacity" Value="0.5"/>
+                            </KeyFrame>
+                            <KeyFrame Cue="100%">
+                                <Setter Property="Opacity" Value="0.95"/>
+                            </KeyFrame>
+                        </Animation>
+                    </Style.Animations>
+                </Style>
+            </Grid.Styles>
 
-            <!-- Main White Text Layer -->
-            <TextBlock Text="GO BEAT YER MEAT,&#x0a;YA DAFT BASTARD!"
-                       FontSize="80" 
-                       FontWeight="Black"
-                       Foreground="White"
-                       TextAlignment="Center"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center"/>
+            <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="50">
+                <Grid>
+                    <!-- Drop Shadow Text Layer -->
+                    <TextBlock Text="GO BEAT YER MEAT,&#x0a;YA DAFT BASTARD!"
+                               FontSize="80" 
+                               FontWeight="Black"
+                               Foreground="Black"
+                               TextAlignment="Center"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"
+                               Margin="8,8,0,0"/>
+
+                    <!-- Main White Text Layer -->
+                    <TextBlock Text="GO BEAT YER MEAT,&#x0a;YA DAFT BASTARD!"
+                               FontSize="80" 
+                               FontWeight="Black"
+                               Foreground="White"
+                               TextAlignment="Center"
+                               HorizontalAlignment="Center"
+                               VerticalAlignment="Center"/>
+                </Grid>
+
+                <!-- The Escape Hatch -->
+                <Button Content="ALRIGHT, I'M ON IT! (Dismiss)"
+                        Command="{Binding DismissWankAlertCommand}"
+                        FontSize="28"
+                        FontWeight="Bold"
+                        Background="#1e1e1e"
+                        Foreground="White"
+                        Padding="30,15"
+                        CornerRadius="8"
+                        HorizontalAlignment="Center"
+                        BorderBrush="White"
+                        BorderThickness="2"
+                        Cursor="Hand"/>
+            </StackPanel>
         </Grid>
-
-        <!-- The Escape Hatch -->
-        <Button Content="ALRIGHT, I'M ON IT! (Dismiss)"
-                Command="{Binding DismissWankAlertCommand}"
-                FontSize="28"
-                FontWeight="Bold"
-                Background="#1e1e1e"
-                Foreground="White"
-                Padding="30,15"
-                CornerRadius="8"
-                HorizontalAlignment="Center"
-                BorderBrush="White"
-                BorderThickness="2"
-                Cursor="Hand"/>
-    </StackPanel>
-</Grid>
     </Grid>
 </Window>

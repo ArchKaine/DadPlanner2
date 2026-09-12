@@ -1,8 +1,10 @@
 using System;
-using System.IO;
-using System.Linq;
 using System.Collections.Generic;
 using System.Collections.ObjectModel;
+using System.Diagnostics;
+using System.IO;
+using System.Linq;
+using System.Runtime.InteropServices;
 using System.Threading.Tasks;
 using Avalonia.Controls;
 using Avalonia.Platform.Storage;
@@ -12,9 +14,9 @@ using CommunityToolkit.Mvvm.Input;
 using DadPlanner2.Models;
 using DadPlanner2.Services;
 using LiveChartsCore;
+using LiveChartsCore.Defaults;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
-using LiveChartsCore.Defaults;
 using SkiaSharp;
 
 namespace DadPlanner2.ViewModels
@@ -38,7 +40,6 @@ namespace DadPlanner2.ViewModels
         private double _chartMinX;
         private double _chartMaxX;
 
-        // Custom Overlay Tooltip Properties for ALL Charts
         [ObservableProperty] private bool _isTooltipVisible;
         [ObservableProperty] private double _tooltipX;
         [ObservableProperty] private double _tooltipY;
@@ -46,6 +47,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private ChartLogPoint? _hoveredTimelinePoint;
         [ObservableProperty] private PieHoverData? _hoveredPie;
         [ObservableProperty] private BarHoverData? _hoveredBar;
+        [ObservableProperty] private EnthusiasmHoverData? _hoveredEnthusiasm;
 
         [ObservableProperty] private bool _isHelpOpen;
         [ObservableProperty] private bool _isSettingsOpen;
@@ -54,6 +56,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private bool _isAlertOpen;
         [ObservableProperty] private bool _isAnalysisOpen;
         [ObservableProperty] private bool _isStealthMode;
+        [ObservableProperty] private bool _isVolumeMode;
         
         public double StealthBlurRadius => IsStealthMode ? 12.0 : 0.0;
 
@@ -66,6 +69,10 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private bool _isTestModeActive;
         [ObservableProperty] private bool _isShadowActive;
         [ObservableProperty] private string _shadowMessage = "";
+        [ObservableProperty] private string _shadowStageTitle = "";
+        [ObservableProperty] private string _shadowStageDesc = "";
+        [ObservableProperty] private double _shadowProgressPercent = 0.0;
+
         [ObservableProperty] private bool _isBlackoutActive;
         [ObservableProperty] private string _blackoutMessage = "";
         [ObservableProperty] private string _blackoutColor = "#0d2a3a";
@@ -74,12 +81,20 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private string _hudCurrent = "--";
         [ObservableProperty] private string _hudRemaining = "--";
         [ObservableProperty] private string _hudRemainingLabel = "LIMIT T-MINUS";
+        [ObservableProperty] private string _hudPhaseLabel = "RECHARGING";
+        [ObservableProperty] private string _hudPhaseColor = "#007acc";
+        [ObservableProperty] private double _hudProgressValue = 0.0;
         [ObservableProperty] private string _hudAvg = "--";
         [ObservableProperty] private string _hudMax = "--";
         [ObservableProperty] private string _hudFrequency = "--";
         
         [ObservableProperty] private DateTime? _appointmentDate;
-        
+        [ObservableProperty] private string _clinicalComplianceMessage = "";
+        [ObservableProperty] private string _clinicalComplianceColor = "#0277bd";
+        [ObservableProperty] private bool _enableAggressiveNotifications = true;
+        [ObservableProperty] private bool _enableSenescenceAlert = true; // Setting toggle for 'daft bastard' klaxon
+        [ObservableProperty] private bool _showWankAlert;
+
         private string _backupPath = "";
         public string BackupPath
         {
@@ -149,6 +164,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private double? _editPhLevel;
         [ObservableProperty] private string? _editLabFileName;
         private byte[]? _editLabFileData;
+        
         [ObservableProperty] private string _editHistoryText = "No previous edits recorded.";
         public ObservableCollection<LogEditHistory> EditHistoryEntries { get; } = new();
         [ObservableProperty] private string _zincAnalysisSummary = "";
@@ -168,17 +184,16 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private Axis[] _volumeXAxes = Array.Empty<Axis>();
         [ObservableProperty] private Axis[] _volumeYAxes = Array.Empty<Axis>();
         
+        [ObservableProperty] private ISeries[] _enthusiasmSeries = Array.Empty<ISeries>();
+        [ObservableProperty] private Axis[] _enthusiasmXAxes = Array.Empty<Axis>();
+        [ObservableProperty] private Axis[] _enthusiasmYAxes = Array.Empty<Axis>();
+        [ObservableProperty] private double _enthusiasmTargetScore;
+        
         [ObservableProperty] private int _totalEventCount;
         [ObservableProperty] private string _legendMaint = "";
         [ObservableProperty] private string _legendPlay = "";
         [ObservableProperty] private string _legendBaby = "";
         [ObservableProperty] private string _legendLab = "";
-        
-        // The gag toggle (defaulting to true so you can test it)
-        [ObservableProperty] private bool _enableAggressiveNotifications = true;
-
-        // The UI trigger
-        [ObservableProperty] private bool _showWankAlert;
 
         public MainWindowViewModel()
         {
@@ -186,7 +201,6 @@ namespace DadPlanner2.ViewModels
             IsTestModeActive = _dbService.CheckIfTestModeActive();
             SetupChartAxes();
             
-            // Standard OS-Safe path for auto-backups (Works perfectly on Linux/Nobara)
             BackupPath = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "DadPlanner2", "Backups");
 
             var thresholds = _dbService.GetThresholdSettings();
@@ -202,6 +216,8 @@ namespace DadPlanner2.ViewModels
             VitDActive = savedSupps.vitD;
             VitCActive = savedSupps.vitC;
             
+            EnableSenescenceAlert = _dbService.GetSenescenceAlertSetting();
+
             LoadData();
 
             _uiRefresh.OnRefreshTick += () =>
@@ -228,6 +244,7 @@ namespace DadPlanner2.ViewModels
         partial void OnManualModeChanged(string value) => OnPropertyChanged(nameof(ShowManualClinicalFields));
         partial void OnEditModeChanged(string value) => OnPropertyChanged(nameof(ShowEditClinicalFields));
         partial void OnIsStealthModeChanged(bool value) => OnPropertyChanged(nameof(StealthBlurRadius));
+        partial void OnIsVolumeModeChanged(bool value) => UpdateHeatmap();
 
         [RelayCommand] private void ToggleStealth() => IsStealthMode = !IsStealthMode;
         [RelayCommand] private void OpenHelp() => IsHelpOpen = true;
@@ -262,6 +279,7 @@ namespace DadPlanner2.ViewModels
             }
 
             _dbService.SaveThresholdSettings(MinHours, MaxHours); 
+            _dbService.SaveSenescenceAlertSetting(EnableSenescenceAlert);
             _dbService.MarkDirty();
             LoadData(); 
             CloseSettings(); 
@@ -277,12 +295,12 @@ namespace DadPlanner2.ViewModels
             
             try
             {
-                if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = BackupPath, UseShellExecute = true });
-                else if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Linux))
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "xdg-open", Arguments = BackupPath }); // Safely supports KDE
-                else if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.OSX))
-                    System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo { FileName = "open", Arguments = BackupPath });
+                if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+                    Process.Start(new ProcessStartInfo { FileName = BackupPath, UseShellExecute = true });
+                else if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+                    Process.Start(new ProcessStartInfo { FileName = "xdg-open", Arguments = BackupPath }); 
+                else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
+                    Process.Start(new ProcessStartInfo { FileName = "open", Arguments = BackupPath });
             }
             catch (Exception ex)
             {
@@ -343,7 +361,6 @@ namespace DadPlanner2.ViewModels
             }
         }
 
-        // Called automatically by Window.Closing in MainWindow.axaml.cs
         public void HandleShutdown()
         {
             _uiRefresh.Stop();
@@ -369,17 +386,14 @@ namespace DadPlanner2.ViewModels
             }
         }
 
-        // --- CONTROL-BOUNDED QUADRANT MATH ---
         private void PositionTooltip(double winX, double winY, double ctrlX, double ctrlY, double ctrlW, double ctrlH, double estW, double estH)
         {
             double relX = winX - ctrlX;
             double relY = winY - ctrlY;
 
-            // 1. Quadrant Logic: Push the tooltip inward toward the center of the control
             double targetX = (relX > (ctrlW / 2.0)) ? (winX - estW - 20) : (winX + 20);
             double targetY = (relY > (ctrlH / 2.0)) ? (winY - estH - 20) : (winY + 20);
 
-            // 2. Hard Clamping: Absolute guarantee it cannot exceed the control's physical layout box
             if (targetX < ctrlX) targetX = ctrlX;
             if (targetX + estW > ctrlX + ctrlW) targetX = ctrlX + ctrlW - estW;
 
@@ -418,8 +432,8 @@ namespace DadPlanner2.ViewModels
 
             if (closest != null && Math.Abs((closest.X ?? 0) - targetTs) < (3 * 86400))
             {
-                HoveredTimelinePoint = closest; HoveredPie = null; HoveredBar = null;
-                PositionTooltip(winX, winY, ctrlX, ctrlY, ctrlW, ctrlH, 280, 210); // Generous estimates for timeline
+                HoveredTimelinePoint = closest; HoveredPie = null; HoveredBar = null; HoveredEnthusiasm = null;
+                PositionTooltip(winX, winY, ctrlX, ctrlY, ctrlW, ctrlH, 280, 210); 
                 IsTooltipVisible = true;
             }
             else IsTooltipVisible = false;
@@ -458,7 +472,7 @@ namespace DadPlanner2.ViewModels
             if (count == 0) { IsTooltipVisible = false; return; }
 
             HoveredPie = new PieHoverData { Category = category, Count = count, ColorHex = hex, Percentage = Math.Round((count/(double)total)*100, 1) };
-            HoveredTimelinePoint = null; HoveredBar = null;
+            HoveredTimelinePoint = null; HoveredBar = null; HoveredEnthusiasm = null;
             PositionTooltip(winX, winY, ctrlX, ctrlY, ctrlW, ctrlH, 240, 140);
             IsTooltipVisible = true;
         }
@@ -487,7 +501,7 @@ namespace DadPlanner2.ViewModels
             else if (visualIdx == 3) { category = "Dry / None"; count = volDry; hex = "#757575"; }
 
             HoveredBar = new BarHoverData { Category = category, Count = count, ColorHex = hex };
-            HoveredTimelinePoint = null; HoveredPie = null;
+            HoveredTimelinePoint = null; HoveredPie = null; HoveredEnthusiasm = null;
             PositionTooltip(winX, winY, ctrlX, ctrlY, ctrlW, ctrlH, 240, 110);
             IsTooltipVisible = true;
         }
@@ -543,6 +557,14 @@ namespace DadPlanner2.ViewModels
             long apptTs = _dbService.GetAppointment();
             AppointmentDate = apptTs > 0 ? DateTimeOffset.FromUnixTimeSeconds(apptTs).ToLocalTime().DateTime : null;
 
+            var savedSupps = _dbService.GetSupplementsState();
+            ZincActive = savedSupps.zn;
+            MacaActive = savedSupps.ma;
+            VitDActive = savedSupps.vitD;
+            VitCActive = savedSupps.vitC;
+            
+            EnableSenescenceAlert = _dbService.GetSenescenceAlertSetting();
+
             Logs.Clear();
             var records = _dbService.GetAllLogs();
             foreach (var record in records) Logs.Add(record);
@@ -557,15 +579,34 @@ namespace DadPlanner2.ViewModels
         {
             long apptTs = _dbService.GetAppointment();
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            
+
             if (apptTs > now)
             {
-                double secondsUntil = apptTs - now; double days = Math.Round(secondsUntil / 86400.0, 1);
-                if (secondsUntil <= (5 * 86400)) { BlackoutColor = "#ff9800"; BlackoutBorder = "#ff9800"; BlackoutMessage = $"CLINICAL BLACKOUT ACTIVE: Target T-Minus {days} Days"; }
-                else { BlackoutColor = "#0d2a3a"; BlackoutBorder = "#0277bd"; BlackoutMessage = $"[!] Clinical Baseline Scheduled in {days} Days (Blackout begins at T-Minus 5 Days)"; }
+                var releaseLogs = Logs.Where(l => l.Volume != "None" && l.Volume != "N/A").OrderByDescending(l => l.Timestamp).ToList();
+                long lastReleaseTs = releaseLogs.Count > 0 ? releaseLogs[0].Timestamp : now;
+                var compliance = _telemetryAnalysis.CheckClinicalCompliance(apptTs, lastReleaseTs, now);
+
+                ClinicalComplianceMessage = compliance.ComplianceMessage;
+                ClinicalComplianceColor = compliance.ComplianceColorHex;
+
+                // Staged visual colors
+                BlackoutColor = compliance.BlackoutStage switch
+                {
+                    3 => "#4a0e0e", // Deep red
+                    2 => "#0f3813", // Deep green
+                    1 => "#3e2723", // Deep amber
+                    _ => "#0d2a3a"  // Deep blue
+                };
+
+                BlackoutBorder = compliance.ComplianceColorHex;
+                BlackoutMessage = compliance.ComplianceMessage;
                 IsBlackoutActive = true;
             }
-            else IsBlackoutActive = false;
+            else
+            {
+                IsBlackoutActive = false;
+                ClinicalComplianceMessage = "";
+            }
         }
 
         private bool GetSupplementSaturation(long targetTs, string suppKey, int daysBack)
@@ -839,12 +880,22 @@ namespace DadPlanner2.ViewModels
         private void CheckThermalShadow()
         {
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            if (_telemetryAnalysis.HasActiveThermalShadow(Logs, now, out var latestHeat))
+            var shadow = _telemetryAnalysis.GetThermalShadowDetails(Logs, now);
+            if (shadow.IsActive)
             {
-                var clearsAt = DateTimeOffset.FromUnixTimeSeconds(latestHeat!.Timestamp + (TelemetryAnalysisService.ThermalShadowDays * 24 * 3600)).ToLocalTime();
-                IsShadowActive = true; ShadowMessage = $"[!] SYSTEM COMPROMISED: Level {latestHeat.HeatFlag} Thermal Shadow active. Clears: {clearsAt:MMM dd, yyyy}.";
+                IsShadowActive = true;
+                ShadowProgressPercent = shadow.ProgressPercent;
+                ShadowStageTitle = shadow.StageName;
+                ShadowStageDesc = shadow.StageDescription;
+                ShadowMessage = $"[!] SYSTEM COMPROMISED: Level {shadow.HeatLevel} Thermal Shadow active (Day {shadow.DaysElapsed}/74, {shadow.DaysRemaining}d remaining). Clears: {shadow.ClearsAt:MMM dd, yyyy}.";
             }
-            else IsShadowActive = false;
+            else
+            {
+                IsShadowActive = false;
+                ShadowProgressPercent = 0.0;
+                ShadowStageTitle = "";
+                ShadowStageDesc = "";
+            }
         }
         
         [RelayCommand]
@@ -856,64 +907,56 @@ namespace DadPlanner2.ViewModels
         
         private void UpdateTelemetry()
         {
-            // 1. Core Recovery Telemetry
+            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             var metrics = _telemetryAnalysis.CalculateRecoveryMetrics(
                 Logs,
-                DateTimeOffset.UtcNow.ToUnixTimeSeconds());
+                now,
+                MinHours,
+                MaxHours);
             
             if (metrics.HasRelease)
             {
                 var current = TimeSpan.FromHours(metrics.CurrentHours);
                 HudCurrent = $"{(int)current.TotalHours}h {current.Minutes:D2}m";
                 
-                double fadeStartHours = 120.0; // 5 days optimal biological window
-                
-                // Dynamically hunt for the floor based on your past lab data
-                double dynamicFloor = _telemetryAnalysis.GetDynamicViabilityFloor(Logs, fadeStartHours);
-
-                if (metrics.CurrentHours > fadeStartHours)
+                if (metrics.Phase == TelemetryPhase.ViabilityFading)
                 {
-                    // PHASE 3: The Fade (Past 120 hours, quality degrades regardless of MaxHours goal)
-                    double hourlyDegradationRate = 0.015 / 24.0; 
-                    double hoursOver = metrics.CurrentHours - fadeStartHours;
-                    double viability = 1.0 - (hoursOver * hourlyDegradationRate);
-                    
-                    // Clamp the drop at your personal observed floor (or 20% if no data yet)
-                    viability = Math.Max(dynamicFloor, viability);
-                    
-                    // Math.Floor forces 99.9% down to 99%, preventing the "100% (FADING)" visual bug
-                    HudRemaining = $"{Math.Floor(viability * 100)}%"; 
+                    HudRemaining = $"{Math.Floor(metrics.ViabilityPercentage * 100)}%"; 
                     HudRemainingLabel = "VIABILITY (FADING)";
                 }
-                else if (metrics.CurrentHours >= MaxHours)
+                else if (metrics.Phase == TelemetryPhase.PeakWindow)
                 {
-                    // PHASE 2: Peak (Target reached, but still within the optimal 120h window)
                     HudRemaining = "100%"; 
                     HudRemainingLabel = "VIABILITY (PEAK)";
                 }
+                else if (metrics.Phase == TelemetryPhase.ExtendedStorage)
+                {
+                    HudRemaining = "100%"; 
+                    HudRemainingLabel = "EXTENDED RESERVE";
+                }
                 else
                 {
-                    // PHASE 1: Rebuilding (Target not yet reached)
-                    var remainingHours = MaxHours - metrics.CurrentHours;
+                    var remainingHours = Math.Max(0, MaxHours - metrics.CurrentHours);
                     var remaining = TimeSpan.FromHours(remainingHours);
                     HudRemaining = $"{(int)remaining.TotalHours}h {remaining.Minutes:D2}m";
                     HudRemainingLabel = "LIMIT T-MINUS";
                 }
+
+                HudPhaseLabel = metrics.PhaseLabel;
+                HudPhaseColor = metrics.PhaseColorHex;
+                HudProgressValue = metrics.Phase == TelemetryPhase.Recharging ? metrics.ProgressToPeak : 1.0;
                 
                 HudAvg = metrics.AverageGapHours.HasValue ? $"{metrics.AverageGapHours:F1}h" : "--";
                 HudMax = metrics.MaximumGapHours.HasValue ? $"{metrics.MaximumGapHours:F1}h" : "--";
 
-                // THE WANK ALERT TRIGGER
                 double criticalFadeHours = 144.0;
-        
-                // The Tripwire: Silently re-arm the trap whenever you are safely back under the limit
                 if (metrics.CurrentHours < criticalFadeHours)
                 {
                     EnableAggressiveNotifications = true;
                 }
 
-                // Fire the klaxon if overdue and the trap is armed
-                if (metrics.CurrentHours > criticalFadeHours && EnableAggressiveNotifications)
+                // Respect user toggle for senescence alert klaxon
+                if (EnableSenescenceAlert && EnableAggressiveNotifications && metrics.CurrentHours > criticalFadeHours)
                 {
                     ShowWankAlert = true;
                 }
@@ -925,12 +968,11 @@ namespace DadPlanner2.ViewModels
             else
             {
                 HudCurrent = "--"; HudRemaining = "--"; HudRemainingLabel = "LIMIT T-MINUS"; HudAvg = "--"; HudMax = "--";
-                ShowWankAlert = false; // Reset if no logs
+                HudPhaseLabel = "NO LOGS"; HudPhaseColor = "#888888"; HudProgressValue = 0.0;
+                ShowWankAlert = false;
             }
 
-            // 2. Dynamic Rolling Frequency Telemetry (Up to 30 days)
             long thirtyDaysInSeconds = 2592000;
-            long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
             long cutoffTimestamp = now - thirtyDaysInSeconds;
             
             var recentEvents = Logs.Where(l => l.Timestamp >= cutoffTimestamp).ToList();
@@ -956,8 +998,11 @@ namespace DadPlanner2.ViewModels
             }
             else
             {
-                var gapData = new List<ChartLogPoint>(); var maintPts = new List<ChartLogPoint>(); var playPts = new List<ChartLogPoint>();
-                var babyPts = new List<ChartLogPoint>(); var labPts = new List<ChartLogPoint>();
+                var gapData = new List<ChartLogPoint>(); 
+                var maintPts = new List<ChartLogPoint>(); 
+                var playPts = new List<ChartLogPoint>();
+                var babyPts = new List<ChartLogPoint>(); 
+                var labPts = new List<ChartLogPoint>();
 
                 for (int i = 0; i < releaseLogs.Count; i++) 
                 {
@@ -966,27 +1011,109 @@ namespace DadPlanner2.ViewModels
                     double yVal = isBaseline ? MaxHours : (releaseLogs[i].Timestamp - releaseLogs[i - 1].Timestamp) / 3600.0;
                     var pt = new ChartLogPoint { X = xVal, Y = yVal, IsBaseline = isBaseline, Log = releaseLogs[i] }; gapData.Add(pt);
 
-                    switch (releaseLogs[i].Mode) { case "Maintenance": maintPts.Add(pt); break; case "Playtime": playPts.Add(pt); break; case "Baby-Making": babyPts.Add(pt); break; case "Clinical-Lab": labPts.Add(pt); break; }
+                    switch (releaseLogs[i].Mode) 
+                    { 
+                        case "Maintenance": maintPts.Add(pt); break; 
+                        case "Playtime": playPts.Add(pt); break; 
+                        case "Baby-Making": babyPts.Add(pt); break; 
+                        case "Clinical-Lab": labPts.Add(pt); break; 
+                    }
                 }
 
-                if (gapData.Count > 0) { _chartMinX = gapData.First().X!.Value - 43200; _chartMaxX = gapData.Last().X!.Value + 43200; }
+                if (gapData.Count > 0) 
+                { 
+                    _chartMinX = gapData.First().X!.Value - 43200; 
+                    _chartMaxX = gapData.Last().X!.Value + 43200; 
+                }
 
-                var lineSeries = new LineSeries<ChartLogPoint> { Name = "", Values = gapData, LineSmoothness = 1, Fill = new LinearGradientPaint(new[] { new SKColor(85, 85, 85, 150), new SKColor(85, 85, 85, 10) }, new SKPoint(0.5f, 0), new SKPoint(0.5f, 1)), Stroke = new SolidColorPaint(new SKColor(85, 85, 85)) { StrokeThickness = 2 }, GeometrySize = 0, GeometryFill = null, GeometryStroke = null, IsHoverable = false };
-                var maintSeries = new ScatterSeries<ChartLogPoint> { Name = "", Values = maintPts, GeometrySize = 10, Fill = new SolidColorPaint(new SKColor(0, 122, 204)), Stroke = new SolidColorPaint(new SKColor(30,30,30)) { StrokeThickness = 2 } };
-                var playSeries = new ScatterSeries<ChartLogPoint> { Name = "", Values = playPts, GeometrySize = 10, Fill = new SolidColorPaint(new SKColor(156, 39, 176)), Stroke = new SolidColorPaint(new SKColor(30,30,30)) { StrokeThickness = 2 } };
-                var babySeries = new ScatterSeries<ChartLogPoint> { Name = "", Values = babyPts, GeometrySize = 10, Fill = new SolidColorPaint(new SKColor(76, 175, 80)), Stroke = new SolidColorPaint(new SKColor(30,30,30)) { StrokeThickness = 2 } };
-                var labSeries = new ScatterSeries<ChartLogPoint> { Name = "", Values = labPts, GeometrySize = 10, Fill = new SolidColorPaint(new SKColor(84, 110, 122)), Stroke = new SolidColorPaint(new SKColor(30,30,30)) { StrokeThickness = 2 } };
+                var lineSeries = new LineSeries<ChartLogPoint> 
+                { 
+                    Name = "", 
+                    Values = gapData, 
+                    LineSmoothness = 1, 
+                    Fill = new LinearGradientPaint(new[] { new SKColor(85, 85, 85, 150), new SKColor(85, 85, 85, 10) }, new SKPoint(0.5f, 0), new SKPoint(0.5f, 1)), 
+                    Stroke = new SolidColorPaint(new SKColor(85, 85, 85)) { StrokeThickness = 2 }, 
+                    GeometrySize = 0, 
+                    GeometryFill = null, 
+                    GeometryStroke = null, 
+                    IsHoverable = false 
+                };
+                
+                var maintSeries = new ScatterSeries<ChartLogPoint> 
+                { 
+                    Name = "", 
+                    Values = maintPts, 
+                    GeometrySize = 10, 
+                    Fill = new SolidColorPaint(new SKColor(0, 122, 204)), 
+                    Stroke = new SolidColorPaint(new SKColor(30,30,30)) { StrokeThickness = 2 } 
+                };
+                
+                var playSeries = new ScatterSeries<ChartLogPoint> 
+                { 
+                    Name = "", 
+                    Values = playPts, 
+                    GeometrySize = 10, 
+                    Fill = new SolidColorPaint(new SKColor(156, 39, 176)), 
+                    Stroke = new SolidColorPaint(new SKColor(30,30,30)) { StrokeThickness = 2 } 
+                };
+                
+                var babySeries = new ScatterSeries<ChartLogPoint> 
+                { 
+                    Name = "", 
+                    Values = babyPts, 
+                    GeometrySize = 10, 
+                    Fill = new SolidColorPaint(new SKColor(76, 175, 80)), 
+                    Stroke = new SolidColorPaint(new SKColor(30,30,30)) { StrokeThickness = 2 } 
+                };
+                
+                var labSeries = new ScatterSeries<ChartLogPoint> 
+                { 
+                    Name = "", 
+                    Values = labPts, 
+                    GeometrySize = 10, 
+                    Fill = new SolidColorPaint(new SKColor(84, 110, 122)), 
+                    Stroke = new SolidColorPaint(new SKColor(30,30,30)) { StrokeThickness = 2 } 
+                };
 
                 ChartSeries = new ISeries[] { lineSeries, maintSeries, playSeries, babySeries, labSeries };
                 
-                XAxes = new[] { new Axis { Labeler = value => { try { return DateTimeOffset.FromUnixTimeSeconds((long)value).ToLocalTime().ToString("MMM dd"); } catch { return string.Empty; } }, LabelsRotation = 15, LabelsPaint = new SolidColorPaint(SKColors.Gray), TextSize = 12, MinStep = 86400.0, MinLimit = _chartMinX, MaxLimit = _chartMaxX } };
-                YAxes = new[] { new Axis { Name = "Gap (Hrs)", LabelsPaint = new SolidColorPaint(SKColors.Gray), MinLimit = 0 } };
+                XAxes = new[] { 
+                    new Axis 
+                    { 
+                        Labeler = value => 
+                        { 
+                            try { return DateTimeOffset.FromUnixTimeSeconds((long)value).ToLocalTime().ToString("MMM dd"); } 
+                            catch { return string.Empty; } 
+                        }, 
+                        LabelsRotation = 15, 
+                        LabelsPaint = new SolidColorPaint(SKColors.Gray), 
+                        TextSize = 12, 
+                        MinStep = 86400.0, 
+                        MinLimit = _chartMinX, 
+                        MaxLimit = _chartMaxX 
+                    } 
+                };
+                
+                YAxes = new[] { 
+                    new Axis 
+                    { 
+                        Name = "Gap (Hrs)", 
+                        LabelsPaint = new SolidColorPaint(SKColors.Gray), 
+                        MinLimit = 0 
+                    } 
+                };
             }
 
             TotalEventCount = Logs.Count;
-            int maint = Logs.Count(l => l.Mode == "Maintenance"); int play = Logs.Count(l => l.Mode == "Playtime"); int baby = Logs.Count(l => l.Mode == "Baby-Making"); int lab = Logs.Count(l => l.Mode == "Clinical-Lab");
+            int maint = Logs.Count(l => l.Mode == "Maintenance"); 
+            int play = Logs.Count(l => l.Mode == "Playtime"); 
+            int baby = Logs.Count(l => l.Mode == "Baby-Making"); 
+            int lab = Logs.Count(l => l.Mode == "Clinical-Lab");
 
-            LegendMaint = $"Maintenance ({maint})"; LegendPlay = $"Playtime ({play})"; LegendBaby = $"Baby-Making ({baby})"; LegendLab = $"Clinical-Lab ({lab})";
+            LegendMaint = $"Maintenance ({maint})"; 
+            LegendPlay = $"Playtime ({play})"; 
+            LegendBaby = $"Baby-Making ({baby})"; 
+            LegendLab = $"Clinical-Lab ({lab})";
 
             ModeSeries = new ISeries[] {
                 new PieSeries<int> { Values = new[] { maint }, Name = "Maintenance", InnerRadius = 60, HoverPushout = 0, Stroke = new SolidColorPaint(new SKColor(26,26,26)) { StrokeThickness = 2 }, Fill = new SolidColorPaint(new SKColor(0, 122, 204)) },
@@ -1000,7 +1127,17 @@ namespace DadPlanner2.ViewModels
             int volLow = Logs.Count(l => l.Volume == "Low"); 
             int volDry = Logs.Count(l => l.Volume == "None" || l.Volume == "N/A");
 
-            VolumeSeries = new ISeries[] { new RowSeries<int> { Values = new[] { volDry, volLow, volNormal, volHigh }, Name = "Sessions", Stroke = null, DataLabelsPaint = new SolidColorPaint(new SKColor(255, 255, 255)), DataLabelsSize = 12, DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.End, } };
+            VolumeSeries = new ISeries[] { 
+                new RowSeries<int> 
+                { 
+                    Values = new[] { volDry, volLow, volNormal, volHigh }, 
+                    Name = "Sessions", 
+                    Stroke = null, 
+                    DataLabelsPaint = new SolidColorPaint(new SKColor(255, 255, 255)), 
+                    DataLabelsSize = 12, 
+                    DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.End 
+                } 
+            };
             
             ((RowSeries<int>)VolumeSeries[0]).PointMeasured += (point) =>
             {
@@ -1011,35 +1148,282 @@ namespace DadPlanner2.ViewModels
                 if (point.Index == 3) point.Visual.Fill = new SolidColorPaint(new SKColor(76, 175, 80)); // High
             };
             
-            VolumeXAxes = new[] { new Axis { LabelsPaint = new SolidColorPaint(SKColors.Gray), TextSize = 12, MinLimit = 0 } };
-            VolumeYAxes = new[] { new Axis { Labels = new[] { "None", "Low", "Normal", "High" }, LabelsPaint = new SolidColorPaint(SKColors.Gray), TextSize = 12 } };
+            VolumeXAxes = new[] { 
+                new Axis 
+                { 
+                    LabelsPaint = new SolidColorPaint(SKColors.Gray), 
+                    TextSize = 12, 
+                    MinLimit = 0 
+                } 
+            };
+            
+            VolumeYAxes = new[] { 
+                new Axis 
+                { 
+                    Labels = new[] { "None", "Low", "Normal", "High" }, 
+                    LabelsPaint = new SolidColorPaint(SKColors.Gray), 
+                    TextSize = 12 
+                } 
+            };
+            
+            UpdateEnthusiasmChart();
+        }
+
+        private void UpdateEnthusiasmChart()
+        {
+            var today = DateTime.Today;
+            var actualPoints = new List<ObservablePoint>();
+            var baselinePoints = new List<ObservablePoint>();
+            
+            var logsByDate = Logs.GroupBy(l => DateTimeOffset.FromUnixTimeSeconds(l.Timestamp).ToLocalTime().Date)
+                .ToDictionary(g => g.Key, g => g.Sum(l => 
+                {
+                    double multiplier = l.Volume == "High" ? 1.5 : l.Volume == "Normal" ? 1.0 : l.Volume == "Low" ? 0.5 : 0.0;
+                    return l.ReleaseCount * multiplier;
+                }));
+
+            int windowSize = 14; 
+            
+            // The magic equilibrium calculation: 336 hours in 14 days / Optimal gap
+            double optimalScore = 336.0 / Math.Max(1.0, MinHours);
+            EnthusiasmTargetScore = optimalScore;
+            
+            for (int i = 364; i >= 0; i--)
+            {
+                var targetDate = today.AddDays(-i);
+                double rollingSum = 0;
+                
+                for (int j = 0; j < windowSize; j++)
+                {
+                    if (logsByDate.TryGetValue(targetDate.AddDays(-j), out double score))
+                        rollingSum += score;
+                }
+                
+                long targetTs = new DateTimeOffset(targetDate).ToUnixTimeSeconds();
+                actualPoints.Add(new ObservablePoint(targetTs, rollingSum));
+                baselinePoints.Add(new ObservablePoint(targetTs, optimalScore));
+            }
+
+            EnthusiasmSeries = new ISeries[]
+            {
+                // The Predictive Baseline (Ghost Line) - Drawn first so it sits behind the data
+                new LineSeries<ObservablePoint>
+                {
+                    Values = baselinePoints,
+                    Name = "Optimal Baseline",
+                    Fill = null,
+                    Stroke = new SolidColorPaint(new SKColor(100, 100, 100)) 
+                    { 
+                        StrokeThickness = 2,
+                        PathEffect = new LiveChartsCore.SkiaSharpView.Painting.Effects.DashEffect(new float[] { 6, 6 }) 
+                    },
+                    GeometrySize = 0,
+                    GeometryFill = null,
+                    GeometryStroke = null,
+                    LineSmoothness = 1.0,
+                    IsHoverable = false // Tells the UI to ignore this line for tooltips
+                },
+                
+                // The Actual 14-Day Yield (Orange Wave) - Drawn second so it stays on top
+                new LineSeries<ObservablePoint>
+                {
+                    Values = actualPoints,
+                    Name = "14-Day Enthusiasm",
+                    Fill = new LinearGradientPaint(
+                        new[] { new SKColor(245, 124, 0, 180), new SKColor(245, 124, 0, 0) }, 
+                        new SKPoint(0.5f, 0), 
+                        new SKPoint(0.5f, 1)),
+                    Stroke = new SolidColorPaint(new SKColor(245, 124, 0)) { StrokeThickness = 3 },
+                    GeometrySize = 0,
+                    GeometryFill = null,
+                    GeometryStroke = null,
+                    LineSmoothness = 1.0 
+                }
+            };
+
+            EnthusiasmXAxes = new[] { 
+                new Axis { 
+                    Labeler = value => 
+                    { 
+                        try { return DateTimeOffset.FromUnixTimeSeconds((long)value).ToLocalTime().ToString("MMM"); } 
+                        catch { return string.Empty; } 
+                    }, 
+                    LabelsPaint = new SolidColorPaint(new SKColor(136, 136, 136)), 
+                    TextSize = 11,
+                    MinStep = 2592000,
+                    MinLimit = _chartMinX, 
+                    MaxLimit = _chartMaxX,
+                    SeparatorsPaint = null, 
+                    TicksPaint = null 
+                } 
+            };
+            
+            EnthusiasmYAxes = new[] { 
+                new Axis { 
+                    LabelsPaint = null, 
+                    MinLimit = 0,
+                    SeparatorsPaint = null,
+                    TicksPaint = null 
+                } 
+            };
+        }
+
+        public void ProcessEnthusiasmHover(double chartX, double winX, double winY, double plotX, double plotW, double ctrlX, double ctrlY, double ctrlW, double ctrlH)
+        {
+            if (EnthusiasmSeries == null || EnthusiasmSeries.Length == 0 || EnthusiasmXAxes == null || EnthusiasmXAxes.Length == 0 || plotW <= 0)
+            {
+                IsTooltipVisible = false; return;
+            }
+
+            double adjustedX = chartX - plotX;
+            if (adjustedX < 0 || adjustedX > plotW) { IsTooltipVisible = false; return; }
+
+            var axis = EnthusiasmXAxes[0];
+            double minTs = axis.MinLimit ?? _chartMinX;
+            double maxTs = axis.MaxLimit ?? _chartMaxX;
+            double ratio = adjustedX / plotW;
+            double targetTs = minTs + (ratio * (maxTs - minTs));
+
+            var allPoints = new List<ObservablePoint>();
+            var actualSeries = EnthusiasmSeries.FirstOrDefault(s => s.Name == "14-Day Enthusiasm");
+            if (actualSeries != null && actualSeries.Values is IEnumerable<ObservablePoint> pts) 
+            {
+                allPoints.AddRange(pts);
+            }
+
+            if (allPoints.Count == 0) { IsTooltipVisible = false; return; }
+
+            var closest = allPoints.OrderBy(p => Math.Abs((p.X ?? 0) - targetTs)).FirstOrDefault();
+
+            if (closest != null && Math.Abs((closest.X ?? 0) - targetTs) < (3 * 86400))
+            {
+                HoveredEnthusiasm = new EnthusiasmHoverData 
+                { 
+                    DateText = DateTimeOffset.FromUnixTimeSeconds((long)(closest.X ?? 0)).ToLocalTime().ToString("MMM dd, yyyy"), 
+                    Score = closest.Y ?? 0 
+                };
+                HoveredTimelinePoint = null; HoveredPie = null; HoveredBar = null;
+                PositionTooltip(winX, winY, ctrlX, ctrlY, ctrlW, ctrlH, 200, 90); 
+                IsTooltipVisible = true;
+            }
+            else IsTooltipVisible = false;
+        }
+
+        [RelayCommand]
+        private void HeatmapDayClicked(HeatmapDay day)
+        {
+            if (day == null || string.IsNullOrEmpty(day.DateText)) return;
+            if (!DateTime.TryParse(day.DateText, out var targetDate)) return;
+
+            var dayLogs = Logs
+                .Where(l => DateTimeOffset.FromUnixTimeSeconds(l.Timestamp).ToLocalTime().Date == targetDate.Date)
+                .OrderBy(l => l.Timestamp)
+                .ToList();
+
+            if (dayLogs.Count > 0)
+            {
+                var targetLog = dayLogs[0];
+                SelectedLog = targetLog;
+                RequestScrollToLog?.Invoke(targetLog);
+            }
+            else
+            {
+                ShowAlert("No Records", $"No sessions or events recorded on {targetDate:MMM dd, yyyy}.");
+            }
         }
 
         private void UpdateHeatmap()
         {
             HeatmapDays.Clear();
             var today = DateTime.Today;
-            var logsByDate = Logs.Where(l => l.Volume != "None" && l.Volume != "N/A").GroupBy(l => DateTimeOffset.FromUnixTimeSeconds(l.Timestamp).ToLocalTime().Date).ToDictionary(g => g.Key, g => g.ToList());
+            
+            var logsByDate = Logs.GroupBy(l => DateTimeOffset.FromUnixTimeSeconds(l.Timestamp).ToLocalTime().Date)
+                                 .ToDictionary(g => g.Key, g => g.ToList());
+                                 
+            int globalMaxReleases = 4; 
+            if (logsByDate.Any())
+            {
+                int actualMax = logsByDate.Values.Max(day => day.Sum(l => l.ReleaseCount));
+                if (actualMax > globalMaxReleases) 
+                    globalMaxReleases = actualMax;
+            }
+
             int padding = (int)today.AddDays(-364).DayOfWeek;
             
-            for (int i = 0; i < padding; i++) HeatmapDays.Add(new HeatmapDay { Level = 0, ColorHex = "#252526" });
+            for (int i = 0; i < padding; i++) 
+                HeatmapDays.Add(new HeatmapDay { Level = 0, ColorHex = "#252526" });
 
             for (int i = 364; i >= 0; i--)
             {
                 var targetDate = today.AddDays(-i);
-                var dayData = new HeatmapDay { DateText = targetDate.ToString("MMM dd, yyyy"), Level = 0, ColorHex = "#252526", MainInfoText = "No active yield events logged.", ModesText = "" };
+                var dayData = new HeatmapDay { 
+                    DateText = targetDate.ToString("MMM dd, yyyy"), 
+                    Level = 0, 
+                    ColorHex = "#252526", 
+                    MainInfoText = "No active events logged.", 
+                    ModesText = "" 
+                };
 
-                if (logsByDate.TryGetValue(targetDate, out var dayLogs))
+                if (logsByDate.TryGetValue(targetDate, out var dayLogs) && dayLogs.Count > 0)
                 {
-                    var dominantLog = dayLogs.OrderByDescending(l => l.Volume == "High" ? 3 : l.Volume == "Normal" ? 2 : 1).First();
-                    dayData.Level = dominantLog.Volume == "High" ? 3 : dominantLog.Volume == "Normal" ? 2 : 1;
-                    dayData.MainInfoText = $"Total Events: {dayLogs.Count}  |  Max Yield: {(dayData.Level == 3 ? "High" : dayData.Level == 2 ? "Normal" : "Low")}";
-                    dayData.ModesText = "Modes Detected: " + string.Join(", ", dayLogs.Select(l => l.Mode).Distinct());
-
-                    dayData.ColorHex = dominantLog.Mode switch { "Maintenance" => dayData.Level == 3 ? "#42a5f5" : dayData.Level == 2 ? "#007acc" : "#01437a", "Playtime" => dayData.Level == 3 ? "#ce93d8" : dayData.Level == 2 ? "#9c27b0" : "#4a148c", "Baby-Making" => dayData.Level == 3 ? "#81c784" : dayData.Level == 2 ? "#4caf50" : "#1b5e20", "Clinical-Lab"=> dayData.Level == 3 ? "#90a4ae" : dayData.Level == 2 ? "#546e7a" : "#263238", _ => "#007acc" };
+                    if (IsVolumeMode)
+                    {
+                        var yieldLogs = dayLogs.Where(l => l.Volume != "None" && l.Volume != "N/A").ToList();
+                        if (yieldLogs.Count > 0)
+                        {
+                            var dominantLog = yieldLogs.OrderByDescending(l => l.Volume == "High" ? 3 : l.Volume == "Normal" ? 2 : 1).First();
+                            
+                            int yieldScore = dominantLog.Volume == "High" ? 3 : dominantLog.Volume == "Normal" ? 2 : 1;
+                            dayData.Level = yieldScore;
+                            dayData.MainInfoText = $"Max Yield: {dominantLog.Volume}";
+                            dayData.ModesText = "Modes Detected: " + string.Join(", ", yieldLogs.Select(l => l.Mode).Distinct());
+                            dayData.ColorHex = GetHeatmapColor(dominantLog.Mode, yieldScore, 3);
+                        }
+                    }
+                    else
+                    {
+                        int dailyReleaseTotal = dayLogs.Sum(l => l.ReleaseCount);
+                        
+                        dayData.Level = dailyReleaseTotal; 
+                        dayData.MainInfoText = $"Total Releases: {dailyReleaseTotal} (in {dayLogs.Count} session{(dayLogs.Count == 1 ? "" : "s")})";
+                        dayData.ModesText = "Modes Detected: " + string.Join(", ", dayLogs.Select(l => l.Mode).Distinct());
+                        
+                        var dominantLog = dayLogs.GroupBy(l => l.Mode).OrderByDescending(g => g.Count()).First().First();
+                        dayData.ColorHex = GetHeatmapColor(dominantLog.Mode, dailyReleaseTotal, globalMaxReleases);
+                    }
                 }
                 HeatmapDays.Add(dayData);
             }
+        }
+
+        private string GetHeatmapColor(string mode, int count, int maxCount)
+        {
+            if (count <= 0) return "#252526";
+
+            (double R, double G, double B) minCol = mode switch {
+                "Maintenance"  => (1, 67, 122),     
+                "Playtime"     => (74, 20, 140),    
+                "Baby-Making"  => (27, 94, 32),     
+                "Clinical-Lab" => (38, 50, 56),     
+                _              => (1, 67, 122)
+            };
+
+            (double R, double G, double B) maxCol = mode switch {
+                "Maintenance"  => (144, 202, 249),  
+                "Playtime"     => (243, 229, 245),  
+                "Baby-Making"  => (200, 230, 201),  
+                "Clinical-Lab" => (207, 216, 220),  
+                _              => (144, 202, 249)
+            };
+
+            double intensity = maxCount <= 1 ? 1.0 : (double)(count - 1) / (maxCount - 1);
+            intensity = Math.Clamp(intensity, 0.0, 1.0);
+
+            int r = (int)Math.Round(minCol.R + (maxCol.R - minCol.R) * intensity);
+            int g = (int)Math.Round(minCol.G + (maxCol.G - minCol.G) * intensity);
+            int b = (int)Math.Round(minCol.B + (maxCol.B - minCol.B) * intensity);
+
+            return $"#{r:X2}{g:X2}{b:X2}";
         }
 
         [RelayCommand] private void ChartClicked(object obj)
@@ -1055,20 +1439,47 @@ namespace DadPlanner2.ViewModels
         private void SetupChartAxes() { XAxes = new[] { new Axis { LabelsPaint = new SolidColorPaint(SKColors.Gray) } }; YAxes = new[] { new Axis { Name = "Gap (Hrs)", LabelsPaint = new SolidColorPaint(SKColors.Gray) } }; VolumeXAxes = new[] { new Axis { LabelsPaint = new SolidColorPaint(SKColors.Gray) } }; }
     }
 
-    public class ChartLogPoint : LiveChartsCore.Defaults.ObservablePoint
+    public class ChartLogPoint : ObservablePoint
     {
         public LogRecord Log { get; set; } = null!;
         public bool IsBaseline { get; set; }
         public string GapText => IsBaseline ? $"Baseline threshold: {(Y ?? 0):F1} Hrs (no prior gap)" : $"Measured gap: {(Y ?? 0):F1} Hrs";
         public string HeaderText => DateTimeOffset.FromUnixTimeSeconds(Log.Timestamp).ToLocalTime().ToString("MMM dd, yyyy @ HH:mm");
-        public string FlagsText { get { var flags = new List<string>(); if (Log.HeatFlag > 0) flags.Add($"[HEAT L{Log.HeatFlag}]"); if (Log.Supplements.Contains("\"zinc\":1")) flags.Add("[Zn]"); if (Log.Supplements.Contains("\"maca\":1")) flags.Add("[Ma]"); if (Log.Supplements.Contains("\"vitD\":1")) flags.Add("[D3]"); if (Log.Supplements.Contains("\"vitC\":1")) flags.Add("[C]"); return string.Join(" ", flags); } }
+        
+        public string FlagsText 
+        { 
+            get 
+            { 
+                var flags = new List<string>(); 
+                if (Log.HeatFlag > 0) flags.Add($"[HEAT L{Log.HeatFlag}]"); 
+                if (Log.Supplements.Contains("\"zinc\":1")) flags.Add("[Zn]"); 
+                if (Log.Supplements.Contains("\"maca\":1")) flags.Add("[Ma]"); 
+                if (Log.Supplements.Contains("\"vitD\":1")) flags.Add("[D3]"); 
+                if (Log.Supplements.Contains("\"vitC\":1")) flags.Add("[C]"); 
+                return string.Join(" ", flags); 
+            } 
+        }
+        
         public bool HasFlags => FlagsText.Length > 0;
-        public string LabText { get { var lines = new List<string>(); if (Log.Concentration > 0) lines.Add($"Conc: {Log.Concentration} M"); if (Log.Motility > 0) lines.Add($"Mot: {Log.Motility}%"); if (Log.ProgMotility > 0) lines.Add($"Prog: {Log.ProgMotility}%"); if (Log.Morphology > 0) lines.Add($"Morph: {Log.Morphology}%"); return string.Join(" | ", lines); } }
+        
+        public string LabText 
+        { 
+            get 
+            { 
+                var lines = new List<string>(); 
+                if (Log.Concentration > 0) lines.Add($"Conc: {Log.Concentration} M"); 
+                if (Log.Motility > 0) lines.Add($"Mot: {Log.Motility}%"); 
+                if (Log.ProgMotility > 0) lines.Add($"Prog: {Log.ProgMotility}%"); 
+                if (Log.Morphology > 0) lines.Add($"Morph: {Log.Morphology}%"); 
+                return string.Join(" | ", lines); 
+            } 
+        }
+        
         public bool HasLab => Log.Mode == "Clinical-Lab" && LabText.Length > 0;
         public string ModeHex => Log.Mode switch { "Maintenance" => "#007acc", "Playtime" => "#9c27b0", "Baby-Making" => "#4caf50", "Clinical-Lab" => "#546e7a", _ => "#ccc" };
     }
 
     public class PieHoverData { public string Category { get; set; } = ""; public int Count { get; set; } public string ColorHex { get; set; } = ""; public double Percentage { get; set; } }
     public class BarHoverData { public string Category { get; set; } = ""; public int Count { get; set; } public string ColorHex { get; set; } = ""; }
-    public class HeatmapDay { public int Level { get; set; } public string ColorHex { get; set; } = ""; public string DateText { get; set; } = ""; public string MainInfoText { get; set; } = ""; public string ModesText { get; set; } = ""; public bool HasData => Level > 0; }
+    public class EnthusiasmHoverData { public string DateText { get; set; } = ""; public double Score { get; set; } }
 }

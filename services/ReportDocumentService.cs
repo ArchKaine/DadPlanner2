@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
 using DadPlanner2.Models;
@@ -31,10 +32,18 @@ public sealed class ReportDocumentService
         double avgGap = reportData.AverageGap;
         double minGap = reportData.MinimumGap;
 
+        // Line Chart (Recovery Gap Timeline)
         var lineChart = new SKCartesianChart
         {
             Width = 900, Height = 250,
-            Series = new ISeries[] { new LineSeries<DateTimePoint> { Values = gapData, Fill = new SolidColorPaint(new SKColor(0, 122, 204, 50)), Stroke = new SolidColorPaint(new SKColor(0, 122, 204)) { StrokeThickness = 2 }, GeometrySize = 6 } },
+            Series = new ISeries[] {
+                new LineSeries<DateTimePoint> {
+                    Values = gapData,
+                    Fill = new SolidColorPaint(new SKColor(0, 122, 204, 50)),
+                    Stroke = new SolidColorPaint(new SKColor(0, 122, 204)) { StrokeThickness = 2 },
+                    GeometrySize = 6
+                }
+            },
             XAxes = new[] { new Axis { Labeler = val => new DateTime((long)val).ToString("MMM dd"), LabelsPaint = new SolidColorPaint(SKColors.Black) } },
             YAxes = new[] { new Axis { Name = "Gap (Hrs)", LabelsPaint = new SolidColorPaint(SKColors.Black), NamePaint = new SolidColorPaint(SKColors.Black) } },
             Background = SKColors.White
@@ -49,6 +58,7 @@ public sealed class ReportDocumentService
         int baby = reportData.BabyMakingCount;
         int lab = reportData.ClinicalLabCount;
 
+        // Pie Chart (Event Distribution)
         var pieChart = new SKPieChart
         {
             Width = 450, Height = 300,
@@ -72,6 +82,7 @@ public sealed class ReportDocumentService
         int low = reportData.LowCount;
         int dry = reportData.DryCount;
 
+        // Bar Chart (Yield Profile)
         var barChart = new SKCartesianChart
         {
             Width = 450, Height = 300,
@@ -97,6 +108,31 @@ public sealed class ReportDocumentService
         string pdfFont = RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? "Liberation Sans" :
                          RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "Helvetica" : Fonts.Arial;
 
+        // Calculate 90-day Thermal Status
+        var heatEvents = logs.Where(l => l.HeatFlag >= 2).OrderByDescending(l => l.Timestamp).ToList();
+        string thermalStatus = "Uncompromised (No Severe Heat in Window)";
+        if (heatEvents.Count > 0)
+        {
+            var latest = heatEvents[0];
+            long elapsedDays = (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - latest.Timestamp) / 86400;
+            if (elapsedDays < 74)
+            {
+                thermalStatus = $"Active Thermal Shadow (Day {elapsedDays}/74 - L{latest.HeatFlag} Heat)";
+            }
+        }
+
+        // Calculate Optimal Window Compliance (gaps between 24h and 72h)
+        var releaseLogs = logs.Where(l => l.Volume != "None" && l.Volume != "N/A").OrderBy(l => l.Timestamp).ToList();
+        int inWindowCount = 0;
+        int totalGaps = 0;
+        for (int i = 0; i < releaseLogs.Count - 1; i++)
+        {
+            double gapH = (releaseLogs[i + 1].Timestamp - releaseLogs[i].Timestamp) / 3600.0;
+            if (gapH >= 24.0 && gapH <= 72.0) inWindowCount++;
+            totalGaps++;
+        }
+        string complianceRate = totalGaps == 0 ? "--" : $"{((double)inWindowCount / totalGaps) * 100:F0}%";
+
         var document = Document.Create(container =>
         {
             container.Page(page =>
@@ -111,30 +147,37 @@ public sealed class ReportDocumentService
                     row.RelativeItem().Column(col =>
                     {
                         col.Item().Text("PIMS BASELINE REPORT").SemiBold().FontSize(20).FontColor(Colors.Blue.Darken2);
-                        col.Item().Text("Reproductive System Analytics").FontSize(14).FontColor(Colors.Grey.Darken1);
+                        col.Item().Text("Reproductive System Analytics & Clinical Summary").FontSize(12).FontColor(Colors.Grey.Darken1);
+                        col.Item().Text($"Thermal Status: {thermalStatus}").FontSize(9).FontColor(heatEvents.Count > 0 ? Colors.Orange.Darken2 : Colors.Green.Darken2).SemiBold();
                     });
                     row.RelativeItem().AlignRight().Column(col =>
                     {
                         col.Item().Text($"Date: {DateTime.Now:MMM dd, yyyy}").SemiBold();
                         col.Item().Text("Cycle: 90-Day Retrospective");
+                        col.Item().Text("WHO Reference: 6th Ed. (2021)").FontSize(9).FontColor(Colors.Grey.Darken1);
                     });
                 });
 
-                page.Content().PaddingVertical(1, Unit.Centimetre).Column(col =>
+                page.Content().PaddingVertical(0.8f, Unit.Centimetre).Column(col =>
                 {
+                    // 4-Column Summary Cards
                     col.Item().BorderBottom(1).BorderColor(Colors.Grey.Lighten2).PaddingBottom(10).Row(row =>
                     {
                         row.RelativeItem().Column(c => {
-                            c.Item().Text("Total Cycles Recorded").SemiBold().FontColor(Colors.Grey.Darken1);
+                            c.Item().Text("Total Cycles").SemiBold().FontColor(Colors.Grey.Darken1);
                             c.Item().Text(logs.Count.ToString()).FontSize(16).SemiBold();
                         });
                         row.RelativeItem().Column(c => {
-                            c.Item().Text("Mean Recovery Gap").SemiBold().FontColor(Colors.Grey.Darken1);
+                            c.Item().Text("Mean Recovery").SemiBold().FontColor(Colors.Grey.Darken1);
                             c.Item().Text($"{avgGap:F1} Hrs").FontSize(16).SemiBold();
                         });
                         row.RelativeItem().Column(c => {
-                            c.Item().Text("Min Recovery Gap").SemiBold().FontColor(Colors.Grey.Darken1);
+                            c.Item().Text("Min Recovery").SemiBold().FontColor(Colors.Grey.Darken1);
                             c.Item().Text(minGap == 999 ? "--" : $"{minGap:F1} Hrs").FontSize(16).SemiBold();
+                        });
+                        row.RelativeItem().Column(c => {
+                            c.Item().Text("Optimal Gap Rate").SemiBold().FontColor(Colors.Grey.Darken1);
+                            c.Item().Text(complianceRate).FontSize(16).SemiBold().FontColor(Colors.Blue.Darken2);
                         });
                     });
 
@@ -147,7 +190,7 @@ public sealed class ReportDocumentService
                     else
                     {
                         col.Item().PaddingBottom(15).Column(c => {
-                            c.Item().Text("Recovery Gap Timeline").SemiBold().FontSize(12).FontColor(Colors.Grey.Darken2);
+                            c.Item().Text("Recovery Gap Timeline (Hours Between Releases)").SemiBold().FontSize(12).FontColor(Colors.Grey.Darken2);
                             c.Item().Image(lineBytes);
                         });
 
@@ -162,7 +205,7 @@ public sealed class ReportDocumentService
                             });
                         });
 
-                        col.Item().PaddingBottom(5).Text("Raw Event Log").SemiBold().FontSize(12).FontColor(Colors.Grey.Darken2);
+                        col.Item().PaddingBottom(5).Text("Raw Event Log & Clinical Analysis").SemiBold().FontSize(12).FontColor(Colors.Grey.Darken2);
 
                         col.Item().Table(table =>
                         {
@@ -174,7 +217,7 @@ public sealed class ReportDocumentService
                                 columns.ConstantColumn(38);
                                 columns.RelativeColumn(2);
                                 columns.RelativeColumn(3);
-                                columns.RelativeColumn(6);
+                                columns.RelativeColumn(7);
                             });
 
                             table.Header(header =>
@@ -185,12 +228,15 @@ public sealed class ReportDocumentService
                                 header.Cell().BorderBottom(2).BorderColor(Colors.Black).PaddingBottom(5).Text("Count").SemiBold();
                                 header.Cell().BorderBottom(2).BorderColor(Colors.Black).PaddingBottom(5).Text("Confidence").SemiBold();
                                 header.Cell().BorderBottom(2).BorderColor(Colors.Black).PaddingBottom(5).Text("Supplements").SemiBold();
-                                header.Cell().BorderBottom(2).BorderColor(Colors.Black).PaddingBottom(5).Text("Lab Results").SemiBold();
+                                header.Cell().BorderBottom(2).BorderColor(Colors.Black).PaddingBottom(5).Text("Lab Results & Abstinence").SemiBold();
                             });
 
                             bool isAlternate = false;
-                            foreach (var log in logs)
+                            var sortedLogs = logs.OrderBy(l => l.Timestamp).ToList();
+
+                            for (int i = 0; i < sortedLogs.Count; i++)
                             {
+                                var log = sortedLogs[i];
                                 var backgroundColor = isAlternate ? Colors.Grey.Lighten4 : Colors.White;
                                 if (log.Mode == "Clinical-Lab") backgroundColor = Colors.Blue.Lighten4;
 
@@ -208,9 +254,20 @@ public sealed class ReportDocumentService
 
                                 string labStr = "-";
 
-                                if (log.Concentration > 0 || log.Motility > 0 || log.Morphology > 0)
+                                if (log.Mode == "Clinical-Lab" || log.Concentration > 0 || log.Motility > 0 || log.Morphology > 0)
                                 {
-                                    labStr = $"Vol: {log.ClinicalVol:F1}mL | C: {log.Concentration}M | Mot: {log.Motility}% (P:{log.ProgMotility}%) | Mor: {log.Morphology}% | pH: {log.PhLevel:F1}";
+                                    // Calculate exact abstinence prior to this lab test
+                                    string abstTag = "";
+                                    var priorRelease = sortedLogs.Take(i).Where(l => l.Volume != "None" && l.Volume != "N/A").LastOrDefault();
+                                    if (priorRelease != null)
+                                    {
+                                        double abstHours = (log.Timestamp - priorRelease.Timestamp) / 3600.0;
+                                        string whoTag = (abstHours >= 48.0 && abstHours <= 72.0) ? "WHO Ideal" :
+                                                        (abstHours >= 48.0 && abstHours <= 168.0) ? "WHO Acceptable" : "Outside WHO Rec";
+                                        abstTag = $" [Abst: {abstHours:F0}h ({whoTag})]";
+                                    }
+
+                                    labStr = $"Vol: {log.ClinicalVol:F1}mL | C: {log.Concentration}M | Mot: {log.Motility}% (P:{log.ProgMotility}%) | Mor: {log.Morphology}% | pH: {log.PhLevel:F1}{abstTag}";
                                 }
 
                                 table.Cell().Background(backgroundColor).PaddingVertical(5).PaddingHorizontal(2).Text(date).FontSize(9);
@@ -227,11 +284,11 @@ public sealed class ReportDocumentService
 
                         if (supplementAnalysis != null)
                         {
-                            col.Item().PaddingTop(15).Text("Observed Supplement Associations")
+                            col.Item().PaddingTop(15).Text("Observed Supplement Associations & Saturation")
                                 .SemiBold().FontSize(12).FontColor(Colors.Grey.Darken2);
-                            col.Item().Text("Analysis schema v1. Personal observational comparisons only; not clinical evidence. "
-                                + "Saturation is defined as at least 50% supplement presence in each target window. "
-                                + "Confidence counts use O=Observed, E=Estimated, U=Unknown; percentages include all observations.")
+                            col.Item().Text("Personal observational comparisons only; not clinical evidence. "
+                                + "Evaluates 50% target presence and exponential steady-state saturation. "
+                                + "Confidence counts use O=Observed, E=Estimated, U=Unknown.")
                                 .FontSize(8).Italic();
 
                             col.Item().PaddingTop(5).Table(table =>
@@ -316,5 +373,4 @@ public sealed class ReportDocumentService
         return $"S {FormatConfidenceCounts(comparison.SaturatedSuccessesByConfidence)} / "
             + $"U {FormatConfidenceCounts(comparison.UnsaturatedSuccessesByConfidence)}";
     }
-
 }

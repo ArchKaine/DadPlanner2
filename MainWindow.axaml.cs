@@ -129,6 +129,36 @@ public partial class MainWindow : Window
             }
         }
 
+        // 4. Macro-Trend Enthusiasm Sparkline Hover
+        if (!handled)
+        {
+            var entChart = this.FindControl<LiveChartsCore.SkiaSharpView.Avalonia.CartesianChart>("EnthusiasmChart");
+            if (entChart != null && entChart.CoreChart is LiveChartsCore.Chart<LiveChartsCore.SkiaSharpView.Drawing.SkiaSharpDrawingContext> entCore)
+            {
+                var tlPoint = entChart.TranslatePoint(new Point(0, 0), this);
+                if (tlPoint.HasValue)
+                {
+                    var p = e.GetPosition(entChart);
+                    
+                    double ctrlX = tlPoint.Value.X;
+                    double ctrlY = tlPoint.Value.Y;
+                    double ctrlW = entChart.Bounds.Width;
+                    double ctrlH = entChart.Bounds.Height;
+
+                    double plotX = entCore.DrawMarginLocation.X;
+                    double plotY = entCore.DrawMarginLocation.Y;
+                    double plotW = entCore.DrawMarginSize.Width;
+                    double plotH = entCore.DrawMarginSize.Height;
+                    
+                    if (p.X >= plotX && p.X <= plotX + plotW && p.Y >= plotY && p.Y <= plotY + plotH)
+                    {
+                        vm.ProcessEnthusiasmHover(p.X, windowPos.X, windowPos.Y, plotX, plotW, ctrlX, ctrlY, ctrlW, ctrlH);
+                        handled = true;
+                    }
+                }
+            }
+        }
+
         if (!handled)
         {
             vm.IsTooltipVisible = false;

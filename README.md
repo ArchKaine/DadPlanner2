@@ -223,7 +223,3 @@ quality depends on consistent logging and adequate samples.
 Clinical values and attached reports require review with a qualified medical professional.
 The local database contains sensitive health information: protect the operating-system account,
 backups, exported files, and any published artifacts accordingly.
-
-```
-
-```

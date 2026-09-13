@@ -81,6 +81,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private string _blackoutMessage = "";
         [ObservableProperty] private string _blackoutColor = "#0d2a3a";
         [ObservableProperty] private string _blackoutBorder = "#0277bd";
+        [ObservableProperty] private string _clinicalClearanceTarget = "";
 
         [ObservableProperty] private string _hudCurrent = "--";
         [ObservableProperty] private string _hudRemaining = "--";
@@ -97,6 +98,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private string _clinicalComplianceColor = "#0277bd";
         [ObservableProperty] private bool _enableAggressiveNotifications = true;
         [ObservableProperty] private bool _enableSenescenceAlert = true;
+        [ObservableProperty] private bool _includeNotesInReport = false;
         [ObservableProperty] private bool _showWankAlert;
 
         private string _backupPath = "";
@@ -115,6 +117,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private bool _macaActive;
         [ObservableProperty] private bool _vitDActive;
         [ObservableProperty] private bool _vitCActive;
+        [ObservableProperty] private string _selectedNotes = "";
         
         public bool ShowClinicalFields => SelectedMode == "Clinical-Lab";
         [ObservableProperty] private double? _clinicalVol;
@@ -135,6 +138,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private bool _manualMaca;
         [ObservableProperty] private bool _manualVitD;
         [ObservableProperty] private bool _manualVitC;
+        [ObservableProperty] private string _manualNotes = "";
         
         public bool ShowManualClinicalFields => ManualMode == "Clinical-Lab";
         [ObservableProperty] private double? _manualClinicalVol;
@@ -158,6 +162,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private bool _editMaca;
         [ObservableProperty] private bool _editVitD;
         [ObservableProperty] private bool _editVitC;
+        [ObservableProperty] private string _editNotes = "";
         
         public bool ShowEditClinicalFields => EditMode == "Clinical-Lab";
         [ObservableProperty] private double? _editClinicalVol;
@@ -177,9 +182,13 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private string _vitaminCAnalysisSummary = "";
 
         public ObservableCollection<LogRecord> Logs { get; } = new();
+        public ObservableCollection<LogRecord> FilteredLogs { get; } = new();
         public ObservableCollection<HeatmapDay> HeatmapDays { get; } = new();
         
-        // Clinical Delta Observables
+        [ObservableProperty] private string _filterMode = "All";
+        [ObservableProperty] private string _filterVolume = "All";
+        [ObservableProperty] private string _filterSupplement = "All";
+
         public ObservableCollection<LogRecord> ClinicalLogs { get; } = new();
         [ObservableProperty] private LogRecord? _selectedLabA;
         [ObservableProperty] private LogRecord? _selectedLabB;
@@ -203,7 +212,6 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private Axis[] _deltaXAxes = new[] { new Axis() };
         [ObservableProperty] private Axis[] _deltaYAxes = new[] { new Axis() };
 
-        // Pharmacokinetic Overlay Observables
         [ObservableProperty] private ISeries[] _pkSeries = Array.Empty<ISeries>();
         [ObservableProperty] private Axis[] _pkXAxes = Array.Empty<Axis>();
         [ObservableProperty] private Axis[] _pkYAxes = Array.Empty<Axis>();
@@ -235,7 +243,11 @@ namespace DadPlanner2.ViewModels
             VitDActive = savedSupps.vitD;
             VitCActive = savedSupps.vitC;
             
-            EnableSenescenceAlert = _dbService.GetSenescenceAlertSetting();
+            // Bypass the auto-save triggers during initialization
+            _enableSenescenceAlert = _dbService.GetSenescenceAlertSetting();
+            _includeNotesInReport = _dbService.GetIncludeNotesInReportSetting();
+            OnPropertyChanged(nameof(EnableSenescenceAlert));
+            OnPropertyChanged(nameof(IncludeNotesInReport));
 
             LoadData();
 
@@ -248,15 +260,33 @@ namespace DadPlanner2.ViewModels
                 if (_tickCount >= 60)
                 {
                     _tickCount = 0;
-                    if (Logs.Count > 0)
+                    if (FilteredLogs.Count > 0)
                     {
                         var selected = SelectedLog;
-                        for (int i = 0; i < Logs.Count; i++) Logs[i] = Logs[i]; 
+                        for (int i = 0; i < FilteredLogs.Count; i++) FilteredLogs[i] = FilteredLogs[i]; 
                         SelectedLog = selected;
                     }
                 }
             };
             _uiRefresh.Start();
+        }
+
+        // ==========================================
+        // AUTO-SAVE HANDLERS FOR STICKY TOGGLES
+        // ==========================================
+        partial void OnIncludeNotesInReportChanged(bool value)
+        {
+            if (_dbService == null) return;
+            _dbService.SaveIncludeNotesInReportSetting(value);
+            _dbService.MarkDirty();
+        }
+
+        partial void OnEnableSenescenceAlertChanged(bool value)
+        {
+            if (_dbService == null) return;
+            _dbService.SaveSenescenceAlertSetting(value);
+            _dbService.MarkDirty();
+            UpdateTelemetry(); 
         }
 
         partial void OnSelectedModeChanged(string value) => OnPropertyChanged(nameof(ShowClinicalFields));
@@ -266,6 +296,10 @@ namespace DadPlanner2.ViewModels
         partial void OnIsVolumeModeChanged(bool value) => UpdateHeatmap();
         partial void OnSelectedLabAChanged(LogRecord? value) => CalculateDelta();
         partial void OnSelectedLabBChanged(LogRecord? value) => CalculateDelta();
+        
+        partial void OnFilterModeChanged(string value) => ApplyFilters();
+        partial void OnFilterVolumeChanged(string value) => ApplyFilters();
+        partial void OnFilterSupplementChanged(string value) => ApplyFilters();
 
         [RelayCommand] private void ToggleStealth() => IsStealthMode = !IsStealthMode;
         [RelayCommand] private void OpenHelp() => IsHelpOpen = true;
@@ -301,7 +335,6 @@ namespace DadPlanner2.ViewModels
             }
 
             _dbService.SaveThresholdSettings(MinHours, MaxHours); 
-            _dbService.SaveSenescenceAlertSetting(EnableSenescenceAlert);
             _dbService.MarkDirty();
             LoadData(); 
             CloseSettings(); 
@@ -621,6 +654,38 @@ namespace DadPlanner2.ViewModels
             return false;
         }
 
+        private void ApplyFilters()
+        {
+            var selected = SelectedLog;
+            FilteredLogs.Clear();
+            
+            foreach (var log in Logs)
+            {
+                if (FilterMode != "All" && log.Mode != FilterMode) continue;
+                if (FilterVolume != "All" && log.Volume != FilterVolume) continue;
+                
+                if (FilterSupplement != "All")
+                {
+                    bool hasMatch = FilterSupplement switch
+                    {
+                        "Zinc" => log.Supplements.Contains("\"zinc\":1"),
+                        "Maca" => log.Supplements.Contains("\"maca\":1"),
+                        "Vit D3" => log.Supplements.Contains("\"vitD\":1"),
+                        "Vit C" => log.Supplements.Contains("\"vitC\":1"),
+                        _ => true
+                    };
+                    if (!hasMatch) continue;
+                }
+
+                FilteredLogs.Add(log);
+            }
+            
+            if (selected != null && FilteredLogs.Contains(selected))
+            {
+                SelectedLog = selected;
+            }
+        }
+
         private void LoadData()
         {
             var thresholds = _dbService.GetThresholdSettings();
@@ -634,12 +699,12 @@ namespace DadPlanner2.ViewModels
             MacaActive = savedSupps.ma;
             VitDActive = savedSupps.vitD;
             VitCActive = savedSupps.vitC;
-            
-            EnableSenescenceAlert = _dbService.GetSenescenceAlertSetting();
 
             Logs.Clear();
             var records = _dbService.GetAllLogs();
             foreach (var record in records) Logs.Add(record);
+            
+            ApplyFilters();
             
             CheckThermalShadow(); UpdateTelemetry(); UpdateCharts(); UpdateHeatmap(); UpdateBlackoutBanner();
         }
@@ -659,6 +724,13 @@ namespace DadPlanner2.ViewModels
                 var compliance = _telemetryAnalysis.CheckClinicalCompliance(apptTs, lastReleaseTs, now);
 
                 BlackoutMessage = compliance.ComplianceMessage;
+
+                // Calculate exact target clearance window
+                var apptDate = DateTimeOffset.FromUnixTimeSeconds(apptTs).ToLocalTime();
+                var windowStart = apptDate.AddHours(-72);
+                var windowEnd = apptDate.AddHours(-48);
+                
+                ClinicalClearanceTarget = $"TARGET CLEARANCE: {windowStart:MMM dd, h:mm tt} — {windowEnd:MMM dd, h:mm tt}";
 
                 ClinicalComplianceMessage = compliance.BlackoutStage switch
                 {
@@ -685,6 +757,7 @@ namespace DadPlanner2.ViewModels
             {
                 IsBlackoutActive = false;
                 ClinicalComplianceMessage = "";
+                ClinicalClearanceTarget = "";
             }
         }
 
@@ -721,7 +794,7 @@ namespace DadPlanner2.ViewModels
             if (mode == "Baby-Making") vol = EstimateBabyMakingVolume(timestamp);
             var confidence = mode == "Baby-Making" ? VolumeConfidence.Estimated : SelectedVolumeConfidence;
             
-            var log = new LogRecord { Timestamp = timestamp, Mode = mode, Volume = vol, ReleaseCount = SelectedReleaseCount, VolumeConfidence = confidence, HeatFlag = SelectedHeat, Supplements = supps, ClinicalVol = ClinicalVol ?? 0.0, Concentration = Concentration ?? 0, Motility = Motility ?? 0, ProgMotility = ProgMotility ?? 0, Morphology = Morphology ?? 0, PhLevel = PhLevel ?? 0.0 };
+            var log = new LogRecord { Timestamp = timestamp, Mode = mode, Volume = vol, ReleaseCount = SelectedReleaseCount, VolumeConfidence = confidence, HeatFlag = SelectedHeat, Supplements = supps, ClinicalVol = ClinicalVol ?? 0.0, Concentration = Concentration ?? 0, Motility = Motility ?? 0, ProgMotility = ProgMotility ?? 0, Morphology = Morphology ?? 0, PhLevel = PhLevel ?? 0.0, Notes = SelectedNotes };
 
             _dbService.InsertLog(log); 
             _dbService.SaveSupplementsState(ZincActive, MacaActive, VitDActive, VitCActive);
@@ -747,7 +820,7 @@ namespace DadPlanner2.ViewModels
             if (ManualMode == "Baby-Making") vol = EstimateBabyMakingVolume(ts);
             var confidence = ManualMode == "Baby-Making" ? VolumeConfidence.Estimated : ManualVolumeConfidence;
 
-            var newLog = new LogRecord { Timestamp = ts, Mode = ManualMode, Volume = vol, ReleaseCount = ManualReleaseCount, VolumeConfidence = confidence, HeatFlag = ManualHeat, Supplements = $"{{\"zinc\":{z},\"maca\":{m},\"vitD\":{d},\"vitC\":{c}}}", ClinicalVol = ManualClinicalVol ?? 0.0, Concentration = ManualConcentration ?? 0, Motility = ManualMotility ?? 0, ProgMotility = ManualProgMotility ?? 0, Morphology = ManualMorphology ?? 0, PhLevel = ManualPhLevel ?? 0.0 };
+            var newLog = new LogRecord { Timestamp = ts, Mode = ManualMode, Volume = vol, ReleaseCount = ManualReleaseCount, VolumeConfidence = confidence, HeatFlag = ManualHeat, Supplements = $"{{\"zinc\":{z},\"maca\":{m},\"vitD\":{d},\"vitC\":{c}}}", ClinicalVol = ManualClinicalVol ?? 0.0, Concentration = ManualConcentration ?? 0, Motility = ManualMotility ?? 0, ProgMotility = ManualProgMotility ?? 0, Morphology = ManualMorphology ?? 0, PhLevel = ManualPhLevel ?? 0.0, Notes = ManualNotes };
             
             _dbService.InsertLog(newLog, ManualLabFileName, _manualLabFileData);
             _dbService.MarkDirty();
@@ -764,6 +837,7 @@ namespace DadPlanner2.ViewModels
             EditMode = log.Mode; EditVolume = log.Volume; EditReleaseCount = log.ReleaseCount; EditVolumeConfidence = log.VolumeConfidence; EditHeat = log.HeatFlag;
             EditZinc = log.Supplements.Contains("\"zinc\":1"); EditMaca = log.Supplements.Contains("\"maca\":1"); EditVitD = log.Supplements.Contains("\"vitD\":1"); EditVitC = log.Supplements.Contains("\"vitC\":1");
             EditClinicalVol = log.ClinicalVol > 0 ? log.ClinicalVol : null; EditConcentration = log.Concentration > 0 ? log.Concentration : null; EditMotility = log.Motility > 0 ? log.Motility : null; EditProgMotility = log.ProgMotility > 0 ? log.ProgMotility : null; EditMorphology = log.Morphology > 0 ? log.Morphology : null; EditPhLevel = log.PhLevel > 0 ? log.PhLevel : null;
+            EditNotes = log.Notes ?? "";
             var history = _dbService.GetLogEditHistory(log.Id);
             EditHistoryEntries.Clear();
             foreach (var entry in history) EditHistoryEntries.Add(entry);
@@ -805,7 +879,7 @@ namespace DadPlanner2.ViewModels
             if (EditMode == "Clinical-Lab" && (vol == "None" || vol == "N/A")) vol = "Normal";
             var confidence = EditMode == "Baby-Making" ? VolumeConfidence.Estimated : EditVolumeConfidence;
 
-            var updatedLog = new LogRecord { Id = EditId, Timestamp = ts, Mode = EditMode, Volume = vol, ReleaseCount = EditReleaseCount, VolumeConfidence = confidence, HeatFlag = EditHeat, Supplements = $"{{\"zinc\":{z},\"maca\":{m},\"vitD\":{d},\"vitC\":{c}}}", ClinicalVol = EditClinicalVol ?? 0.0, Concentration = EditConcentration ?? 0, Motility = EditMotility ?? 0, ProgMotility = EditProgMotility ?? 0, Morphology = EditMorphology ?? 0, PhLevel = EditPhLevel ?? 0.0 };
+            var updatedLog = new LogRecord { Id = EditId, Timestamp = ts, Mode = EditMode, Volume = vol, ReleaseCount = EditReleaseCount, VolumeConfidence = confidence, HeatFlag = EditHeat, Supplements = $"{{\"zinc\":{z},\"maca\":{m},\"vitD\":{d},\"vitC\":{c}}}", ClinicalVol = EditClinicalVol ?? 0.0, Concentration = EditConcentration ?? 0, Motility = EditMotility ?? 0, ProgMotility = EditProgMotility ?? 0, Morphology = EditMorphology ?? 0, PhLevel = EditPhLevel ?? 0.0, Notes = EditNotes };
             
             _dbService.UpdateLog(updatedLog, EditLabFileName, _editLabFileData);
             _dbService.MarkDirty();
@@ -1698,7 +1772,7 @@ namespace DadPlanner2.ViewModels
             if (point.Index >= 0 && point.Index < releaseLogs.Count) { var log = releaseLogs[point.Index]; SelectedLog = log; RequestScrollToLog?.Invoke(log); }
         }
 
-        private void ClearForm() { SelectedVolume = "Normal"; SelectedReleaseCount = 1; SelectedVolumeConfidence = VolumeConfidence.Observed; SelectedHeat = 0; ClinicalVol = null; Concentration = null; Motility = null; ProgMotility = null; Morphology = null; PhLevel = null; }  
+        private void ClearForm() { SelectedVolume = "Normal"; SelectedReleaseCount = 1; SelectedVolumeConfidence = VolumeConfidence.Observed; SelectedHeat = 0; ClinicalVol = null; Concentration = null; Motility = null; ProgMotility = null; Morphology = null; PhLevel = null; SelectedNotes = ""; }  
         private void SetupChartAxes() { XAxes = new[] { new Axis { LabelsPaint = new SolidColorPaint(SKColors.Gray) } }; YAxes = new[] { new Axis { Name = "Gap (Hrs)", LabelsPaint = new SolidColorPaint(SKColors.Gray) } }; VolumeXAxes = new[] { new Axis { LabelsPaint = new SolidColorPaint(SKColors.Gray) } }; }
     }
 

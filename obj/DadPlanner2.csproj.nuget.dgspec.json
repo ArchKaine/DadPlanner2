@@ -25,7 +25,6 @@
         },
         "frameworks": {
           "net10.0": {
-            "framework": "net10.0",
             "targetAlias": "net10.0",
             "projectReferences": {}
           }
@@ -48,7 +47,6 @@
       },
       "frameworks": {
         "net10.0": {
-          "framework": "net10.0",
           "targetAlias": "net10.0",
           "dependencies": {
             "Avalonia": {

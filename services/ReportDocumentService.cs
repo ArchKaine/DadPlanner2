@@ -25,7 +25,8 @@ public sealed class ReportDocumentService
     public void Generate(
         ReportData reportData,
         string pdfPath,
-        SupplementAnalysisResult? supplementAnalysis = null)
+        SupplementAnalysisResult? supplementAnalysis = null,
+        bool includeNotes = true)
     {
         var logs = reportData.Logs;
         var gapData = reportData.GapData;
@@ -106,7 +107,7 @@ public sealed class ReportDocumentService
         using (var data = img.Encode(SKEncodedImageFormat.Png, 100)) barBytes = data.ToArray();
 
         string pdfFont = RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? "Liberation Sans" :
-                         RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "Helvetica" : Fonts.Arial;
+                        RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "Helvetica" : Fonts.Arial;
 
         // Calculate 90-day Thermal Status
         var heatEvents = logs.Where(l => l.HeatFlag >= 2).OrderByDescending(l => l.Timestamp).ToList();
@@ -205,6 +206,58 @@ public sealed class ReportDocumentService
                             });
                         });
 
+                        // Clinical Delta Matrix Section
+                        if (reportData.LatestDelta != null)
+                        {
+                            var delta = reportData.LatestDelta;
+                            col.Item().PaddingBottom(10).Text("Clinical Delta Matrix (Latest Lab Comparison)")
+                                .SemiBold().FontSize(12).FontColor(Colors.Grey.Darken2);
+                            col.Item().PaddingBottom(5).Text($"Comparing baseline [{DateTimeOffset.FromUnixTimeSeconds(delta.LabA.Timestamp).ToLocalTime():MMM dd, yyyy}] " +
+                                                    $"to follow-up [{DateTimeOffset.FromUnixTimeSeconds(delta.LabB.Timestamp).ToLocalTime():MMM dd, yyyy}]")
+                                .FontSize(8).Italic();
+
+                            col.Item().PaddingBottom(15).Table(table =>
+                            {
+                                table.ColumnsDefinition(columns =>
+                                {
+                                    columns.RelativeColumn(2.5f);
+                                    columns.RelativeColumn(1.5f);
+                                    columns.RelativeColumn(1.5f);
+                                    columns.RelativeColumn(1.5f);
+                                });
+                                table.Header(header =>
+                                {
+                                    header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Metric").SemiBold();
+                                    header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Lab A").SemiBold();
+                                    header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Lab B").SemiBold();
+                                    header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Delta").SemiBold();
+                                });
+
+                                void AddDeltaRow(string name, double a, double b, double change, string format = "F1")
+                                {
+                                    table.Cell().PaddingVertical(3).Text(name);
+                                    table.Cell().PaddingVertical(3).Text(a.ToString(format));
+                                    table.Cell().PaddingVertical(3).Text(b.ToString(format));
+                                    table.Cell().PaddingVertical(3).Text(change.ToString("+0.0;-0.0;0.0")).SemiBold();
+                                }
+
+                                void AddIntDeltaRow(string name, int a, int b, int change)
+                                {
+                                    table.Cell().PaddingVertical(3).Text(name);
+                                    table.Cell().PaddingVertical(3).Text(a.ToString());
+                                    table.Cell().PaddingVertical(3).Text(b.ToString());
+                                    table.Cell().PaddingVertical(3).Text(change.ToString("+0;-0;0")).SemiBold();
+                                }
+
+                                AddDeltaRow("Volume (mL)", delta.LabA.ClinicalVol, delta.LabB.ClinicalVol, delta.VolDelta);
+                                AddIntDeltaRow("Concentration (M/mL)", delta.LabA.Concentration, delta.LabB.Concentration, delta.ConcDelta);
+                                AddIntDeltaRow("Total Motility (%)", delta.LabA.Motility, delta.LabB.Motility, delta.MotilityDelta);
+                                AddIntDeltaRow("Prog. Motility (%)", delta.LabA.ProgMotility, delta.LabB.ProgMotility, delta.ProgMotilityDelta);
+                                AddIntDeltaRow("Morphology (%)", delta.LabA.Morphology, delta.LabB.Morphology, delta.MorphDelta);
+                                AddDeltaRow("74-Day Avg Gap (h)", delta.AvgGapA, delta.AvgGapB, delta.GapDelta);
+                            });
+                        }
+
                         col.Item().PaddingBottom(5).Text("Raw Event Log & Clinical Analysis").SemiBold().FontSize(12).FontColor(Colors.Grey.Darken2);
 
                         col.Item().Table(table =>
@@ -243,12 +296,12 @@ public sealed class ReportDocumentService
                                 var date = DateTimeOffset.FromUnixTimeSeconds(log.Timestamp).ToLocalTime().ToString("MMM dd HH:mm");
 
                                 string suppStr = "";
-                                if (log.Supplements.Contains("\"zinc\":1")) suppStr += "💊 ";
-                                if (log.Supplements.Contains("\"maca\":1")) suppStr += "🌿 ";
-                                if (log.Supplements.Contains("\"vitD\":1")) suppStr += "☀️ ";
-                                if (log.Supplements.Contains("\"vitC\":1")) suppStr += "🍊 ";
+                                if (log.Supplements.Contains("\"zinc\":1")) suppStr += "[Zn] ";
+                                if (log.Supplements.Contains("\"maca\":1")) suppStr += "[Ma] ";
+                                if (log.Supplements.Contains("\"vitD\":1")) suppStr += "[D3] ";
+                                if (log.Supplements.Contains("\"vitC\":1")) suppStr += "[C] ";
 
-                                string heatStr = log.HeatFlag > 0 ? $"🔥 L{log.HeatFlag}" : "";
+                                string heatStr = log.HeatFlag > 0 ? $"[H{log.HeatFlag}]" : "";
                                 string combinedSupps = (heatStr + " " + suppStr).Trim();
                                 if (string.IsNullOrEmpty(combinedSupps)) combinedSupps = "-";
 
@@ -256,7 +309,6 @@ public sealed class ReportDocumentService
 
                                 if (log.Mode == "Clinical-Lab" || log.Concentration > 0 || log.Motility > 0 || log.Morphology > 0)
                                 {
-                                    // Calculate exact abstinence prior to this lab test
                                     string abstTag = "";
                                     var priorRelease = sortedLogs.Take(i).Where(l => l.Volume != "None" && l.Volume != "N/A").LastOrDefault();
                                     if (priorRelease != null)
@@ -268,6 +320,11 @@ public sealed class ReportDocumentService
                                     }
 
                                     labStr = $"Vol: {log.ClinicalVol:F1}mL | C: {log.Concentration}M | Mot: {log.Motility}% (P:{log.ProgMotility}%) | Mor: {log.Morphology}% | pH: {log.PhLevel:F1}{abstTag}";
+                                }
+
+                                if (includeNotes && !string.IsNullOrWhiteSpace(log.Notes))
+                                {
+                                    labStr = labStr == "-" ? $"Notes: {log.Notes}" : $"{labStr} | Notes: {log.Notes}";
                                 }
 
                                 table.Cell().Background(backgroundColor).PaddingVertical(5).PaddingHorizontal(2).Text(date).FontSize(9);

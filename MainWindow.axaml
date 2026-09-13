@@ -107,13 +107,23 @@
 
                 <!-- ENHANCED CLINICAL BLACKOUT BANNER -->
                 <Border IsVisible="{Binding IsBlackoutActive}" Background="{Binding BlackoutColor}" BorderBrush="{Binding BlackoutBorder}" BorderThickness="1" CornerRadius="6" Padding="14,10">
-                    <Grid ColumnDefinitions="*, Auto">
-                        <TextBlock Grid.Column="0" Text="{Binding BlackoutMessage}" FontWeight="Bold" Foreground="White" VerticalAlignment="Center"/>
-                        <Border Grid.Column="1" IsVisible="{Binding ClinicalComplianceMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" Background="#1e1e1e" BorderBrush="{Binding ClinicalComplianceColor}" BorderThickness="1" CornerRadius="4" Padding="8,3" Margin="10,0,0,0">
-                            <TextBlock Text="{Binding ClinicalComplianceMessage}" FontSize="11" FontWeight="Bold" Foreground="{Binding ClinicalComplianceColor}" VerticalAlignment="Center"/>
-                        </Border>
-                    </Grid>
-                </Border>
+                  <Grid ColumnDefinitions="*, Auto, Auto">
+                      <!-- Main Message -->
+                      <StackPanel Grid.Column="0" VerticalAlignment="Center" Spacing="4">
+                          <TextBlock Text="{Binding BlackoutMessage}" FontWeight="Bold" Foreground="White"/>
+                      </StackPanel>
+
+                      <!-- The WHO Status -->
+                      <Border Grid.Column="1" IsVisible="{Binding ClinicalComplianceMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" Background="#1e1e1e" BorderBrush="{Binding ClinicalComplianceColor}" BorderThickness="1" CornerRadius="4" Padding="8,3" Margin="10,0,0,0">
+                          <TextBlock Text="{Binding ClinicalComplianceMessage}" FontSize="11" FontWeight="Bold" Foreground="{Binding ClinicalComplianceColor}" VerticalAlignment="Center"/>
+                      </Border>
+
+                      <!-- The Target Clearance Window -->
+                      <Border Grid.Column="2" IsVisible="{Binding ClinicalComplianceMessage, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" Background="#1e1e1e" BorderBrush="{Binding ClinicalComplianceColor}" BorderThickness="1" CornerRadius="4" Padding="8,3" Margin="10,0,0,0">
+                          <TextBlock Text="{Binding ClinicalClearanceTarget}" FontSize="11" FontWeight="Bold" Foreground="{Binding ClinicalComplianceColor}" VerticalAlignment="Center"/>
+                      </Border>
+                  </Grid>
+              </Border>
             </StackPanel>
 
             <!-- MAIN SPLIT -->
@@ -309,10 +319,22 @@
                                         
                                         <!-- PK Legend -->
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,10,0,0" IsHitTestVisible="False" Spacing="15">
-                                            <StackPanel Orientation="Horizontal" Spacing="4"><Border Width="10" Height="3" Background="#007acc" VerticalAlignment="Center"/><TextBlock Text="Zn (12d)" FontSize="9" Foreground="#007acc" FontWeight="Bold"/></StackPanel>
-                                            <StackPanel Orientation="Horizontal" Spacing="4"><Border Width="10" Height="3" Background="#9c27b0" VerticalAlignment="Center"/><TextBlock Text="Ma (20h)" FontSize="9" Foreground="#9c27b0" FontWeight="Bold"/></StackPanel>
-                                            <StackPanel Orientation="Horizontal" Spacing="4"><Border Width="10" Height="3" Background="#4caf50" VerticalAlignment="Center"/><TextBlock Text="D3 (18d)" FontSize="9" Foreground="#4caf50" FontWeight="Bold"/></StackPanel>
-                                            <StackPanel Orientation="Horizontal" Spacing="4"><Border Width="10" Height="3" Background="#f57c00" VerticalAlignment="Center"/><TextBlock Text="C (24h)" FontSize="9" Foreground="#f57c00" FontWeight="Bold"/></StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <PathIcon Data="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1Z" Width="10" Height="10" Foreground="#007acc" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Zn (12d)" FontSize="9" Foreground="#007acc" FontWeight="Bold"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <PathIcon Data="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 2,11 2,11C2,11 4,8 9,7C14,6 17,8 17,8Z" Width="10" Height="10" Foreground="#9c27b0" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Ma (20h)" FontSize="9" Foreground="#9c27b0" FontWeight="Bold"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <PathIcon Data="M12,9C10.34,9 9,10.34 9,12C9,13.66 10.34,15 12,15C13.66,15 15,13.66 15,12C15,10.34 13.66,9 12,9M12,4.5C13.13,4.5 13.5,4.87 13.5,6V7.5C13.5,8.63 13.13,9 12,9C10.87,9 10.5,8.63 10.5,7.5V6C10.5,4.87 10.87,4.5 12,4.5M12,15C10.87,15 10.5,15.37 10.5,16.5V18C10.5,19.13 10.87,19.5 12,19.5C13.13,19.5 13.5,19.13 13.5,18V16.5C13.5,15.37 13.13,15 12,15M4.5,12C4.5,10.87 4.87,10.5 6,10.5H7.5C8.63,10.5 9,10.87 9,12C9,13.13 8.63,13.5 7.5,13.5H6C4.87,13.5 4.5,13.13 4.5,12M15,12C15,13.13 15.37,13.5 16.5,13.5H18C19.13,13.5 19.5,13.13 19.5,12C19.5,10.87 19.13,10.5 18,10.5H16.5C15.37,10.5 15,10.87 15,12Z" Width="10" Height="10" Foreground="#4caf50" VerticalAlignment="Center"/>
+                                                <TextBlock Text="D3 (18d)" FontSize="9" Foreground="#4caf50" FontWeight="Bold"/>
+                                            </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <PathIcon Data="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4Z" Width="10" Height="10" Foreground="#f57c00" VerticalAlignment="Center"/>
+                                                <TextBlock Text="C (24h)" FontSize="9" Foreground="#f57c00" FontWeight="Bold"/>
+                                            </StackPanel>
                                         </StackPanel>
                                     </Grid>
                                 </Viewbox>
@@ -323,11 +345,12 @@
                 </ScrollViewer>
 
                 <!-- RIGHT PANE -->
-                <Grid Grid.Column="1" RowDefinitions="Auto, *" Background="#1a1a1a" Margin="5,0,0,0">
-                    <Border BorderBrush="#333" BorderThickness="1" CornerRadius="8" Padding="15">
+                <Grid Grid.Column="1" RowDefinitions="Auto, Auto, *" Background="#1a1a1a" Margin="5,0,0,0">
+                    
+                    <!-- NEW EVENT FORM -->
+                    <Border Grid.Row="0" BorderBrush="#333" BorderThickness="1" CornerRadius="8" Padding="15">
                         <StackPanel Spacing="12">
                             <TextBlock Text="LOG NEW EVENT" FontWeight="Bold" Foreground="#888"/>
-
                             <Grid ColumnDefinitions="*, *">
                                 <ComboBox Grid.Column="0" SelectedIndex="{Binding SelectedHeat}" HorizontalAlignment="Stretch" Margin="0,0,5,0">
                                     <ComboBoxItem>Temp: Normal</ComboBoxItem>
@@ -342,7 +365,6 @@
                                     <x:String>None</x:String>
                                 </ComboBox>
                             </Grid>
-
                             <Grid ColumnDefinitions="*, *">
                                 <TextBox Grid.Column="0" Text="{Binding SelectedReleaseCount}" Watermark="Release count" Margin="2"/>
                                 <ComboBox Grid.Column="1" SelectedItem="{Binding SelectedVolumeConfidence}" Margin="2">
@@ -351,17 +373,35 @@
                                     <x:Static Member="models:VolumeConfidence.Unknown"/>
                                 </ComboBox>
                             </Grid>
-
                             <Border Background="#252526" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10">
-                                <StackPanel Orientation="Horizontal" Spacing="15">
+                                <StackPanel Orientation="Horizontal" Spacing="12">
                                     <TextBlock Text="SUPPS:" FontSize="11" FontWeight="Bold" Foreground="#888" VerticalAlignment="Center"/>
-                                    <CheckBox Content="[Zn]" IsChecked="{Binding ZincActive}"/>
-                                    <CheckBox Content="[Ma]" IsChecked="{Binding MacaActive}"/>
-                                    <CheckBox Content="[D3]" IsChecked="{Binding VitDActive}"/>
-                                    <CheckBox Content="[C]" IsChecked="{Binding VitCActive}"/>
+                                    <CheckBox IsChecked="{Binding ZincActive}">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <PathIcon Data="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1Z" Width="11" Height="11" Foreground="#007acc" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Zn" FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </CheckBox>
+                                    <CheckBox IsChecked="{Binding MacaActive}">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <PathIcon Data="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 2,11 2,11C2,11 4,8 9,7C14,6 17,8 17,8Z" Width="11" Height="11" Foreground="#4caf50" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Ma" FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </CheckBox>
+                                    <CheckBox IsChecked="{Binding VitDActive}">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <PathIcon Data="M12,9C10.34,9 9,10.34 9,12C9,13.66 10.34,15 12,15C13.66,15 15,13.66 15,12C15,10.34 13.66,9 12,9M12,4.5C13.13,4.5 13.5,4.87 13.5,6V7.5C13.5,8.63 13.13,9 12,9C10.87,9 10.5,8.63 10.5,7.5V6C10.5,4.87 10.87,4.5 12,4.5M12,15C10.87,15 10.5,15.37 10.5,16.5V18C10.5,19.13 10.87,19.5 12,19.5C13.13,19.5 13.5,19.13 13.5,18V16.5C13.5,15.37 13.13,15 12,15M4.5,12C4.5,10.87 4.87,10.5 6,10.5H7.5C8.63,10.5 9,10.87 9,12C9,13.13 8.63,13.5 7.5,13.5H6C4.87,13.5 4.5,13.13 4.5,12M15,12C15,13.13 15.37,13.5 16.5,13.5H18C19.13,13.5 19.5,13.13 19.5,12C19.5,10.87 19.13,10.5 18,10.5H16.5C15.37,10.5 15,10.87 15,12Z" Width="11" Height="11" Foreground="#ffb74d" VerticalAlignment="Center"/>
+                                            <TextBlock Text="D3" FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </CheckBox>
+                                    <CheckBox IsChecked="{Binding VitCActive}">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <PathIcon Data="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4Z" Width="11" Height="11" Foreground="#f57c00" VerticalAlignment="Center"/>
+                                            <TextBlock Text="C" FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </CheckBox>
                                 </StackPanel>
                             </Border>
-
                             <Border Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="6" Padding="10">
                                 <StackPanel Spacing="8">
                                     <TextBlock Text="CLINICAL METRICS (OPTIONAL)" FontSize="10" FontWeight="Bold" Foreground="#90a4ae"/>
@@ -375,6 +415,9 @@
                                     </UniformGrid>
                                 </StackPanel>
                             </Border>
+                            
+                            <!-- Notes Field -->
+                            <TextBox Text="{Binding SelectedNotes}" Watermark="Context, symptoms, external factors..." TextWrapping="Wrap" AcceptsReturn="True" Height="60" Margin="0,5,0,5" />
 
                             <UniformGrid Columns="2" Rows="2">
                                 <Button Content="Maintenance" Command="{Binding LogEventCommand}" CommandParameter="Maintenance" Background="#007acc" Foreground="White" HorizontalAlignment="Stretch" Margin="2"/>
@@ -385,7 +428,38 @@
                         </StackPanel>
                     </Border>
 
-                    <DataGrid x:Name="LogsGrid" Grid.Row="1" ItemsSource="{Binding Logs}" SelectedItem="{Binding SelectedLog}" IsReadOnly="True" AutoGenerateColumns="False" Background="#1e1e1e" Margin="0,15,0,0" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#333">
+                    <!-- NEW FILTER BAR -->
+                    <Border Grid.Row="1" Background="#252526" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,15,0,0">
+                        <Grid ColumnDefinitions="Auto, *, *, *">
+                            <TextBlock Grid.Column="0" Text="FILTER:" FontWeight="Bold" Foreground="#888" VerticalAlignment="Center" Margin="0,0,10,0" FontSize="11"/>
+                            
+                            <ComboBox Grid.Column="1" SelectedItem="{Binding FilterMode}" HorizontalAlignment="Stretch" Margin="0,0,5,0">
+                                <x:String>All</x:String>
+                                <x:String>Maintenance</x:String>
+                                <x:String>Playtime</x:String>
+                                <x:String>Baby-Making</x:String>
+                                <x:String>Clinical-Lab</x:String>
+                            </ComboBox>
+                            
+                            <ComboBox Grid.Column="2" SelectedItem="{Binding FilterVolume}" HorizontalAlignment="Stretch" Margin="5,0,5,0">
+                                <x:String>All</x:String>
+                                <x:String>High</x:String>
+                                <x:String>Normal</x:String>
+                                <x:String>Low</x:String>
+                                <x:String>None</x:String>
+                            </ComboBox>
+                            
+                            <ComboBox Grid.Column="3" SelectedItem="{Binding FilterSupplement}" HorizontalAlignment="Stretch" Margin="5,0,0,0">
+                                <x:String>All</x:String>
+                                <x:String>Zinc</x:String>
+                                <x:String>Maca</x:String>
+                                <x:String>Vit D3</x:String>
+                                <x:String>Vit C</x:String>
+                            </ComboBox>
+                        </Grid>
+                    </Border>
+
+                    <DataGrid x:Name="LogsGrid" Grid.Row="2" ItemsSource="{Binding FilteredLogs}" SelectedItem="{Binding SelectedLog}" IsReadOnly="True" AutoGenerateColumns="False" Background="#1e1e1e" Margin="0,15,0,0" GridLinesVisibility="Horizontal" HorizontalGridLinesBrush="#333">
                         <DataGrid.Columns>
                             <DataGridTextColumn Header="Date" Binding="{Binding Timestamp, Converter={StaticResource RelTimeConverter}}" />
                             <DataGridTemplateColumn Header="Mode">
@@ -717,11 +791,18 @@
                             </StackPanel>
                             <Button Grid.Column="2" Content="Save" Command="{Binding SaveSettingsCommand}" Background="#007acc" Foreground="White" VerticalAlignment="Bottom"/>
                         </Grid>
-                        <!-- NEW: Klaxon toggle checkbox -->
+                        
+                        <!-- Senescence Klaxon Toggle -->
                         <CheckBox Content="Enable Senescence Klaxon ('Daft Bastard' Alert past 144h)"
                                   IsChecked="{Binding EnableSenescenceAlert}"
                                   Foreground="#ccc"
                                   Margin="0,5,0,0"/>
+
+                        <!-- PDF Notes Export Toggle -->
+                        <CheckBox Content="Include Session Notes in 90-Day PDF Report"
+                                  IsChecked="{Binding IncludeNotesInReport}"
+                                  Foreground="#ccc"
+                                  Margin="0,2,0,0"/>
                     </StackPanel>
 
                     <StackPanel Spacing="10">
@@ -938,10 +1019,30 @@
                                 <ComboBoxItem>Temp: L3 (Severe)</ComboBoxItem>
                             </ComboBox>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="15" VerticalAlignment="Center">
-                                <CheckBox Content="[Zn]" IsChecked="{Binding ManualZinc}"/>
-                                <CheckBox Content="[Ma]" IsChecked="{Binding ManualMaca}"/>
-                                <CheckBox Content="[D3]" IsChecked="{Binding ManualVitD}"/>
-                                <CheckBox Content="[C]" IsChecked="{Binding ManualVitC}"/>
+                                <CheckBox IsChecked="{Binding ManualZinc}">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <PathIcon Data="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1Z" Width="11" Height="11" Foreground="#007acc" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Zn" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <CheckBox IsChecked="{Binding ManualMaca}">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <PathIcon Data="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 2,11 2,11C2,11 4,8 9,7C14,6 17,8 17,8Z" Width="11" Height="11" Foreground="#4caf50" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Ma" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <CheckBox IsChecked="{Binding ManualVitD}">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <PathIcon Data="M12,9C10.34,9 9,10.34 9,12C9,13.66 10.34,15 12,15C13.66,15 15,13.66 15,12C15,10.34 13.66,9 12,9M12,4.5C13.13,4.5 13.5,4.87 13.5,6V7.5C13.5,8.63 13.13,9 12,9C10.87,9 10.5,8.63 10.5,7.5V6C10.5,4.87 10.87,4.5 12,4.5M12,15C10.87,15 10.5,15.37 10.5,16.5V18C10.5,19.13 10.87,19.5 12,19.5C13.13,19.5 13.5,19.13 13.5,18V16.5C13.5,15.37 13.13,15 12,15M4.5,12C4.5,10.87 4.87,10.5 6,10.5H7.5C8.63,10.5 9,10.87 9,12C9,13.13 8.63,13.5 7.5,13.5H6C4.87,13.5 4.5,13.13 4.5,12M15,12C15,13.13 15.37,13.5 16.5,13.5H18C19.13,13.5 19.5,13.13 19.5,12C19.5,10.87 19.13,10.5 18,10.5H16.5C15.37,10.5 15,10.87 15,12Z" Width="11" Height="11" Foreground="#ffb74d" VerticalAlignment="Center"/>
+                                        <TextBlock Text="D3" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <CheckBox IsChecked="{Binding ManualVitC}">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <PathIcon Data="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4Z" Width="11" Height="11" Foreground="#f57c00" VerticalAlignment="Center"/>
+                                        <TextBlock Text="C" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </CheckBox>
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -964,6 +1065,9 @@
                             </Grid>
                         </StackPanel>
                     </Border>
+                    
+                    <!-- Notes Field -->
+                    <TextBox Text="{Binding ManualNotes}" Watermark="Context, symptoms, external factors..." TextWrapping="Wrap" AcceptsReturn="True" Height="60" Margin="0,5,0,0" />
 
                     <Button Content="Insert Record" Command="{Binding SubmitManualLogCommand}" HorizontalAlignment="Stretch" Background="#007acc" Foreground="White" FontWeight="Bold" Margin="0,10,0,0"/>
                 </StackPanel>
@@ -1029,10 +1133,30 @@
                                 <ComboBoxItem>Temp: L3 (Severe)</ComboBoxItem>
                             </ComboBox>
                             <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="15" VerticalAlignment="Center">
-                                <CheckBox Content="[Zn]" IsChecked="{Binding EditZinc}"/>
-                                <CheckBox Content="[Ma]" IsChecked="{Binding EditMaca}"/>
-                                <CheckBox Content="[D3]" IsChecked="{Binding EditVitD}"/>
-                                <CheckBox Content="[C]" IsChecked="{Binding EditVitC}"/>
+                                <CheckBox IsChecked="{Binding EditZinc}">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <PathIcon Data="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1Z" Width="11" Height="11" Foreground="#007acc" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Zn" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <CheckBox IsChecked="{Binding EditMaca}">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <PathIcon Data="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 2,11 2,11C2,11 4,8 9,7C14,6 17,8 17,8Z" Width="11" Height="11" Foreground="#4caf50" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Ma" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <CheckBox IsChecked="{Binding EditVitD}">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <PathIcon Data="M12,9C10.34,9 9,10.34 9,12C9,13.66 10.34,15 12,15C13.66,15 15,13.66 15,12C15,10.34 13.66,9 12,9M12,4.5C13.13,4.5 13.5,4.87 13.5,6V7.5C13.5,8.63 13.13,9 12,9C10.87,9 10.5,8.63 10.5,7.5V6C10.5,4.87 10.87,4.5 12,4.5M12,15C10.87,15 10.5,15.37 10.5,16.5V18C10.5,19.13 10.87,19.5 12,19.5C13.13,19.5 13.5,19.13 13.5,18V16.5C13.5,15.37 13.13,15 12,15M4.5,12C4.5,10.87 4.87,10.5 6,10.5H7.5C8.63,10.5 9,10.87 9,12C9,13.13 8.63,13.5 7.5,13.5H6C4.87,13.5 4.5,13.13 4.5,12M15,12C15,13.13 15.37,13.5 16.5,13.5H18C19.13,13.5 19.5,13.13 19.5,12C19.5,10.87 19.13,10.5 18,10.5H16.5C15.37,10.5 15,10.87 15,12Z" Width="11" Height="11" Foreground="#ffb74d" VerticalAlignment="Center"/>
+                                        <TextBlock Text="D3" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <CheckBox IsChecked="{Binding EditVitC}">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <PathIcon Data="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4Z" Width="11" Height="11" Foreground="#f57c00" VerticalAlignment="Center"/>
+                                        <TextBlock Text="C" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </CheckBox>
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -1073,6 +1197,9 @@
                             </ItemsControl>
                         </StackPanel>
                     </Border>
+                    
+                    <!-- Notes Field -->
+                    <TextBox Text="{Binding EditNotes}" Watermark="Context, symptoms, external factors..." TextWrapping="Wrap" AcceptsReturn="True" Height="60" Margin="0,5,0,0" />
 
                     <Button Content="Update Record" Command="{Binding SaveEditLogCommand}" HorizontalAlignment="Stretch" Background="#4caf50" Foreground="White" FontWeight="Bold" Margin="0,10,0,0"/>
                 </StackPanel>

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 
 namespace DadPlanner2.Models
 {
@@ -25,6 +26,7 @@ namespace DadPlanner2.Models
         public double ClinicalVol { get; set; } = 0.0;
         public int ProgMotility { get; set; } = 0;
         public double PhLevel { get; set; } = 0.0;
+        public string Notes { get; set; } = "";
         public bool HasPdf { get; set; }
 
         public string DisplayDate => DateTimeOffset.FromUnixTimeSeconds(Timestamp).ToLocalTime().ToString("MMM dd yyyy, HH:mm");
@@ -33,15 +35,15 @@ namespace DadPlanner2.Models
         {
             get
             {
-                var parts = new System.Collections.Generic.List<string>();
+                var parts = new List<string>();
                 
                 parts.Add($"Vol: {Volume}");
                 parts.Add($"Releases: {ReleaseCount} ({VolumeConfidence})");
                 
                 if (HeatFlag > 0) 
-                    parts.Add($"Heat: L{HeatFlag}");
+                    parts.Add($"Temp L{HeatFlag}");
                 
-                var supps = new System.Collections.Generic.List<string>();
+                var supps = new List<string>();
                 if (Supplements.Contains("\"zinc\":1")) supps.Add("Zn");
                 if (Supplements.Contains("\"maca\":1")) supps.Add("Ma");
                 if (Supplements.Contains("\"vitD\":1")) supps.Add("D3");
@@ -49,6 +51,9 @@ namespace DadPlanner2.Models
                 
                 if (supps.Count > 0) 
                     parts.Add($"Supps: [{string.Join("] [", supps)}]");
+
+                if (!string.IsNullOrWhiteSpace(Notes))
+                    parts.Add("Notes");
                 
                 return string.Join("  |  ", parts);
             }

@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("DadPlanner2")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+8d62a15efa8f14d7e0eb5ef333889c0abbaa7af5")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+2bf30d653f5d46c384da7201d5ef2ae10a072ca6")]
 [assembly: System.Reflection.AssemblyProductAttribute("DadPlanner2")]
 [assembly: System.Reflection.AssemblyTitleAttribute("DadPlanner2")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]

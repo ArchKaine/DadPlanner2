@@ -237,10 +237,11 @@ namespace DadPlanner2.Services
                         PreviousMotility INTEGER DEFAULT 0,
                         PreviousProgMotility INTEGER DEFAULT 0,
                         PreviousMorphology INTEGER DEFAULT 0,
-                        PreviousPhLevel REAL DEFAULT 0
+                        PreviousPhLevel REAL DEFAULT 0,
+                        PreviousNotes TEXT DEFAULT ''
                     );
                     CREATE TABLE IF NOT EXISTS Settings (Key TEXT PRIMARY KEY, Value TEXT);
-                    INSERT OR IGNORE INTO Settings (Key, Value) VALUES ('min_threshold', '24'), ('max_threshold', '72');
+                    INSERT OR IGNORE INTO Settings (Key, Value) VALUES ('min_threshold', '24'), ('max_threshold', '72'), ('include_notes_in_report', 'False');
                 ";
                 cmd.ExecuteNonQuery();
 
@@ -270,7 +271,8 @@ namespace DadPlanner2.Services
                 "ALTER TABLE Logs ADD COLUMN ClinicalVol REAL",
                 "ALTER TABLE Logs ADD COLUMN ProgMotility INTEGER",
                 "ALTER TABLE Logs ADD COLUMN PhLevel REAL",
-                "ALTER TABLE Logs ADD COLUMN Supplements TEXT DEFAULT '{}'"
+                "ALTER TABLE Logs ADD COLUMN Supplements TEXT DEFAULT '{}'",
+                "ALTER TABLE Logs ADD COLUMN Notes TEXT DEFAULT ''"
             };
 
             foreach (var stmt in alterStatements)
@@ -299,7 +301,8 @@ namespace DadPlanner2.Services
                 "ALTER TABLE LogEditHistory ADD COLUMN PreviousMotility INTEGER DEFAULT 0",
                 "ALTER TABLE LogEditHistory ADD COLUMN PreviousProgMotility INTEGER DEFAULT 0",
                 "ALTER TABLE LogEditHistory ADD COLUMN PreviousMorphology INTEGER DEFAULT 0",
-                "ALTER TABLE LogEditHistory ADD COLUMN PreviousPhLevel REAL DEFAULT 0"
+                "ALTER TABLE LogEditHistory ADD COLUMN PreviousPhLevel REAL DEFAULT 0",
+                "ALTER TABLE LogEditHistory ADD COLUMN PreviousNotes TEXT DEFAULT ''"
             };
 
             foreach (var stmt in historyColumns)
@@ -335,7 +338,8 @@ namespace DadPlanner2.Services
                 IFNULL(ReleaseCount, 1), IFNULL(VolumeConfidence, 'Unknown'),
                 IFNULL(HeatFlag, 0), IFNULL(Supplements, '{}'), IFNULL(Concentration, 0), 
                 IFNULL(Motility, 0), IFNULL(Morphology, 0), LabReportFileName, 
-                IFNULL(ClinicalVol, 0.0), IFNULL(ProgMotility, 0), IFNULL(PhLevel, 0.0) 
+                IFNULL(ClinicalVol, 0.0), IFNULL(ProgMotility, 0), IFNULL(PhLevel, 0.0),
+                IFNULL(Notes, '')
                 FROM Logs ORDER BY Timestamp DESC";
 
             using var reader = cmdLogs.ExecuteReader();
@@ -357,7 +361,8 @@ namespace DadPlanner2.Services
                     HasPdf = !reader.IsDBNull(11),
                     ClinicalVol = Convert.ToDouble(reader.GetValue(12)),
                     ProgMotility = Convert.ToInt32(reader.GetValue(13)),
-                    PhLevel = Convert.ToDouble(reader.GetValue(14))
+                    PhLevel = Convert.ToDouble(reader.GetValue(14)),
+                    Notes = reader.GetString(15)
                 });
             }
             return logs;
@@ -369,8 +374,8 @@ namespace DadPlanner2.Services
 
             using var cmd = db.CreateCommand();
             cmd.CommandText = @"
-                INSERT INTO Logs (Timestamp, Mode, Volume, ReleaseCount, VolumeConfidence, HeatFlag, Supplements, Concentration, Motility, Morphology, ClinicalVol, ProgMotility, PhLevel, LabReportFileName, LabReportBlob)
-                VALUES ($ts, $mode, $vol, $count, $confidence, $heat, $supps, $conc, $mot, $morph, $cvol, $pmot, $ph, $fname, $blob)";
+                INSERT INTO Logs (Timestamp, Mode, Volume, ReleaseCount, VolumeConfidence, HeatFlag, Supplements, Concentration, Motility, Morphology, ClinicalVol, ProgMotility, PhLevel, LabReportFileName, LabReportBlob, Notes)
+                VALUES ($ts, $mode, $vol, $count, $confidence, $heat, $supps, $conc, $mot, $morph, $cvol, $pmot, $ph, $fname, $blob, $notes)";
 
             BindLogParameters(cmd, log, fileName, pdfBlob);
             cmd.ExecuteNonQuery();
@@ -391,7 +396,8 @@ namespace DadPlanner2.Services
                            IFNULL(HeatFlag, 0), IFNULL(Supplements, '{}'),
                            IFNULL(ClinicalVol, 0), IFNULL(Concentration, 0),
                            IFNULL(Motility, 0), IFNULL(ProgMotility, 0),
-                           IFNULL(Morphology, 0), IFNULL(PhLevel, 0)
+                           IFNULL(Morphology, 0), IFNULL(PhLevel, 0),
+                           IFNULL(Notes, '')
                     FROM Logs WHERE Id = $id";
                 previousCmd.Parameters.AddWithValue("$id", log.Id);
                 using var previousReader = previousCmd.ExecuteReader();
@@ -403,6 +409,7 @@ namespace DadPlanner2.Services
                     string previousVolume = previousReader.GetString(2);
                     int previousReleaseCount = Convert.ToInt32(previousReader.GetValue(3));
                     string previousConfidence = previousReader.GetString(4);
+                    string previousNotes = previousReader.GetString(13);
 
                     if (!string.Equals(previousMode, log.Mode, StringComparison.Ordinal))
                         changes.Add($"mode from {previousMode} to {log.Mode}");
@@ -412,6 +419,8 @@ namespace DadPlanner2.Services
                         changes.Add($"release count from {previousReleaseCount} to {log.ReleaseCount}");
                     if (!string.Equals(previousConfidence, log.VolumeConfidence.ToString(), StringComparison.Ordinal))
                         changes.Add($"confidence from {previousConfidence} to {log.VolumeConfidence}");
+                    if (!string.Equals(previousNotes, log.Notes, StringComparison.Ordinal))
+                        changes.Add($"notes updated");
 
                     historySummary = changes.Count == 0
                         ? "No tracked session fields changed"
@@ -426,13 +435,13 @@ namespace DadPlanner2.Services
                     (LogId, EditedAt, Summary, PreviousTimestamp, PreviousMode, PreviousVolume,
                      PreviousReleaseCount, PreviousVolumeConfidence, PreviousHeatFlag, PreviousSupplements,
                      PreviousClinicalVol, PreviousConcentration, PreviousMotility, PreviousProgMotility,
-                     PreviousMorphology, PreviousPhLevel)
+                     PreviousMorphology, PreviousPhLevel, PreviousNotes)
                 SELECT $id, $editedAt, $summary, Timestamp, IFNULL(Mode, 'Maintenance'),
                        IFNULL(Volume, 'Normal'), IFNULL(ReleaseCount, 1),
                        IFNULL(VolumeConfidence, 'Unknown'), IFNULL(HeatFlag, 0),
                        IFNULL(Supplements, '{}'), IFNULL(ClinicalVol, 0), IFNULL(Concentration, 0),
                        IFNULL(Motility, 0), IFNULL(ProgMotility, 0), IFNULL(Morphology, 0),
-                       IFNULL(PhLevel, 0)
+                       IFNULL(PhLevel, 0), IFNULL(Notes, '')
                 FROM Logs WHERE Id = $id";
             historyCmd.Parameters.AddWithValue("$id", log.Id);
             historyCmd.Parameters.AddWithValue("$editedAt", DateTimeOffset.UtcNow.ToUnixTimeSeconds());
@@ -447,7 +456,7 @@ namespace DadPlanner2.Services
                     Timestamp = $ts, Mode = $mode, Volume = $vol, ReleaseCount = $count, VolumeConfidence = $confidence,
                     HeatFlag = $heat, Supplements = $supps, 
                     ClinicalVol = $cvol, Concentration = $conc, Motility = $mot, 
-                    ProgMotility = $pmot, Morphology = $morph, PhLevel = $ph 
+                    ProgMotility = $pmot, Morphology = $morph, PhLevel = $ph, Notes = $notes 
                     {updateBlob}
                 WHERE Id = $id";
 
@@ -466,7 +475,7 @@ namespace DadPlanner2.Services
                 SELECT Id, LogId, EditedAt, Summary, PreviousTimestamp, PreviousMode, PreviousVolume,
                        PreviousReleaseCount, PreviousVolumeConfidence, PreviousHeatFlag, PreviousSupplements,
                        PreviousClinicalVol, PreviousConcentration, PreviousMotility, PreviousProgMotility,
-                       PreviousMorphology, PreviousPhLevel
+                       PreviousMorphology, PreviousPhLevel, PreviousNotes
                 FROM LogEditHistory
                 WHERE LogId = $logId
                 ORDER BY EditedAt DESC, Id DESC";
@@ -506,7 +515,7 @@ namespace DadPlanner2.Services
                 SELECT LogId, PreviousTimestamp, PreviousMode, PreviousVolume, PreviousReleaseCount,
                        PreviousVolumeConfidence, PreviousHeatFlag, PreviousSupplements,
                        PreviousClinicalVol, PreviousConcentration, PreviousMotility,
-                       PreviousProgMotility, PreviousMorphology, PreviousPhLevel
+                       PreviousProgMotility, PreviousMorphology, PreviousPhLevel, PreviousNotes
                 FROM LogEditHistory WHERE Id = $id";
             cmd.Parameters.AddWithValue("$id", historyId);
             using var reader = cmd.ExecuteReader();
@@ -519,7 +528,8 @@ namespace DadPlanner2.Services
                 HeatFlag = Convert.ToInt32(reader.GetValue(6)), Supplements = reader.GetString(7),
                 ClinicalVol = Convert.ToDouble(reader.GetValue(8)), Concentration = Convert.ToInt32(reader.GetValue(9)),
                 Motility = Convert.ToInt32(reader.GetValue(10)), ProgMotility = Convert.ToInt32(reader.GetValue(11)),
-                Morphology = Convert.ToInt32(reader.GetValue(12)), PhLevel = Convert.ToDouble(reader.GetValue(13))
+                Morphology = Convert.ToInt32(reader.GetValue(12)), PhLevel = Convert.ToDouble(reader.GetValue(13)),
+                Notes = reader.GetString(14)
             };
         }
 
@@ -554,6 +564,7 @@ namespace DadPlanner2.Services
             cmd.Parameters.AddWithValue("$ph", log.PhLevel);
             cmd.Parameters.AddWithValue("$fname", fileName ?? (object)DBNull.Value);
             cmd.Parameters.AddWithValue("$blob", pdfBlob ?? (object)DBNull.Value);
+            cmd.Parameters.AddWithValue("$notes", log.Notes ?? "");
         }
 
         public (double Min, double Max) GetThresholdSettings()
@@ -593,6 +604,36 @@ namespace DadPlanner2.Services
                 GetSettingStr(db, "supp_vitD") == "True",
                 GetSettingStr(db, "supp_vitC") == "True"
             );
+        }
+
+        public bool GetSenescenceAlertSetting()
+        {
+            using var db = CreateConnection();
+            return GetSettingStr(db, "enable_senescence_alert") != "False"; 
+        }
+
+        public void SaveSenescenceAlertSetting(bool enabled)
+        {
+            using var db = CreateConnection();
+            using var cmd = db.CreateCommand();
+            cmd.CommandText = "INSERT OR REPLACE INTO Settings (Key, Value) VALUES ('enable_senescence_alert', $val)";
+            cmd.Parameters.AddWithValue("$val", enabled.ToString());
+            cmd.ExecuteNonQuery();
+        }
+
+        public bool GetIncludeNotesInReportSetting()
+        {
+            using var db = CreateConnection();
+            return GetSettingStr(db, "include_notes_in_report") == "True"; 
+        }
+
+        public void SaveIncludeNotesInReportSetting(bool enabled)
+        {
+            using var db = CreateConnection();
+            using var cmd = db.CreateCommand();
+            cmd.CommandText = "INSERT OR REPLACE INTO Settings (Key, Value) VALUES ('include_notes_in_report', $val)";
+            cmd.Parameters.AddWithValue("$val", enabled.ToString());
+            cmd.ExecuteNonQuery();
         }
 
         private string GetSettingStr(SqliteConnection db, string key)
@@ -678,13 +719,13 @@ namespace DadPlanner2.Services
                     ALTER TABLE Appointments RENAME TO Appointments_Backup;
                     ALTER TABLE LogEditHistory RENAME TO LogEditHistory_Backup;
 
-                    CREATE TABLE Logs (Id INTEGER PRIMARY KEY AUTOINCREMENT, Timestamp INTEGER, Mode TEXT DEFAULT 'Maintenance', Volume TEXT DEFAULT 'Normal', ReleaseCount INTEGER DEFAULT 1, VolumeConfidence TEXT DEFAULT 'Unknown', HeatFlag INTEGER DEFAULT 0, Supplements TEXT DEFAULT '{}', Concentration INTEGER, Motility INTEGER, Morphology INTEGER, ClinicalVol REAL, ProgMotility INTEGER, PhLevel REAL, LabReportBlob BLOB, LabReportFileName TEXT);
+                    CREATE TABLE Logs (Id INTEGER PRIMARY KEY AUTOINCREMENT, Timestamp INTEGER, Mode TEXT DEFAULT 'Maintenance', Volume TEXT DEFAULT 'Normal', ReleaseCount INTEGER DEFAULT 1, VolumeConfidence TEXT DEFAULT 'Unknown', HeatFlag INTEGER DEFAULT 0, Supplements TEXT DEFAULT '{}', Concentration INTEGER, Motility INTEGER, Morphology INTEGER, ClinicalVol REAL, ProgMotility INTEGER, PhLevel REAL, LabReportBlob BLOB, LabReportFileName TEXT, Notes TEXT DEFAULT '');
 
                     CREATE TABLE Settings (Key TEXT PRIMARY KEY, Value TEXT);
                     INSERT INTO Settings SELECT * FROM Settings_Backup;
 
                     CREATE TABLE Appointments (Id INTEGER PRIMARY KEY AUTOINCREMENT, Timestamp INTEGER);
-                    CREATE TABLE LogEditHistory (Id INTEGER PRIMARY KEY AUTOINCREMENT, LogId INTEGER NOT NULL, EditedAt INTEGER NOT NULL, Summary TEXT NOT NULL);
+                    CREATE TABLE LogEditHistory (Id INTEGER PRIMARY KEY AUTOINCREMENT, LogId INTEGER NOT NULL, EditedAt INTEGER NOT NULL, Summary TEXT NOT NULL, PreviousNotes TEXT DEFAULT '');
                 ";
                 backupCmd.ExecuteNonQuery();
                 EnsureHistoryColumns(db);
@@ -702,7 +743,7 @@ namespace DadPlanner2.Services
                 "PreviousSupplements TEXT DEFAULT '{}'", "PreviousClinicalVol REAL DEFAULT 0",
                 "PreviousConcentration INTEGER DEFAULT 0", "PreviousMotility INTEGER DEFAULT 0",
                 "PreviousProgMotility INTEGER DEFAULT 0", "PreviousMorphology INTEGER DEFAULT 0",
-                "PreviousPhLevel REAL DEFAULT 0"
+                "PreviousPhLevel REAL DEFAULT 0", "PreviousNotes TEXT DEFAULT ''"
             };
             foreach (var column in columns)
             {
@@ -834,7 +875,7 @@ namespace DadPlanner2.Services
                             : nameof(VolumeConfidence.Observed);
 
                 using var insertCmd = db.CreateCommand();
-                insertCmd.CommandText = "INSERT INTO Logs (Timestamp, Mode, Volume, ReleaseCount, VolumeConfidence, HeatFlag, Supplements, Concentration, Motility, Morphology, ClinicalVol, ProgMotility, PhLevel) VALUES ($ts, $mode, $vol, $count, $confidence, $heat, $supps, $conc, $mot, $morph, $cvol, $pmot, $ph)";
+                insertCmd.CommandText = "INSERT INTO Logs (Timestamp, Mode, Volume, ReleaseCount, VolumeConfidence, HeatFlag, Supplements, Concentration, Motility, Morphology, ClinicalVol, ProgMotility, PhLevel, Notes) VALUES ($ts, $mode, $vol, $count, $confidence, $heat, $supps, $conc, $mot, $morph, $cvol, $pmot, $ph, $notes)";
                 insertCmd.Parameters.AddWithValue("$ts", currentTs);
                 insertCmd.Parameters.AddWithValue("$mode", randomMode);
                 insertCmd.Parameters.AddWithValue("$vol", randomVol);
@@ -848,6 +889,7 @@ namespace DadPlanner2.Services
                 insertCmd.Parameters.AddWithValue("$cvol", cvol);
                 insertCmd.Parameters.AddWithValue("$pmot", pmot);
                 insertCmd.Parameters.AddWithValue("$ph", ph);
+                insertCmd.Parameters.AddWithValue("$notes", "");
                 insertCmd.ExecuteNonQuery();
             }
         }
@@ -880,9 +922,11 @@ namespace DadPlanner2.Services
                     _supplementSaturation.Calculate(logs, timestamp, supplement, days));
             string pdfPath = Path.Combine(_dbDir, "Baseline_Summary.pdf");
 
+            bool includeNotes = GetIncludeNotesInReportSetting();
+
             try
             {
-                _reportDocument.Generate(reportData, pdfPath, supplementAnalysis);
+                _reportDocument.Generate(reportData, pdfPath, supplementAnalysis, includeNotes);
                 OpenFileCrossPlatform(pdfPath);
             }
             catch (IOException)
@@ -956,21 +1000,6 @@ namespace DadPlanner2.Services
             }
             catch { }
         }
-
-        public bool GetSenescenceAlertSetting()
-        {
-            using var db = CreateConnection();
-            return GetSettingStr(db, "enable_senescence_alert") != "False"; 
-        }
-
-        public void SaveSenescenceAlertSetting(bool enabled)
-        {
-            using var db = CreateConnection();
-            using var cmd = db.CreateCommand();
-            cmd.CommandText = "INSERT OR REPLACE INTO Settings (Key, Value) VALUES ('enable_senescence_alert', $val)";
-            cmd.Parameters.AddWithValue("$val", enabled.ToString());
-            cmd.ExecuteNonQuery();
-        }  
     }
 
     internal static class DatabaseMigrationPolicy

@@ -8,15 +8,18 @@ namespace DadPlanner2.Services;
 
 public sealed class ReportDataService
 {
+    private readonly ClinicalDeltaService _clinicalDeltaService = new();
     public const int ReportWindowDays = 90;
 
     public ReportData Create(IEnumerable<LogRecord> sourceLogs, long nowTimestamp)
     {
         long cutoff = nowTimestamp - ReportWindowDays * 24L * 3600;
-        var logs = sourceLogs
+        var allLogs = sourceLogs.OrderBy(log => log.Timestamp).ToList();
+        
+        var logs = allLogs
             .Where(log => log.Timestamp >= cutoff)
-            .OrderBy(log => log.Timestamp)
             .ToList();
+            
         var releaseLogs = logs
             .Where(log => log.Volume != "None" && log.Volume != "N/A")
             .ToList();
@@ -46,6 +49,14 @@ public sealed class ReportDataService
                 averageGap = totalGap / (releaseLogs.Count - 1);
         }
 
+        // Automatically pull the latest two clinical labs across all logs for the PDF delta comparison table
+        ClinicalDeltaResult? latestDelta = null;
+        var clinicalLogs = allLogs.Where(l => l.Mode == "Clinical-Lab").OrderByDescending(l => l.Timestamp).ToList();
+        if (clinicalLogs.Count >= 2)
+        {
+            latestDelta = _clinicalDeltaService.AnalyzeDelta(allLogs, clinicalLogs[1].Id, clinicalLogs[0].Id);
+        }
+
         return new ReportData(
             logs,
             gapData,
@@ -58,7 +69,8 @@ public sealed class ReportDataService
             logs.Count(log => log.Volume == "High"),
             logs.Count(log => log.Volume == "Normal"),
             logs.Count(log => log.Volume == "Low"),
-            logs.Count(log => log.Volume is "None" or "N/A"));
+            logs.Count(log => log.Volume is "None" or "N/A"),
+            latestDelta);
     }
 }
 
@@ -74,4 +86,5 @@ public sealed record ReportData(
     int HighCount,
     int NormalCount,
     int LowCount,
-    int DryCount);
+    int DryCount,
+    ClinicalDeltaResult? LatestDelta);

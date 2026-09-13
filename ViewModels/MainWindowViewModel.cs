@@ -28,6 +28,8 @@ namespace DadPlanner2.ViewModels
         private readonly LogValidationService _logValidation = new();
         private readonly SupplementAnalysisService _supplementAnalysis = new();
         private readonly SupplementSaturationService _supplementSaturation = new();
+        private readonly ClinicalDeltaService _clinicalDelta = new();
+        private readonly PharmacokineticService _pkService = new();
         private readonly UIRefreshService _uiRefresh = new();
         private int _tickCount = 0;
 
@@ -48,6 +50,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private PieHoverData? _hoveredPie;
         [ObservableProperty] private BarHoverData? _hoveredBar;
         [ObservableProperty] private EnthusiasmHoverData? _hoveredEnthusiasm;
+        [ObservableProperty] private PkHoverData? _hoveredPk;
 
         [ObservableProperty] private bool _isHelpOpen;
         [ObservableProperty] private bool _isSettingsOpen;
@@ -55,6 +58,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private bool _isEditLogOpen;
         [ObservableProperty] private bool _isAlertOpen;
         [ObservableProperty] private bool _isAnalysisOpen;
+        [ObservableProperty] private bool _isDeltaOpen;
         [ObservableProperty] private bool _isStealthMode;
         [ObservableProperty] private bool _isVolumeMode;
         
@@ -92,7 +96,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private string _clinicalComplianceMessage = "";
         [ObservableProperty] private string _clinicalComplianceColor = "#0277bd";
         [ObservableProperty] private bool _enableAggressiveNotifications = true;
-        [ObservableProperty] private bool _enableSenescenceAlert = true; // Setting toggle for 'daft bastard' klaxon
+        [ObservableProperty] private bool _enableSenescenceAlert = true;
         [ObservableProperty] private bool _showWankAlert;
 
         private string _backupPath = "";
@@ -174,6 +178,12 @@ namespace DadPlanner2.ViewModels
 
         public ObservableCollection<LogRecord> Logs { get; } = new();
         public ObservableCollection<HeatmapDay> HeatmapDays { get; } = new();
+        
+        // Clinical Delta Observables
+        public ObservableCollection<LogRecord> ClinicalLogs { get; } = new();
+        [ObservableProperty] private LogRecord? _selectedLabA;
+        [ObservableProperty] private LogRecord? _selectedLabB;
+        [ObservableProperty] private ClinicalDeltaResult? _deltaResult;
 
         [ObservableProperty] private ISeries[] _chartSeries = Array.Empty<ISeries>();
         [ObservableProperty] private Axis[] _xAxes = Array.Empty<Axis>();
@@ -188,6 +198,15 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private Axis[] _enthusiasmXAxes = Array.Empty<Axis>();
         [ObservableProperty] private Axis[] _enthusiasmYAxes = Array.Empty<Axis>();
         [ObservableProperty] private double _enthusiasmTargetScore;
+
+        [ObservableProperty] private ISeries[] _deltaChartSeries = Array.Empty<ISeries>();
+        [ObservableProperty] private Axis[] _deltaXAxes = new[] { new Axis() };
+        [ObservableProperty] private Axis[] _deltaYAxes = new[] { new Axis() };
+
+        // Pharmacokinetic Overlay Observables
+        [ObservableProperty] private ISeries[] _pkSeries = Array.Empty<ISeries>();
+        [ObservableProperty] private Axis[] _pkXAxes = Array.Empty<Axis>();
+        [ObservableProperty] private Axis[] _pkYAxes = Array.Empty<Axis>();
         
         [ObservableProperty] private int _totalEventCount;
         [ObservableProperty] private string _legendMaint = "";
@@ -245,6 +264,8 @@ namespace DadPlanner2.ViewModels
         partial void OnEditModeChanged(string value) => OnPropertyChanged(nameof(ShowEditClinicalFields));
         partial void OnIsStealthModeChanged(bool value) => OnPropertyChanged(nameof(StealthBlurRadius));
         partial void OnIsVolumeModeChanged(bool value) => UpdateHeatmap();
+        partial void OnSelectedLabAChanged(LogRecord? value) => CalculateDelta();
+        partial void OnSelectedLabBChanged(LogRecord? value) => CalculateDelta();
 
         [RelayCommand] private void ToggleStealth() => IsStealthMode = !IsStealthMode;
         [RelayCommand] private void OpenHelp() => IsHelpOpen = true;
@@ -256,6 +277,7 @@ namespace DadPlanner2.ViewModels
         [RelayCommand] private void CloseEditLog() => IsEditLogOpen = false;
         [RelayCommand] private void CloseAlert() => IsAlertOpen = false;
         [RelayCommand] private void CloseAnalysis() => IsAnalysisOpen = false;
+        [RelayCommand] private void CloseDelta() => IsDeltaOpen = false;
         [RelayCommand] private void ConfirmAlert() { _alertConfirmAction?.Invoke(); IsAlertOpen = false; }
         
         [RelayCommand] 
@@ -432,7 +454,7 @@ namespace DadPlanner2.ViewModels
 
             if (closest != null && Math.Abs((closest.X ?? 0) - targetTs) < (3 * 86400))
             {
-                HoveredTimelinePoint = closest; HoveredPie = null; HoveredBar = null; HoveredEnthusiasm = null;
+                HoveredTimelinePoint = closest; HoveredPie = null; HoveredBar = null; HoveredEnthusiasm = null; HoveredPk = null;
                 PositionTooltip(winX, winY, ctrlX, ctrlY, ctrlW, ctrlH, 280, 210); 
                 IsTooltipVisible = true;
             }
@@ -472,7 +494,7 @@ namespace DadPlanner2.ViewModels
             if (count == 0) { IsTooltipVisible = false; return; }
 
             HoveredPie = new PieHoverData { Category = category, Count = count, ColorHex = hex, Percentage = Math.Round((count/(double)total)*100, 1) };
-            HoveredTimelinePoint = null; HoveredBar = null; HoveredEnthusiasm = null;
+            HoveredTimelinePoint = null; HoveredBar = null; HoveredEnthusiasm = null; HoveredPk = null;
             PositionTooltip(winX, winY, ctrlX, ctrlY, ctrlW, ctrlH, 240, 140);
             IsTooltipVisible = true;
         }
@@ -501,8 +523,58 @@ namespace DadPlanner2.ViewModels
             else if (visualIdx == 3) { category = "Dry / None"; count = volDry; hex = "#757575"; }
 
             HoveredBar = new BarHoverData { Category = category, Count = count, ColorHex = hex };
-            HoveredTimelinePoint = null; HoveredPie = null; HoveredEnthusiasm = null;
+            HoveredTimelinePoint = null; HoveredPie = null; HoveredEnthusiasm = null; HoveredPk = null;
             PositionTooltip(winX, winY, ctrlX, ctrlY, ctrlW, ctrlH, 240, 110);
+            IsTooltipVisible = true;
+        }
+
+        public void ProcessPkHover(double chartX, double winX, double winY, double plotX, double plotW, double ctrlX, double ctrlY, double ctrlW, double ctrlH)
+        {
+            if (PkSeries == null || PkSeries.Length == 0 || PkXAxes == null || PkXAxes.Length == 0 || plotW <= 0)
+            {
+                IsTooltipVisible = false; return;
+            }
+
+            double adjustedX = chartX - plotX;
+            if (adjustedX < 0 || adjustedX > plotW) { IsTooltipVisible = false; return; }
+
+            var axis = PkXAxes[0];
+            double minTs = axis.MinLimit ?? _chartMinX;
+            double maxTs = axis.MaxLimit ?? _chartMaxX;
+            double ratio = adjustedX / plotW;
+            double targetTs = minTs + (ratio * (maxTs - minTs));
+
+            var zincPts = PkSeries.ElementAtOrDefault(0)?.Values as IEnumerable<ObservablePoint>;
+            var macaPts = PkSeries.ElementAtOrDefault(1)?.Values as IEnumerable<ObservablePoint>;
+            var vitDPts = PkSeries.ElementAtOrDefault(2)?.Values as IEnumerable<ObservablePoint>;
+            var vitCPts = PkSeries.ElementAtOrDefault(3)?.Values as IEnumerable<ObservablePoint>;
+
+            if (zincPts == null) { IsTooltipVisible = false; return; }
+
+            var closestZinc = zincPts.OrderBy(p => Math.Abs((p.X ?? 0) - targetTs)).FirstOrDefault();
+            if (closestZinc == null || Math.Abs((closestZinc.X ?? 0) - targetTs) >= (3 * 86400))
+            {
+                IsTooltipVisible = false;
+                return;
+            }
+
+            double ts = closestZinc.X ?? 0;
+            double zincVal = closestZinc.Y ?? 0;
+            double macaVal = macaPts?.FirstOrDefault(p => Math.Abs((p.X ?? 0) - ts) < 3600)?.Y ?? 0;
+            double vitDVal = vitDPts?.FirstOrDefault(p => Math.Abs((p.X ?? 0) - ts) < 3600)?.Y ?? 0;
+            double vitCVal = vitCPts?.FirstOrDefault(p => Math.Abs((p.X ?? 0) - ts) < 3600)?.Y ?? 0;
+
+            HoveredPk = new PkHoverData
+            {
+                DateText = DateTimeOffset.FromUnixTimeSeconds((long)ts).ToLocalTime().ToString("MMM dd, yyyy"),
+                Zinc = zincVal,
+                Maca = macaVal,
+                VitD = vitDVal,
+                VitC = vitCVal
+            };
+
+            HoveredTimelinePoint = null; HoveredPie = null; HoveredBar = null; HoveredEnthusiasm = null;
+            PositionTooltip(winX, winY, ctrlX, ctrlY, ctrlW, ctrlH, 220, 130);
             IsTooltipVisible = true;
         }
 
@@ -586,20 +658,27 @@ namespace DadPlanner2.ViewModels
                 long lastReleaseTs = releaseLogs.Count > 0 ? releaseLogs[0].Timestamp : now;
                 var compliance = _telemetryAnalysis.CheckClinicalCompliance(apptTs, lastReleaseTs, now);
 
-                ClinicalComplianceMessage = compliance.ComplianceMessage;
+                BlackoutMessage = compliance.ComplianceMessage;
+
+                ClinicalComplianceMessage = compliance.BlackoutStage switch
+                {
+                    3 => "SUB-48H WARNING",
+                    2 => "WHO: OPTIMAL",
+                    1 => "WHO: ACCEPTABLE",
+                    _ => "CLINICAL LOCK"
+                };
+                
                 ClinicalComplianceColor = compliance.ComplianceColorHex;
 
-                // Staged visual colors
                 BlackoutColor = compliance.BlackoutStage switch
                 {
-                    3 => "#4a0e0e", // Deep red
-                    2 => "#0f3813", // Deep green
-                    1 => "#3e2723", // Deep amber
-                    _ => "#0d2a3a"  // Deep blue
+                    3 => "#4a0e0e", 
+                    2 => "#0f3813", 
+                    1 => "#3e2723", 
+                    _ => "#0d2a3a"  
                 };
 
                 BlackoutBorder = compliance.ComplianceColorHex;
-                BlackoutMessage = compliance.ComplianceMessage;
                 IsBlackoutActive = true;
             }
             else
@@ -788,6 +867,194 @@ namespace DadPlanner2.ViewModels
             CloseSettings();
         }
 
+        [RelayCommand]
+        private void OpenDelta()
+        {
+            ClinicalLogs.Clear();
+            var labs = Logs.Where(l => l.Mode == "Clinical-Lab").OrderByDescending(l => l.Timestamp).ToList();
+            foreach (var lab in labs) ClinicalLogs.Add(lab);
+            
+            if (ClinicalLogs.Count >= 2)
+            {
+                SelectedLabA = ClinicalLogs[1]; 
+                SelectedLabB = ClinicalLogs[0]; 
+                CalculateDelta();
+            }
+            else
+            {
+                SelectedLabA = ClinicalLogs.FirstOrDefault();
+                SelectedLabB = null;
+                DeltaResult = null;
+                DeltaChartSeries = Array.Empty<ISeries>();
+            }
+            
+            IsDeltaOpen = true;
+            CloseSettings(); 
+        }
+
+        [RelayCommand]
+        private void CalculateDelta()
+        {
+            if (SelectedLabA == null || SelectedLabB == null || SelectedLabA.Id == SelectedLabB.Id)
+            {
+                DeltaResult = null;
+                DeltaChartSeries = Array.Empty<ISeries>();
+                return;
+            }
+            DeltaResult = _clinicalDelta.AnalyzeDelta(Logs, SelectedLabA.Id, SelectedLabB.Id);
+            UpdateDeltaChart();
+        }
+
+        private void UpdateDeltaChart()
+        {
+            if (DeltaResult == null) return;
+
+            var labA = DeltaResult.LabA;
+            var labB = DeltaResult.LabB;
+
+            double CalcPct(double a, double b) => a > 0 ? ((b - a) / a) * 100.0 : 0;
+
+            var pctVol = CalcPct(labA.ClinicalVol, labB.ClinicalVol);
+            var pctConc = CalcPct(labA.Concentration, labB.Concentration);
+            var pctMot = CalcPct(labA.Motility, labB.Motility);
+            var pctProg = CalcPct(labA.ProgMotility, labB.ProgMotility);
+            var pctMorph = CalcPct(labA.Morphology, labB.Morphology);
+
+            var values = new[] { pctVol, pctConc, pctMot, pctProg, pctMorph };
+
+            var columnSeries = new ColumnSeries<double>
+            {
+                Values = values,
+                Name = "% Change",
+                DataLabelsPaint = new SolidColorPaint(new SKColor(255, 255, 255)),
+                DataLabelsSize = 11,
+                DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Top,
+                DataLabelsFormatter = point => $"{point.Model:+0.0;-0.0;0}%",
+                Stroke = null
+            };
+
+            columnSeries.PointMeasured += (point) =>
+            {
+                if (point.Visual == null) return;
+                point.Visual.Fill = point.Model >= 0 
+                    ? new SolidColorPaint(new SKColor(76, 175, 80))  
+                    : new SolidColorPaint(new SKColor(211, 47, 47)); 
+            };
+
+            DeltaChartSeries = new ISeries[] { columnSeries };
+
+            DeltaXAxes = new[]
+            {
+                new Axis
+                {
+                    Labels = new[] { "Volume", "Conc.", "Tot Mot", "Prog Mot", "Morph" },
+                    LabelsPaint = new SolidColorPaint(SKColors.Gray),
+                    TextSize = 11
+                }
+            };
+
+            DeltaYAxes = new[]
+            {
+                new Axis
+                {
+                    Labeler = value => $"{value}%",
+                    LabelsPaint = new SolidColorPaint(new SKColor(136, 136, 136)),
+                    SeparatorsPaint = new SolidColorPaint(new SKColor(51, 51, 51))
+                }
+            };
+        }
+
+        private void UpdatePharmacokineticChart()
+        {
+            if (Logs.Count == 0)
+            {
+                PkSeries = Array.Empty<ISeries>();
+                return;
+            }
+
+            double startTs = _chartMinX;
+            double endTs = _chartMaxX;
+
+            if (startTs <= 0 || endTs <= startTs)
+            {
+                startTs = Logs.Min(l => l.Timestamp) - 86400;
+                endTs = Logs.Max(l => l.Timestamp) + 86400;
+            }
+
+            var curves = _pkService.CalculateCurves(Logs, startTs, endTs);
+
+            if (curves.Count == 0 || curves.Values.All(c => c.Count == 0))
+            {
+                PkSeries = Array.Empty<ISeries>();
+                return;
+            }
+
+            PkSeries = new ISeries[]
+            {
+                new LineSeries<ObservablePoint>
+                {
+                    Values = curves["Zinc"],
+                    Name = "Zinc Saturation",
+                    Fill = null,
+                    Stroke = new SolidColorPaint(new SKColor(0, 122, 204)) { StrokeThickness = 2 },
+                    GeometrySize = 0,
+                    LineSmoothness = 0.8
+                },
+                new LineSeries<ObservablePoint>
+                {
+                    Values = curves["Maca"],
+                    Name = "Maca Kinetics",
+                    Fill = null,
+                    Stroke = new SolidColorPaint(new SKColor(156, 39, 176)) { StrokeThickness = 2 },
+                    GeometrySize = 0,
+                    LineSmoothness = 0.8
+                },
+                new LineSeries<ObservablePoint>
+                {
+                    Values = curves["VitD"],
+                    Name = "Vitamin D3",
+                    Fill = null,
+                    Stroke = new SolidColorPaint(new SKColor(76, 175, 80)) { StrokeThickness = 2 },
+                    GeometrySize = 0,
+                    LineSmoothness = 0.8
+                },
+                new LineSeries<ObservablePoint>
+                {
+                    Values = curves["VitC"],
+                    Name = "Vitamin C",
+                    Fill = null,
+                    Stroke = new SolidColorPaint(new SKColor(245, 124, 0)) { StrokeThickness = 2 },
+                    GeometrySize = 0,
+                    LineSmoothness = 0.8
+                }
+            };
+
+            PkXAxes = new[] { 
+                new Axis { 
+                    Labeler = value => { 
+                        try { return DateTimeOffset.FromUnixTimeSeconds((long)value).ToLocalTime().ToString("MMM"); } 
+                        catch { return string.Empty; } 
+                    }, 
+                    LabelsPaint = new SolidColorPaint(new SKColor(136, 136, 136)), 
+                    TextSize = 11,
+                    MinStep = 2592000,
+                    MinLimit = startTs, 
+                    MaxLimit = endTs,
+                    SeparatorsPaint = null, 
+                    TicksPaint = null 
+                } 
+            };
+
+            PkYAxes = new[] { 
+                new Axis { 
+                    LabelsPaint = null, 
+                    MinLimit = 0,
+                    SeparatorsPaint = null,
+                    TicksPaint = null 
+                } 
+            };
+        }
+
         private static string FormatAnalysisCard(string label, SupplementComparison comparison)
         {
             string groups = $"Saturated {comparison.SaturatedCount} | Unsaturated {comparison.UnsaturatedCount}";
@@ -955,7 +1222,6 @@ namespace DadPlanner2.ViewModels
                     EnableAggressiveNotifications = true;
                 }
 
-                // Respect user toggle for senescence alert klaxon
                 if (EnableSenescenceAlert && EnableAggressiveNotifications && metrics.CurrentHours > criticalFadeHours)
                 {
                     ShowWankAlert = true;
@@ -1167,6 +1433,7 @@ namespace DadPlanner2.ViewModels
             };
             
             UpdateEnthusiasmChart();
+            UpdatePharmacokineticChart();
         }
 
         private void UpdateEnthusiasmChart()
@@ -1184,7 +1451,6 @@ namespace DadPlanner2.ViewModels
 
             int windowSize = 14; 
             
-            // The magic equilibrium calculation: 336 hours in 14 days / Optimal gap
             double optimalScore = 336.0 / Math.Max(1.0, MinHours);
             EnthusiasmTargetScore = optimalScore;
             
@@ -1206,7 +1472,6 @@ namespace DadPlanner2.ViewModels
 
             EnthusiasmSeries = new ISeries[]
             {
-                // The Predictive Baseline (Ghost Line) - Drawn first so it sits behind the data
                 new LineSeries<ObservablePoint>
                 {
                     Values = baselinePoints,
@@ -1221,10 +1486,8 @@ namespace DadPlanner2.ViewModels
                     GeometryFill = null,
                     GeometryStroke = null,
                     LineSmoothness = 1.0,
-                    IsHoverable = false // Tells the UI to ignore this line for tooltips
+                    IsHoverable = false 
                 },
-                
-                // The Actual 14-Day Yield (Orange Wave) - Drawn second so it stays on top
                 new LineSeries<ObservablePoint>
                 {
                     Values = actualPoints,
@@ -1302,7 +1565,7 @@ namespace DadPlanner2.ViewModels
                     DateText = DateTimeOffset.FromUnixTimeSeconds((long)(closest.X ?? 0)).ToLocalTime().ToString("MMM dd, yyyy"), 
                     Score = closest.Y ?? 0 
                 };
-                HoveredTimelinePoint = null; HoveredPie = null; HoveredBar = null;
+                HoveredTimelinePoint = null; HoveredPie = null; HoveredBar = null; HoveredPk = null;
                 PositionTooltip(winX, winY, ctrlX, ctrlY, ctrlW, ctrlH, 200, 90); 
                 IsTooltipVisible = true;
             }
@@ -1482,4 +1745,5 @@ namespace DadPlanner2.ViewModels
     public class PieHoverData { public string Category { get; set; } = ""; public int Count { get; set; } public string ColorHex { get; set; } = ""; public double Percentage { get; set; } }
     public class BarHoverData { public string Category { get; set; } = ""; public int Count { get; set; } public string ColorHex { get; set; } = ""; }
     public class EnthusiasmHoverData { public string DateText { get; set; } = ""; public double Score { get; set; } }
+    public class PkHoverData { public string DateText { get; set; } = ""; public double Zinc { get; set; } public double Maca { get; set; } public double VitD { get; set; } public double VitC { get; set; } }
 }

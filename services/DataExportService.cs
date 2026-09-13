@@ -32,27 +32,56 @@ public sealed class DataExportService
             Converters = { new JsonStringEnumConverter() }
         }));
 
-        using var writer = new StreamWriter(csvPath);
-        writer.WriteLine("Id,Timestamp,Date,Mode,Volume,ReleaseCount,VolumeConfidence,HeatFlag,Supplements,ClinicalVol,Concentration,Motility,ProgMotility,Morphology,PhLevel,HasPdf");
-        foreach (var log in logs)
+        using (var writer = new StreamWriter(csvPath))
         {
-            writer.WriteLine(string.Join(",",
-                log.Id,
-                log.Timestamp,
-                CsvEscape(log.DisplayDate),
-                CsvEscape(log.Mode),
-                CsvEscape(log.Volume),
-                log.ReleaseCount,
-                CsvEscape(log.VolumeConfidence.ToString()),
-                log.HeatFlag,
-                CsvEscape(log.Supplements),
-                log.ClinicalVol.ToString(CultureInfo.InvariantCulture),
-                log.Concentration,
-                log.Motility,
-                log.ProgMotility,
-                log.Morphology,
-                log.PhLevel.ToString(CultureInfo.InvariantCulture),
-                log.HasPdf));
+            writer.WriteLine("Id,Timestamp,Date,Mode,Volume,ReleaseCount,VolumeConfidence,HeatFlag,Supplements,ClinicalVol,Concentration,Motility,ProgMotility,Morphology,PhLevel,HasPdf,AbstinenceHours,WhoCompliance,ThermalStage");
+
+            for (int i = 0; i < logs.Count; i++)
+            {
+                var log = logs[i];
+
+                // Calculate abstinence gap from prior release
+                string abstinenceStr = "";
+                string whoComplianceStr = "";
+                var priorRelease = logs.Take(i).Where(l => l.Volume != "None" && l.Volume != "N/A").LastOrDefault();
+                if (priorRelease != null && log.Volume != "None" && log.Volume != "N/A")
+                {
+                    double gapHours = (log.Timestamp - priorRelease.Timestamp) / 3600.0;
+                    abstinenceStr = gapHours.ToString("F1", CultureInfo.InvariantCulture);
+
+                    if (log.Mode == "Clinical-Lab")
+                    {
+                        if (gapHours >= 48.0 && gapHours <= 72.0) whoComplianceStr = "WHO Ideal (48-72h)";
+                        else if (gapHours >= 48.0 && gapHours <= 168.0) whoComplianceStr = "WHO Acceptable (48-168h)";
+                        else if (gapHours < 48.0) whoComplianceStr = "Sub-48h (<48h)";
+                        else whoComplianceStr = "Extended (>7d)";
+                    }
+                }
+
+                // Calculate thermal shadow stage at this session
+                string thermalStageStr = GetThermalStageAt(logs.Take(i).ToList(), log.Timestamp);
+
+                writer.WriteLine(string.Join(",",
+                    log.Id,
+                    log.Timestamp,
+                    CsvEscape(log.DisplayDate),
+                    CsvEscape(log.Mode),
+                    CsvEscape(log.Volume),
+                    log.ReleaseCount,
+                    CsvEscape(log.VolumeConfidence.ToString()),
+                    log.HeatFlag,
+                    CsvEscape(log.Supplements),
+                    log.ClinicalVol.ToString(CultureInfo.InvariantCulture),
+                    log.Concentration,
+                    log.Motility,
+                    log.ProgMotility,
+                    log.Morphology,
+                    log.PhLevel.ToString(CultureInfo.InvariantCulture),
+                    log.HasPdf,
+                    abstinenceStr,
+                    CsvEscape(whoComplianceStr),
+                    CsvEscape(thermalStageStr)));
+            }
         }
 
         File.WriteAllText(historyJsonPath, JsonSerializer.Serialize(history, new JsonSerializerOptions
@@ -65,11 +94,14 @@ public sealed class DataExportService
             historyWriter.WriteLine("Id,LogId,EditedAt,Date,Summary");
             foreach (var entry in history)
             {
+                int sepIdx = entry.DisplayText.IndexOf(" - ", StringComparison.Ordinal);
+                string datePart = sepIdx > 0 ? entry.DisplayText[..sepIdx] : entry.DisplayText;
+
                 historyWriter.WriteLine(string.Join(",",
                     entry.Id,
                     entry.LogId,
                     entry.EditedAt,
-                    CsvEscape(entry.DisplayText[..entry.DisplayText.IndexOf(" - ", StringComparison.Ordinal)]),
+                    CsvEscape(datePart),
                     CsvEscape(entry.Summary)));
             }
         }
@@ -80,6 +112,7 @@ public sealed class DataExportService
         {
             analysisJsonPath = Path.Combine(exportDirectory, $"dadplanner-analysis-{timestamp}.json");
             analysisCsvPath = Path.Combine(exportDirectory, $"dadplanner-analysis-{timestamp}.csv");
+
             File.WriteAllText(analysisJsonPath, JsonSerializer.Serialize(analysis, new JsonSerializerOptions
             {
                 WriteIndented = true,
@@ -87,7 +120,8 @@ public sealed class DataExportService
             }));
 
             using var analysisWriter = new StreamWriter(analysisCsvPath);
-            analysisWriter.WriteLine("Supplement,WindowDays,TargetTimestamp,ReleaseEventCount,SupplementEventCount,SupplementProportion,Classification,SaturatedCount,UnsaturatedCount,SaturatedObservedCount,SaturatedEstimatedCount,SaturatedUnknownCount,UnsaturatedObservedCount,UnsaturatedEstimatedCount,UnsaturatedUnknownCount,SaturatedSuccesses,UnsaturatedSuccesses,SaturatedObservedSuccesses,SaturatedEstimatedSuccesses,SaturatedUnknownSuccesses,UnsaturatedObservedSuccesses,UnsaturatedEstimatedSuccesses,UnsaturatedUnknownSuccesses");
+            analysisWriter.WriteLine("Supplement,WindowDays,TargetTimestamp,ReleaseEventCount,SupplementEventCount,SupplementProportion,Classification,SaturatedCount,UnsaturatedCount,SaturatedObservedCount,SaturatedEstimatedCount,SaturatedUnknownCount,UnsaturatedObservedCount,UnsaturatedEstimatedCount,UnsaturatedUnknownCount,SaturatedSuccesses,UnsaturatedSuccesses,SaturatedObservedSuccesses,SaturatedEstimatedSuccesses,SaturatedUnknownSuccesses,UnsaturatedObservedSuccesses,UnsaturatedEstimatedSuccesses,UnsaturatedUnknownSuccesses,KineticSaturation,ConsecutiveWeeksSaturated,IsCyclingRecommended,CyclingMessage,ClinicalNote");
+
             foreach (var comparison in new[] { analysis.Zinc, analysis.Maca, analysis.VitaminD, analysis.VitaminC })
             {
                 foreach (var audit in comparison.SaturationAudits)
@@ -115,12 +149,44 @@ public sealed class DataExportService
                         comparison.SaturatedUnknownSuccesses,
                         comparison.UnsaturatedObservedSuccesses,
                         comparison.UnsaturatedEstimatedSuccesses,
-                        comparison.UnsaturatedUnknownSuccesses));
+                        comparison.UnsaturatedUnknownSuccesses,
+                        audit.KineticSaturation.ToString("F2", CultureInfo.InvariantCulture),
+                        audit.ConsecutiveWeeksSaturated,
+                        audit.IsCyclingRecommended,
+                        CsvEscape(audit.CyclingMessage),
+                        CsvEscape(audit.ClinicalNote)));
                 }
             }
         }
 
         return new DataExportResult(jsonPath, csvPath, analysisJsonPath, analysisCsvPath, historyJsonPath, historyCsvPath);
+    }
+
+    private static string GetThermalStageAt(List<LogRecord> logsBeforeTarget, long targetTs)
+    {
+        var heatLogs = logsBeforeTarget
+            .Where(l => l.HeatFlag >= 2)
+            .OrderByDescending(l => l.Timestamp)
+            .ToList();
+
+        if (heatLogs.Count == 0) return "None";
+
+        var latestHeat = heatLogs[0];
+        long elapsedSeconds = targetTs - latestHeat.Timestamp;
+        if (elapsedSeconds < 0 || elapsedSeconds > (74L * 86400)) return "None";
+
+        bool passingLab = logsBeforeTarget.Any(l =>
+            l.Mode == "Clinical-Lab" &&
+            l.Timestamp > latestHeat.Timestamp &&
+            l.Concentration >= 15 &&
+            l.Motility >= 40);
+
+        if (passingLab) return "Cleared (Lab Override)";
+
+        int daysElapsed = (int)(elapsedSeconds / 86400);
+        if (daysElapsed <= 14) return "Stage 1: Epididymal Transit";
+        if (daysElapsed <= 45) return "Stage 2: Spermiogenesis Transition";
+        return "Stage 3: Meiotic Regeneration";
     }
 
     private static string CsvEscape(string value) => $"\"{value.Replace("\"", "\"\"")}\"";

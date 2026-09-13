@@ -9,7 +9,7 @@
         x:Class="DadPlanner2.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         x:Name="RootWindow"
-        Title="Dad-Planner System Utility" Width="1864" Height="1048"
+        Title="Dad-Planner System Utility" Width="2134" Height="1200"
         Background="#121212" Foreground="#e0e0e0"
         WindowStartupLocation="CenterScreen">
 
@@ -73,7 +73,7 @@
 
             <!-- HEADER -->
             <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,15">
-                <TextBlock Text="System Maintenance Utility" FontSize="24" FontWeight="Bold" VerticalAlignment="Center"/>
+                <TextBlock Text="Dad-Planner System Utility" FontSize="24" FontWeight="Bold" VerticalAlignment="Center"/>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
                     <Button Classes="btn-icon" Content="[?] Help" Command="{Binding OpenHelpCommand}" Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1"/>
                     <Button Classes="btn-icon" Content="[PDF] 90-Day Report" Command="{Binding GeneratePdfCommand}" Background="#546e7a"/>
@@ -301,6 +301,21 @@
                                         </StackPanel>
                                     </Grid>
                                 </Viewbox>
+
+                                <!-- PHARMACOKINETIC DECAY OVERLAY -->
+                                <Viewbox Height="140" Stretch="Uniform" HorizontalAlignment="Center" Margin="0,15,0,0">
+                                    <Grid Width="795" Height="140"> 
+                                        <lvc:CartesianChart x:Name="PkChart" Series="{Binding PkSeries}" XAxes="{Binding PkXAxes}" YAxes="{Binding PkYAxes}" TooltipPosition="Hidden" />
+                                        
+                                        <!-- PK Legend -->
+                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,10,0,0" IsHitTestVisible="False" Spacing="15">
+                                            <StackPanel Orientation="Horizontal" Spacing="4"><Border Width="10" Height="3" Background="#007acc" VerticalAlignment="Center"/><TextBlock Text="Zn (12d)" FontSize="9" Foreground="#007acc" FontWeight="Bold"/></StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="4"><Border Width="10" Height="3" Background="#9c27b0" VerticalAlignment="Center"/><TextBlock Text="Ma (20h)" FontSize="9" Foreground="#9c27b0" FontWeight="Bold"/></StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="4"><Border Width="10" Height="3" Background="#4caf50" VerticalAlignment="Center"/><TextBlock Text="D3 (18d)" FontSize="9" Foreground="#4caf50" FontWeight="Bold"/></StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="4"><Border Width="10" Height="3" Background="#f57c00" VerticalAlignment="Center"/><TextBlock Text="C (24h)" FontSize="9" Foreground="#f57c00" FontWeight="Bold"/></StackPanel>
+                                        </StackPanel>
+                                    </Grid>
+                                </Viewbox>
                                 
                             </StackPanel>
                         </Border>
@@ -463,6 +478,28 @@
                         </StackPanel>
                     </StackPanel>
 
+                    <StackPanel IsVisible="{Binding HoveredPk, Converter={x:Static ObjectConverters.IsNotNull}}" Spacing="5">
+                        <TextBlock Text="PHARMACOKINETIC SATURATION" FontWeight="Bold" Foreground="#e0e0e0" FontSize="13"/>
+                        <Rectangle Height="1" Fill="#333" Margin="0,4"/>
+                        <TextBlock Text="{Binding HoveredPk.DateText}" Foreground="#aaa" FontSize="12"/>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="Zinc (12d):" Foreground="#007acc" FontSize="12" Width="80"/>
+                            <TextBlock Text="{Binding HoveredPk.Zinc, StringFormat='{}{0:F2}'}" Foreground="#fff" FontWeight="Bold" FontSize="12"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="Maca (20h):" Foreground="#9c27b0" FontSize="12" Width="80"/>
+                            <TextBlock Text="{Binding HoveredPk.Maca, StringFormat='{}{0:F2}'}" Foreground="#fff" FontWeight="Bold" FontSize="12"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="Vit D3 (18d):" Foreground="#4caf50" FontSize="12" Width="80"/>
+                            <TextBlock Text="{Binding HoveredPk.VitD, StringFormat='{}{0:F2}'}" Foreground="#fff" FontWeight="Bold" FontSize="12"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="Vit C (24h):" Foreground="#f57c00" FontSize="12" Width="80"/>
+                            <TextBlock Text="{Binding HoveredPk.VitC, StringFormat='{}{0:F2}'}" Foreground="#fff" FontWeight="Bold" FontSize="12"/>
+                        </StackPanel>
+                    </StackPanel>
+
                 </StackPanel>
             </Border>
         </Canvas>
@@ -537,6 +574,127 @@
             </Border>
         </Border>
 
+        <!-- CLINICAL DELTA MATRIX MODAL -->
+        <Border IsVisible="{Binding IsDeltaOpen}" Background="#B2000000" ZIndex="210">
+            <Border Background="#1e1e1e" BorderBrush="#007acc" BorderThickness="1" CornerRadius="8" Width="1000" MaxHeight="780" Padding="25" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 10 30 0 #A8000000">
+                <StackPanel Spacing="15">
+                    <Grid>
+                        <StackPanel>
+                            <TextBlock Text="Clinical Delta Matrix" FontSize="20" FontWeight="Bold" Foreground="White"/>
+                            <TextBlock Text="Comparative lab analysis &amp; behavioral trajectory" FontSize="11" Foreground="#888"/>
+                        </StackPanel>
+                        <Button Content="[X]" Command="{Binding CloseDeltaCommand}" Background="Transparent" Foreground="#888" HorizontalAlignment="Right"/>
+                    </Grid>
+
+                    <!-- Selection Dropdowns -->
+                    <Grid ColumnDefinitions="*, *" Margin="0,10,0,0">
+                        <StackPanel Grid.Column="0" Margin="0,0,10,0">
+                            <TextBlock Text="Baseline Lab (A)" FontSize="11" Foreground="#888"/>
+                            <ComboBox ItemsSource="{Binding ClinicalLogs}" SelectedItem="{Binding SelectedLabA}" HorizontalAlignment="Stretch">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Timestamp, Converter={StaticResource RelTimeConverter}}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+                        <StackPanel Grid.Column="1" Margin="10,0,0,0">
+                            <TextBlock Text="Comparison Lab (B)" FontSize="11" Foreground="#888"/>
+                            <ComboBox ItemsSource="{Binding ClinicalLogs}" SelectedItem="{Binding SelectedLabB}" HorizontalAlignment="Stretch">
+                                <ComboBox.ItemTemplate>
+                                    <DataTemplate>
+                                        <TextBlock Text="{Binding Timestamp, Converter={StaticResource RelTimeConverter}}"/>
+                                    </DataTemplate>
+                                </ComboBox.ItemTemplate>
+                            </ComboBox>
+                        </StackPanel>
+                    </Grid>
+
+                    <Grid ColumnDefinitions="1.2*, 1*" Margin="0,10,0,0" IsVisible="{Binding DeltaResult, Converter={x:Static ObjectConverters.IsNotNull}}">
+                        
+                        <!-- Left Column: The Raw Numbers -->
+                        <Border Background="#151515" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="15" Margin="0,0,10,0">
+                            <StackPanel Spacing="10">
+                                <Grid ColumnDefinitions="2*, *, *, *">
+                                    <TextBlock Grid.Column="1" Text="LAB A" FontWeight="Bold" Foreground="#888" HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="LAB B" FontWeight="Bold" Foreground="#888" HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="3" Text="DELTA" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center"/>
+                                </Grid>
+
+                                <Rectangle Height="1" Fill="#333"/>
+                                <TextBlock Text="CLINICAL METRICS" FontSize="10" FontWeight="Bold" Foreground="#90a4ae"/>
+
+                                <Grid ColumnDefinitions="2*, *, *, *">
+                                    <TextBlock Grid.Column="0" Text="Volume (mL)" Foreground="#ccc"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding DeltaResult.LabA.ClinicalVol, StringFormat='{}{0:F1}'}" Foreground="White" HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding DeltaResult.LabB.ClinicalVol, StringFormat='{}{0:F1}'}" Foreground="White" HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding DeltaResult.VolDelta, StringFormat='{}{0:+0.0;-0.0;0.0}'}" Foreground="#007acc" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                </Grid>
+                                <Grid ColumnDefinitions="2*, *, *, *">
+                                    <TextBlock Grid.Column="0" Text="Concentration (M/mL)" Foreground="#ccc"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding DeltaResult.LabA.Concentration}" Foreground="White" HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding DeltaResult.LabB.Concentration}" Foreground="White" HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding DeltaResult.ConcDelta, StringFormat='{}{0:+0;-0;0}'}" Foreground="#007acc" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                </Grid>
+                                <Grid ColumnDefinitions="2*, *, *, *">
+                                    <TextBlock Grid.Column="0" Text="Total Motility (%)" Foreground="#ccc"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding DeltaResult.LabA.Motility}" Foreground="White" HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding DeltaResult.LabB.Motility}" Foreground="White" HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding DeltaResult.MotilityDelta, StringFormat='{}{0:+0;-0;0}'}" Foreground="#007acc" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                </Grid>
+                                <Grid ColumnDefinitions="2*, *, *, *">
+                                    <TextBlock Grid.Column="0" Text="Prog Motility (%)" Foreground="#ccc"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding DeltaResult.LabA.ProgMotility}" Foreground="White" HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding DeltaResult.LabB.ProgMotility}" Foreground="White" HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding DeltaResult.ProgMotilityDelta, StringFormat='{}{0:+0;-0;0}'}" Foreground="#007acc" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                </Grid>
+                                <Grid ColumnDefinitions="2*, *, *, *">
+                                    <TextBlock Grid.Column="0" Text="Morphology (%)" Foreground="#ccc"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding DeltaResult.LabA.Morphology}" Foreground="White" HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding DeltaResult.LabB.Morphology}" Foreground="White" HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding DeltaResult.MorphDelta, StringFormat='{}{0:+0;-0;0}'}" Foreground="#007acc" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                </Grid>
+
+                                <Rectangle Height="1" Fill="#333" Margin="0,5"/>
+                                <TextBlock Text="74-DAY BEHAVIORAL LOOKBACK" FontSize="10" FontWeight="Bold" Foreground="#90a4ae"/>
+
+                                <Grid ColumnDefinitions="2*, *, *, *">
+                                    <TextBlock Grid.Column="0" Text="Avg Gap (h)" Foreground="#ccc"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding DeltaResult.AvgGapA, StringFormat='{}{0:F1}'}" Foreground="White" HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding DeltaResult.AvgGapB, StringFormat='{}{0:F1}'}" Foreground="White" HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="3" Text="{Binding DeltaResult.GapDelta, StringFormat='{}{0:+0.0;-0.0;0.0}'}" Foreground="#f57c00" FontWeight="Bold" HorizontalAlignment="Center"/>
+                                </Grid>
+                                <Grid ColumnDefinitions="2*, *, *, *">
+                                    <TextBlock Grid.Column="0" Text="Thermal Shadows" Foreground="#ccc"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding DeltaResult.ThermalEventsA}" Foreground="White" HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding DeltaResult.ThermalEventsB}" Foreground="White" HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="3" Text="--" Foreground="#555" HorizontalAlignment="Center"/>
+                                </Grid>
+                                <Grid ColumnDefinitions="2*, *, *, *">
+                                    <TextBlock Grid.Column="0" Text="Zinc Saturation (%)" Foreground="#ccc"/>
+                                    <TextBlock Grid.Column="1" Text="{Binding DeltaResult.ZincSatA, StringFormat='{}{0:P0}'}" Foreground="White" HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="2" Text="{Binding DeltaResult.ZincSatB, StringFormat='{}{0:P0}'}" Foreground="White" HorizontalAlignment="Center"/>
+                                    <TextBlock Grid.Column="3" Text="--" Foreground="#555" HorizontalAlignment="Center"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Right Column: The Relative Trajectory Chart -->
+                        <Border Grid.Column="1" Background="#151515" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="15">
+                            <Grid RowDefinitions="Auto, *">
+                                <TextBlock Grid.Row="0" Text="RELATIVE IMPROVEMENT (%)" FontSize="10" FontWeight="Bold" Foreground="#90a4ae" Margin="0,0,0,10"/>
+                                <lvc:CartesianChart Grid.Row="1" Series="{Binding DeltaChartSeries}" XAxes="{Binding DeltaXAxes}" YAxes="{Binding DeltaYAxes}" TooltipPosition="Top" MinHeight="250"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <TextBlock IsVisible="{Binding DeltaResult, Converter={x:Static ObjectConverters.IsNull}}" 
+                               Text="Select two distinct clinical labs to view delta matrix." 
+                               Foreground="#888" FontStyle="Italic" HorizontalAlignment="Center" Margin="0,20"/>
+                </StackPanel>
+            </Border>
+        </Border>
+
         <!-- SETTINGS MODAL -->
         <Border IsVisible="{Binding IsSettingsOpen}" Background="#B2000000" ZIndex="100">
             <Border Background="#1e1e1e" BorderBrush="#444" BorderThickness="1" CornerRadius="8" Width="550" Padding="25" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 10 30 0 #A8000000">
@@ -546,7 +704,7 @@
                         <Button Content="[X]" Command="{Binding CloseSettingsCommand}" Background="Transparent" Foreground="#888" HorizontalAlignment="Right"/>
                     </Grid>
 
-<StackPanel Spacing="10">
+                    <StackPanel Spacing="10">
                         <TextBlock Text="Threshold Limits" FontWeight="Bold"/>
                         <Grid ColumnDefinitions="*,*,Auto">
                             <StackPanel Grid.Column="0" Margin="0,0,10,0">
@@ -566,7 +724,6 @@
                                   Margin="0,5,0,0"/>
                     </StackPanel>
 
-
                     <StackPanel Spacing="10">
                         <TextBlock Text="Clinical Blackout Window" FontWeight="Bold"/>
                         <Grid ColumnDefinitions="*, Auto, Auto">
@@ -578,10 +735,11 @@
 
                     <StackPanel Spacing="10">
                         <TextBlock Text="Mathematical Analysis" FontWeight="Bold"/>
-                        <Grid ColumnDefinitions="*, *">
-                            <Button Grid.Column="0" Content="Auto-Calibrate" Command="{Binding AutoCalibrateCommand}" Background="#f57c00" Foreground="White" HorizontalAlignment="Stretch" Margin="0,0,5,0"/>
-                            <Button Grid.Column="1" Content="Analyze Supps" Command="{Binding AnalyzeSupplementsCommand}" Background="#4caf50" Foreground="White" HorizontalAlignment="Stretch" Margin="5,0,0,0"/>
-                        </Grid>
+                        <UniformGrid Columns="3">
+                            <Button Content="Auto-Calibrate" Command="{Binding AutoCalibrateCommand}" Background="#f57c00" Foreground="White" HorizontalAlignment="Stretch" Margin="2"/>
+                            <Button Content="Analyze Supps" Command="{Binding AnalyzeSupplementsCommand}" Background="#4caf50" Foreground="White" HorizontalAlignment="Stretch" Margin="2"/>
+                            <Button Content="Compare Labs" Command="{Binding OpenDeltaCommand}" Background="#007acc" Foreground="White" HorizontalAlignment="Stretch" Margin="2"/>
+                        </UniformGrid>
                     </StackPanel>
 
                     <StackPanel Spacing="10">

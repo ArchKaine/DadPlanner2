@@ -210,7 +210,6 @@ namespace DadPlanner2.Services
                 }
             }
 
-            // Create pre-migration safety snapshot prior to running schema alterations
             CreatePreMigrationSafetySnapshot();
 
             try
@@ -744,12 +743,12 @@ namespace DadPlanner2.Services
                 else
                 {
                     int modeRoll = rand.Next(100);
-                    if (modeRoll < 3)
+                    if (modeRoll < 8)
                     {
                         randomMode = "Clinical-Lab";
                         gapHours = rand.Next(72, 120);
                     }
-                    else if (modeRoll < 40)
+                    else if (modeRoll < 45)
                     {
                         randomMode = "Playtime";
                     }
@@ -759,10 +758,10 @@ namespace DadPlanner2.Services
                     }
                 }
 
-                int randomZinc = (i < 75) ? 1 : 0;
-                int randomMaca = (i < 75) ? 1 : 0;
-                int randomVitD = (i < 75) ? 1 : 0;
-                int randomVitC = (i < 75) ? 1 : 0;
+                int randomZinc = rand.Next(100) < 65 ? 1 : 0;
+                int randomMaca = rand.Next(100) < 50 ? 1 : 0;
+                int randomVitD = rand.Next(100) < 60 ? 1 : 0;
+                int randomVitC = rand.Next(100) < 70 ? 1 : 0;
 
                 string fakeSupps = $"{{\"zinc\":{randomZinc},\"maca\":{randomMaca},\"vitD\":{randomVitD},\"vitC\":{randomVitC}}}";
 
@@ -957,12 +956,11 @@ namespace DadPlanner2.Services
             }
             catch { }
         }
-        
-        // Add these two helper methods into DatabaseService:
+
         public bool GetSenescenceAlertSetting()
         {
             using var db = CreateConnection();
-            return GetSettingStr(db, "enable_senescence_alert") != "False"; // Defaults to true
+            return GetSettingStr(db, "enable_senescence_alert") != "False"; 
         }
 
         public void SaveSenescenceAlertSetting(bool enabled)

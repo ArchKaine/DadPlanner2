@@ -1,6 +1,3 @@
-Here is the comprehensive update to the README. It integrates the latest architectural changes, including the Edit History audit trail, the Pharmacokinetic decay overlays, the Clinical Delta Matrix, the Senescence Klaxon, and the PDF Notes configuration.
-
-```markdown
 # Dad-Planner 2 (DP2)
 
 This software is intended for guys like me who want to be a dad, and who are interested in taking full control of their data and their telemetry.

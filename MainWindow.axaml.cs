@@ -31,7 +31,7 @@ public partial class MainWindow : Window
         if (DataContext is not MainWindowViewModel vm) return;
 
         // GATEKEEPER: If any modal dialog is open, kill the tooltips and ignore hover logic
-        if (vm.IsHelpOpen || vm.IsSettingsOpen || vm.IsManualLogOpen || vm.IsEditLogOpen || vm.IsAlertOpen)
+        if (vm.IsHelpOpen || vm.IsSettingsOpen || vm.IsManualLogOpen || vm.IsEditLogOpen || vm.IsAlertOpen || vm.IsDeltaOpen)
         {
             vm.IsTooltipVisible = false;
             return;
@@ -113,13 +113,11 @@ public partial class MainWindow : Window
                     double ctrlW = bar.Bounds.Width;
                     double ctrlH = bar.Bounds.Height;
 
-                    // Grab X and Width so we don't bleed into adjacent controls
                     double plotX = barCore.DrawMarginLocation.X;
                     double plotY = barCore.DrawMarginLocation.Y;
                     double plotW = barCore.DrawMarginSize.Width;
                     double plotH = barCore.DrawMarginSize.Height;
                     
-                    // Strictly enforce both X and Y boundaries
                     if (p.X >= plotX && p.X <= plotX + plotW && p.Y >= plotY && p.Y <= plotY + plotH)
                     {
                         vm.ProcessBarHover(p.Y, windowPos.X, windowPos.Y, plotY, plotH, ctrlX, ctrlY, ctrlW, ctrlH);
@@ -153,6 +151,36 @@ public partial class MainWindow : Window
                     if (p.X >= plotX && p.X <= plotX + plotW && p.Y >= plotY && p.Y <= plotY + plotH)
                     {
                         vm.ProcessEnthusiasmHover(p.X, windowPos.X, windowPos.Y, plotX, plotW, ctrlX, ctrlY, ctrlW, ctrlH);
+                        handled = true;
+                    }
+                }
+            }
+        }
+
+        // 5. Pharmacokinetic Decay Overlay Hover
+        if (!handled)
+        {
+            var pkChart = this.FindControl<LiveChartsCore.SkiaSharpView.Avalonia.CartesianChart>("PkChart");
+            if (pkChart != null && pkChart.CoreChart is LiveChartsCore.Chart<LiveChartsCore.SkiaSharpView.Drawing.SkiaSharpDrawingContext> pkCore)
+            {
+                var tlPoint = pkChart.TranslatePoint(new Point(0, 0), this);
+                if (tlPoint.HasValue)
+                {
+                    var p = e.GetPosition(pkChart);
+                    
+                    double ctrlX = tlPoint.Value.X;
+                    double ctrlY = tlPoint.Value.Y;
+                    double ctrlW = pkChart.Bounds.Width;
+                    double ctrlH = pkChart.Bounds.Height;
+
+                    double plotX = pkCore.DrawMarginLocation.X;
+                    double plotY = pkCore.DrawMarginLocation.Y;
+                    double plotW = pkCore.DrawMarginSize.Width;
+                    double plotH = pkCore.DrawMarginSize.Height;
+                    
+                    if (p.X >= plotX && p.X <= plotX + plotW && p.Y >= plotY && p.Y <= plotY + plotH)
+                    {
+                        vm.ProcessPkHover(p.X, windowPos.X, windowPos.Y, plotX, plotW, ctrlX, ctrlY, ctrlW, ctrlH);
                         handled = true;
                     }
                 }

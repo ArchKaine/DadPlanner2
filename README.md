@@ -6,7 +6,7 @@ Standard calendar apps aren't built for clinical reproductive health. When you n
 
 Even if I can't become a dad (Which at time of writing is still up in the air), this is my contribution to those who want to. To you guys, I wish the best of luck and more than a few 'swimmers' jokes :)
 
-Dad-Planner 2 is a highly over-engineered, offline-first sexual frequency, biological baseline, and clinical tracker. It enforces routine health cycles, captures specific clinical variables (thermal stress, subjective volume, biological saturation), and provides interactive local statistical analysis—all while ensuring your most private biological data never leaves your machine.
+Dad-Planner 2 is a highly over-engineered, offline-first sexual frequency, biological baseline, and clinical tracker. It enforces routine health cycles, captures specific clinical variables (thermal stress, bespoke biometrics, diurnal saturation), and provides interactive local statistical analysis—all while ensuring your most private biological data never leaves your machine.
 
 This second-generation build (DP2) discards the original web-wrapper approach for a pure, compiled C# Avalonia desktop architecture.
 
@@ -60,7 +60,6 @@ dadplanner-2-run.bat           Windows development launcher
 dadplanner-2-run.command       macOS development launcher
 dadplanner-2-install-desktop.sh User-local Linux application-menu installer
 
-
 ```
 
 The launch scripts are intended to be run from a checkout of this repository. They resolve their own location, so they also work when started from another current directory.
@@ -69,8 +68,9 @@ The launch scripts are intended to be run from a checkout of this repository. Th
 
 ## ✨ Key Features
 
-### 📊 Clinical Telemetry & Tracking
+### 📊 Clinical Telemetry & Custom Biometrics
 
+* **Biometric Capacity Calibration:** Define your exact spermatogenic hardware limits by inputting sonographic dimensions. The engine applies the Lambert formula (L × W × H × 0.71) to calculate your true bilateral volume, replacing generic 30mL male medians and dynamically scaling your individual senescence decay curve and maximum endurance thresholds.
 * **Dynamic Telemetry HUD:** Real-time calculation of time elapsed since your last event, rolling averages, and maximum endurance gaps. Models recovery through 4 distinct biological phases: Recharging, Optimal Viability, Extended Reserve, and Viability Fading.
 * **Configurable Boundary Thresholds:** Set your own clinical "Floor" (minimum refractory period to avoid volume depletion) and "Ceiling" (maximum hours between routine maintenance).
 * **Senescence Klaxon:** Hardware-level behavioral alert. If the recovery gap extends into dangerous senescence (default >144 hours), an un-ignorable, flashing full-screen klaxon overlays the application, preventing UI interaction until dismissed.
@@ -78,10 +78,11 @@ The launch scripts are intended to be run from a checkout of this repository. Th
 * **Granular Clinical Metrics:** Dedicated numerical inputs for formal semen analysis parameters, capturing Clinical Volume (mL), Concentration (M), Total Motility (%), Progressive Motility (%), Morphology (%), and pH Level.
 * **Lab Report PDF Vault:** Attach, store (as SQLite BLOBs), and launch original laboratory PDF results directly from the Avalonia dashboard via your native OS document viewer.
 * **Pre-Log Modifiers:** Track crucial biological variables like subjective volume, release count, volume confidence, a 4-level Thermal Stress Index, and context/symptom notes.
-* **Supplement Tracking:** Persisted tracking for specific dietary stacks (Zinc, Maca, Vitamin D3, Vitamin C).
+* **Supplement Tracking:** Persisted tracking for specific dietary stacks (Zinc, Maca, Vitamin D3, Vitamin C, Tadalafil).
 
 ### 📈 Interactive Analytics & Dashboards
 
+* **Chartless Diurnal Engine:** A silent background analyzer evaluates the 24-hour distribution of historical high-yield and clinical sessions to mathematically isolate your circadian peak. Presents your optimized 3-hour biological production window as an unobtrusive text hint during log entry, without cluttering the UI with unnecessary widgets.
 * **Pharmacokinetic Decay Overlay:** Calculates and graphs the mathematical elimination curves (C = C₀ · e⁻ᵏᵗ) of tracked supplements directly beneath the macro-trend graph, mapping specific biological half-lives (e.g., Zinc: 12 days, Maca: 20 hours) to visualize overlapping blood-serum saturation.
 * **365-Day Activity Matrix:** GitHub-style density heatmap built natively in XAML, plotting year-round event frequency and maximum daily volume yields. Click any day's tile to immediately locate and scroll to that session in the data grid.
 * **Macro-Trend Enthusiasm:** A 14-day rolling expenditure graph that compares cumulative biological output against an optimal mathematical baseline derived from your calibrated recovery thresholds.
@@ -95,7 +96,7 @@ The launch scripts are intended to be run from a checkout of this repository. Th
 * **Ground-Truth Clinical Override:** Dynamically breaks an active Thermal Shadow if a subsequent formal lab test returns normal WHO baseline metrics (≥ 15M/mL Concentration, ≥ 40% Motility), proving system health and restoring analytical tracking.
 * **Biological Saturation Analysis:** Evaluates physiological buildup by mapping a rolling window to determine supplement saturation. Runs statistical comparisons on contiguous, uncompromised datasets (excluding Thermal Shadows) to prove whether specific supplements mathematically increase volume yield or accelerate recovery speed.
 * **Auto-Calibration Engine:** Mathematically analyzes historical recovery gaps to automatically recommend personalized Floor and Ceiling thresholds based on your standard deviation.
-* **90-Day Retrospective Report:** Instantly synthesize your last three months of data into a formatted, printable PDF. Utilizes headless Skia engine routing to generate crisp, print-ready data charts directly into the document structure. Includes a toggle to cleanly strip personal session notes from the final clinical export.
+* **90-Day Retrospective Report:** Instantly synthesize your last three months of data into a formatted, printable PDF. Utilizes headless Skia engine routing to generate crisp, 2x scaled, print-ready data charts directly into the document structure alongside your biometric hardware profile and clinical delta analysis. Strips out mundane date loops in favor of high-level statistical summaries. Includes a toggle to cleanly exclude personal session notes from the final clinical export.
 * **Clinical Blackout Mode:** Locks in mandatory abstinence windows and visually suppresses data interference prior to scheduled medical baseline testing. Tracks WHO 2021 Clinical Abstinence Compliance (Ideal: 48-72h, Acceptable: 48-168h).
 
 ### 🔒 Security, Audit & Privacy
@@ -119,9 +120,8 @@ The launch scripts are intended to be run from a checkout of this repository. Th
 Clone the repository and enter its root directory:
 
 ```bash
-git clone [https://github.com/ArchKaine/DadPlanner2.git](https://github.com/ArchKaine/DadPlanner2.git)
+git clone https://github.com/ArchKaine/DadPlanner2.git
 cd DadPlanner2
-
 
 ```
 
@@ -144,14 +144,12 @@ chmod +x dadplanner-2-run.command
 xattr -c dadplanner-2-run.command
 ./dadplanner-2-run.command
 
-
 ```
 
 **For Windows:**
 
 ```cmd
 dadplanner-2-run.bat
-
 
 ```
 
@@ -161,7 +159,6 @@ From the repository root, install a user-local `.desktop` entry:
 
 ```bash
 ./dadplanner-2-install-desktop.sh
-
 
 ```
 
@@ -176,7 +173,6 @@ The database is created as `inventory.db` beneath the platform-specific applicat
 ```bash
 dotnet test Tests/DadPlanner2.Tests.csproj
 
-
 ```
 
 ---
@@ -190,7 +186,6 @@ Dad-Planner 2 is configured to compile into standalone executables via standard 
 ```bash
 dotnet publish -c Release -r linux-x64 --self-contained true -p:PublishSingleFile=true
 
-
 ```
 
 **Compile for Windows:**
@@ -198,14 +193,12 @@ dotnet publish -c Release -r linux-x64 --self-contained true -p:PublishSingleFil
 ```bash
 dotnet publish -c Release -r win-x64 --self-contained true -p:PublishSingleFile=true
 
-
 ```
 
 **Compile for macOS:**
 
 ```bash
 dotnet publish -c Release -r osx-x64 --self-contained true -p:PublishSingleFile=true
-
 
 ```
 

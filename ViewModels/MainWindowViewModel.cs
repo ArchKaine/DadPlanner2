@@ -1441,6 +1441,39 @@ namespace DadPlanner2.ViewModels
                     _chartMaxX = gapData.Last().X!.Value + 43200; 
                 }
 
+                // --- FORECASTING ENGINE ---
+                var predictionPts = new List<ChartLogPoint>();
+                var predictionLineData = new List<ChartLogPoint>();
+                var recentLogs = releaseLogs.OrderByDescending(l => l.Timestamp).Take(15).ToList();
+
+                if (recentLogs.Count >= 2 && gapData.Count > 0)
+                {
+                    var gaps = new List<double>();
+                    for (int i = 0; i < recentLogs.Count - 1; i++) 
+                        gaps.Add((recentLogs[i].Timestamp - recentLogs[i + 1].Timestamp) / 3600.0);
+                    
+                    double meanGap = gaps.Average();
+                    double stdDev = Math.Sqrt(gaps.Sum(g => Math.Pow(g - meanGap, 2)) / gaps.Count);
+
+                    var lastActual = gapData.Last();
+                    predictionLineData.Add(lastActual);
+
+                    double predictedTs1 = lastActual.X!.Value + (meanGap * 3600.0);
+                    double predictedTs2 = predictedTs1 + (meanGap * 3600.0);
+
+                    var p1Log = new LogRecord { Mode = "Predicted", Volume = "Statistical Mean", Timestamp = (long)predictedTs1, Supplements = "{}" };
+                    var p2Log = new LogRecord { Mode = "Predicted", Volume = "Statistical Mean", Timestamp = (long)predictedTs2, Supplements = "{}" };
+
+                    var p1 = new ChartLogPoint { X = predictedTs1, Y = meanGap, IsPrediction = true, StdDev = stdDev, Log = p1Log };
+                    var p2 = new ChartLogPoint { X = predictedTs2, Y = meanGap, IsPrediction = true, StdDev = stdDev, Log = p2Log };
+
+                    predictionPts.Add(p1); predictionPts.Add(p2);
+                    predictionLineData.Add(p1); predictionLineData.Add(p2);
+
+                    _chartMaxX = predictedTs2 + 43200; 
+                }
+                // ---------------------------
+
                 var lineSeries = new LineSeries<ChartLogPoint> 
                 { 
                     Name = "", 
@@ -1452,6 +1485,26 @@ namespace DadPlanner2.ViewModels
                     GeometryFill = null, 
                     GeometryStroke = null, 
                     IsHoverable = false 
+                };
+
+                var predictedLineSeries = new LineSeries<ChartLogPoint>
+                {
+                    Name = "Trend",
+                    Values = predictionLineData,
+                    LineSmoothness = 0,
+                    Fill = null,
+                    Stroke = new SolidColorPaint(new SKColor(245, 124, 0)) { StrokeThickness = 2, PathEffect = new LiveChartsCore.SkiaSharpView.Painting.Effects.DashEffect(new float[] { 6, 6 }) },
+                    GeometrySize = 0,
+                    IsHoverable = false
+                };
+                
+                var predictedScatterSeries = new ScatterSeries<ChartLogPoint>
+                {
+                    Name = "Predicted",
+                    Values = predictionPts,
+                    GeometrySize = 10,
+                    Fill = new SolidColorPaint(new SKColor(18, 18, 18)),
+                    Stroke = new SolidColorPaint(new SKColor(245, 124, 0)) { StrokeThickness = 2 }
                 };
                 
                 var maintSeries = new ScatterSeries<ChartLogPoint> 
@@ -1490,7 +1543,7 @@ namespace DadPlanner2.ViewModels
                     Stroke = new SolidColorPaint(new SKColor(30,30,30)) { StrokeThickness = 2 } 
                 };
 
-                ChartSeries = new ISeries[] { lineSeries, maintSeries, playSeries, babySeries, labSeries };
+                ChartSeries = new ISeries[] { lineSeries, predictedLineSeries, maintSeries, playSeries, babySeries, labSeries, predictedScatterSeries };
                 
                 XAxes = new[] { 
                     new Axis 
@@ -1865,13 +1918,24 @@ namespace DadPlanner2.ViewModels
     {
         public LogRecord Log { get; set; } = null!;
         public bool IsBaseline { get; set; }
-        public string GapText => IsBaseline ? $"Baseline threshold: {(Y ?? 0):F1} Hrs (no prior gap)" : $"Measured gap: {(Y ?? 0):F1} Hrs";
-        public string HeaderText => DateTimeOffset.FromUnixTimeSeconds(Log.Timestamp).ToLocalTime().ToString("MMM dd, yyyy @ HH:mm");
+        public bool IsPrediction { get; set; }
+        public double? StdDev { get; set; }
+        
+        public string GapText => IsPrediction 
+            ? $"Projected gap: {(Y ?? 0):F1} Hrs (± {StdDev:F1}h)" 
+            : IsBaseline 
+                ? $"Baseline threshold: {(Y ?? 0):F1} Hrs (no prior gap)" 
+                : $"Measured gap: {(Y ?? 0):F1} Hrs";
+                
+        public string HeaderText => IsPrediction
+            ? $"PREDICTED WINDOW: {DateTimeOffset.FromUnixTimeSeconds(Log.Timestamp).ToLocalTime():MMM dd, yyyy @ HH:mm}"
+            : DateTimeOffset.FromUnixTimeSeconds(Log.Timestamp).ToLocalTime().ToString("MMM dd, yyyy @ HH:mm");
         
         public string FlagsText 
         { 
             get 
             { 
+                if (IsPrediction) return "[STATISTICAL PROJECTION]";
                 var flags = new List<string>(); 
                 if (Log.HeatFlag > 0) flags.Add($"[HEAT L{Log.HeatFlag}]"); 
                 if (Log.Supplements.Contains("\"zinc\":1")) flags.Add("[Zn]"); 
@@ -1889,6 +1953,7 @@ namespace DadPlanner2.ViewModels
         { 
             get 
             { 
+                if (IsPrediction) return "";
                 var lines = new List<string>(); 
                 if (Log.Concentration > 0) lines.Add($"Conc: {Log.Concentration} M"); 
                 if (Log.Motility > 0) lines.Add($"Mot: {Log.Motility}%"); 
@@ -1899,7 +1964,15 @@ namespace DadPlanner2.ViewModels
         }
         
         public bool HasLab => Log.Mode == "Clinical-Lab" && LabText.Length > 0;
-        public string ModeHex => Log.Mode switch { "Maintenance" => "#007acc", "Playtime" => "#9c27b0", "Baby-Making" => "#4caf50", "Clinical-Lab" => "#546e7a", "Daily Dose" => "#607d8b", _ => "#ccc" };
+        public string ModeHex => Log.Mode switch { 
+            "Maintenance" => "#007acc", 
+            "Playtime" => "#9c27b0", 
+            "Baby-Making" => "#4caf50", 
+            "Clinical-Lab" => "#546e7a", 
+            "Daily Dose" => "#607d8b", 
+            "Predicted" => "#f57c00",
+            _ => "#ccc" 
+        };
     }
 
     public class PieHoverData { public string Category { get; set; } = ""; public int Count { get; set; } public string ColorHex { get; set; } = ""; public double Percentage { get; set; } }

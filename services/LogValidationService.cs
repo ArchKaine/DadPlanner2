@@ -35,8 +35,14 @@ public sealed class LogValidationService
         int releaseCount = 1,
         VolumeConfidence volumeConfidence = VolumeConfidence.Unknown)
     {
-        if (releaseCount <= 0)
+        if (mode == "Daily Dose" && releaseCount != 0)
+        {
+            return "A Daily Dose log must have a release count of 0.";
+        }
+        if (mode != "Daily Dose" && releaseCount < 1)
+        {
             return "Release count must be a positive whole number.";
+        }
 
         if (!Enum.IsDefined(volumeConfidence))
             return "Volume confidence must be Observed, Estimated, or Unknown.";

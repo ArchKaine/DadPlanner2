@@ -101,6 +101,9 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private bool _includeNotesInReport = false;
         [ObservableProperty] private bool _showWankAlert;
 
+        // Dynamic PDF Button Text 
+        public string PdfButtonText => IncludeNotesInReport ? "[PDF] 90-Day Report (W/ Notes)" : "[PDF] 90-Day Report (Clinical)";
+
         private string _backupPath = "";
         public string BackupPath
         {
@@ -117,6 +120,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private bool _macaActive;
         [ObservableProperty] private bool _vitDActive;
         [ObservableProperty] private bool _vitCActive;
+        [ObservableProperty] private bool _tadalafilActive;
         [ObservableProperty] private string _selectedNotes = "";
         
         public bool ShowClinicalFields => SelectedMode == "Clinical-Lab";
@@ -138,6 +142,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private bool _manualMaca;
         [ObservableProperty] private bool _manualVitD;
         [ObservableProperty] private bool _manualVitC;
+        [ObservableProperty] private bool _manualTadalafil;
         [ObservableProperty] private string _manualNotes = "";
         
         public bool ShowManualClinicalFields => ManualMode == "Clinical-Lab";
@@ -162,6 +167,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private bool _editMaca;
         [ObservableProperty] private bool _editVitD;
         [ObservableProperty] private bool _editVitC;
+        [ObservableProperty] private bool _editTadalafil;
         [ObservableProperty] private string _editNotes = "";
         
         public bool ShowEditClinicalFields => EditMode == "Clinical-Lab";
@@ -242,12 +248,13 @@ namespace DadPlanner2.ViewModels
             MacaActive = savedSupps.ma;
             VitDActive = savedSupps.vitD;
             VitCActive = savedSupps.vitC;
+            TadalafilActive = savedSupps.tad;
             
-            // Bypass the auto-save triggers during initialization
             _enableSenescenceAlert = _dbService.GetSenescenceAlertSetting();
             _includeNotesInReport = _dbService.GetIncludeNotesInReportSetting();
             OnPropertyChanged(nameof(EnableSenescenceAlert));
             OnPropertyChanged(nameof(IncludeNotesInReport));
+            OnPropertyChanged(nameof(PdfButtonText));
 
             LoadData();
 
@@ -271,14 +278,12 @@ namespace DadPlanner2.ViewModels
             _uiRefresh.Start();
         }
 
-        // ==========================================
-        // AUTO-SAVE HANDLERS FOR STICKY TOGGLES
-        // ==========================================
         partial void OnIncludeNotesInReportChanged(bool value)
         {
             if (_dbService == null) return;
             _dbService.SaveIncludeNotesInReportSetting(value);
             _dbService.MarkDirty();
+            OnPropertyChanged(nameof(PdfButtonText));
         }
 
         partial void OnEnableSenescenceAlertChanged(bool value)
@@ -545,8 +550,8 @@ namespace DadPlanner2.ViewModels
 
             int volHigh = Logs.Count(l => l.Volume == "High");
             int volNormal = Logs.Count(l => l.Volume == "Normal");
-            int volLow = Logs.Count(l => l.Volume == "Low");
-            int volDry = Logs.Count(l => l.Volume == "None" || l.Volume == "N/A");
+            int volLow = Logs.Count(l => l.Volume == "Low" && l.Mode != "Daily Dose");
+            int volDry = Logs.Count(l => (l.Volume == "None" || l.Volume == "N/A") && l.Mode != "Daily Dose");
 
             string category = ""; int count = 0; string hex = "";
             
@@ -581,6 +586,7 @@ namespace DadPlanner2.ViewModels
             var macaPts = PkSeries.ElementAtOrDefault(1)?.Values as IEnumerable<ObservablePoint>;
             var vitDPts = PkSeries.ElementAtOrDefault(2)?.Values as IEnumerable<ObservablePoint>;
             var vitCPts = PkSeries.ElementAtOrDefault(3)?.Values as IEnumerable<ObservablePoint>;
+            var tadPts  = PkSeries.ElementAtOrDefault(4)?.Values as IEnumerable<ObservablePoint>;
 
             if (zincPts == null) { IsTooltipVisible = false; return; }
 
@@ -596,6 +602,7 @@ namespace DadPlanner2.ViewModels
             double macaVal = macaPts?.FirstOrDefault(p => Math.Abs((p.X ?? 0) - ts) < 3600)?.Y ?? 0;
             double vitDVal = vitDPts?.FirstOrDefault(p => Math.Abs((p.X ?? 0) - ts) < 3600)?.Y ?? 0;
             double vitCVal = vitCPts?.FirstOrDefault(p => Math.Abs((p.X ?? 0) - ts) < 3600)?.Y ?? 0;
+            double tadVal  = tadPts?.FirstOrDefault(p => Math.Abs((p.X ?? 0) - ts) < 3600)?.Y ?? 0;
 
             HoveredPk = new PkHoverData
             {
@@ -603,11 +610,12 @@ namespace DadPlanner2.ViewModels
                 Zinc = zincVal,
                 Maca = macaVal,
                 VitD = vitDVal,
-                VitC = vitCVal
+                VitC = vitCVal,
+                Tadalafil = tadVal
             };
 
             HoveredTimelinePoint = null; HoveredPie = null; HoveredBar = null; HoveredEnthusiasm = null;
-            PositionTooltip(winX, winY, ctrlX, ctrlY, ctrlW, ctrlH, 220, 130);
+            PositionTooltip(winX, winY, ctrlX, ctrlY, ctrlW, ctrlH, 220, 145);
             IsTooltipVisible = true;
         }
 
@@ -632,7 +640,7 @@ namespace DadPlanner2.ViewModels
             VolumeConfidence volumeConfidence = VolumeConfidence.Unknown)
         {
             string? error = _logValidation.Validate(
-                Logs,
+                Logs.ToList(),
                 mode,
                 clinicalVol,
                 concentration,
@@ -672,6 +680,7 @@ namespace DadPlanner2.ViewModels
                         "Maca" => log.Supplements.Contains("\"maca\":1"),
                         "Vit D3" => log.Supplements.Contains("\"vitD\":1"),
                         "Vit C" => log.Supplements.Contains("\"vitC\":1"),
+                        "Tadalafil" => log.Supplements.Contains("\"tadalafil\":1"),
                         _ => true
                     };
                     if (!hasMatch) continue;
@@ -699,6 +708,7 @@ namespace DadPlanner2.ViewModels
             MacaActive = savedSupps.ma;
             VitDActive = savedSupps.vitD;
             VitCActive = savedSupps.vitC;
+            TadalafilActive = savedSupps.tad;
 
             Logs.Clear();
             var records = _dbService.GetAllLogs();
@@ -719,13 +729,12 @@ namespace DadPlanner2.ViewModels
 
             if (apptTs > now)
             {
-                var releaseLogs = Logs.Where(l => l.Volume != "None" && l.Volume != "N/A").OrderByDescending(l => l.Timestamp).ToList();
+                var releaseLogs = Logs.Where(l => l.Volume != "None" && l.Volume != "N/A" && l.Mode != "Daily Dose").OrderByDescending(l => l.Timestamp).ToList();
                 long lastReleaseTs = releaseLogs.Count > 0 ? releaseLogs[0].Timestamp : now;
                 var compliance = _telemetryAnalysis.CheckClinicalCompliance(apptTs, lastReleaseTs, now);
 
                 BlackoutMessage = compliance.ComplianceMessage;
 
-                // Calculate exact target clearance window
                 var apptDate = DateTimeOffset.FromUnixTimeSeconds(apptTs).ToLocalTime();
                 var windowStart = apptDate.AddHours(-72);
                 var windowEnd = apptDate.AddHours(-48);
@@ -764,14 +773,14 @@ namespace DadPlanner2.ViewModels
         private bool GetSupplementSaturation(long targetTs, string suppKey, int daysBack)
         {
             return _supplementSaturation
-                .Calculate(Logs, targetTs, suppKey, daysBack)
+                .Calculate(Logs.ToList(), targetTs, suppKey, daysBack)
                 .IsSaturated;
         }
 
         private string EstimateBabyMakingVolume(long timestamp)
         {
             return _telemetryAnalysis.EstimateVolume(
-                Logs,
+                Logs.ToList(),
                 timestamp,
                 MinHours,
                 MaxHours,
@@ -779,9 +788,37 @@ namespace DadPlanner2.ViewModels
         }
 
         [RelayCommand]
+        private void LogDailySupplements()
+        {
+            string supps = $"{{\"zinc\":{(ZincActive ? 1 : 0)},\"maca\":{(MacaActive ? 1 : 0)},\"vitD\":{(VitDActive ? 1 : 0)},\"vitC\":{(VitCActive ? 1 : 0)},\"tadalafil\":{(TadalafilActive ? 1 : 0)}}}";
+            long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+
+            var log = new LogRecord 
+            { 
+                Timestamp = timestamp, 
+                Mode = "Daily Dose", 
+                Volume = "None", 
+                ReleaseCount = 0, 
+                VolumeConfidence = VolumeConfidence.Unknown, 
+                HeatFlag = SelectedHeat,
+                Supplements = supps, 
+                ClinicalVol = 0, Concentration = 0, Motility = 0, ProgMotility = 0, Morphology = 0, PhLevel = 0, 
+                Notes = SelectedNotes 
+            };
+
+            _dbService.InsertLog(log); 
+            _dbService.SaveSupplementsState(ZincActive, MacaActive, VitDActive, VitCActive, TadalafilActive);
+            _dbService.MarkDirty();
+
+            LoadData(); 
+            SelectedNotes = ""; 
+            DatabaseService.ShowNotification("Supplements Tracked", "Daily dose recorded without resetting recovery telemetry.");
+        }
+
+        [RelayCommand]
         private void LogEvent(string mode)
         {
-            string supps = $"{{\"zinc\":{(ZincActive ? 1 : 0)},\"maca\":{(MacaActive ? 1 : 0)},\"vitD\":{(VitDActive ? 1 : 0)},\"vitC\":{(VitCActive ? 1 : 0)}}}";
+            string supps = $"{{\"zinc\":{(ZincActive ? 1 : 0)},\"maca\":{(MacaActive ? 1 : 0)},\"vitD\":{(VitDActive ? 1 : 0)},\"vitC\":{(VitCActive ? 1 : 0)},\"tadalafil\":{(TadalafilActive ? 1 : 0)}}}";
             long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
             if (!ValidateLogInput(mode, ClinicalVol, Concentration, Motility, ProgMotility, Morphology, PhLevel, timestamp, null, SelectedReleaseCount, SelectedVolumeConfidence))
@@ -797,7 +834,7 @@ namespace DadPlanner2.ViewModels
             var log = new LogRecord { Timestamp = timestamp, Mode = mode, Volume = vol, ReleaseCount = SelectedReleaseCount, VolumeConfidence = confidence, HeatFlag = SelectedHeat, Supplements = supps, ClinicalVol = ClinicalVol ?? 0.0, Concentration = Concentration ?? 0, Motility = Motility ?? 0, ProgMotility = ProgMotility ?? 0, Morphology = Morphology ?? 0, PhLevel = PhLevel ?? 0.0, Notes = SelectedNotes };
 
             _dbService.InsertLog(log); 
-            _dbService.SaveSupplementsState(ZincActive, MacaActive, VitDActive, VitCActive);
+            _dbService.SaveSupplementsState(ZincActive, MacaActive, VitDActive, VitCActive, TadalafilActive);
             _dbService.MarkDirty();
 
             LoadData(); ClearForm(); DatabaseService.ShowNotification("Event Logged", $"Successfully recorded {mode} event.");
@@ -807,20 +844,32 @@ namespace DadPlanner2.ViewModels
         private void SubmitManualLog()
         {
             if (!ManualDate.HasValue || !ManualTime.HasValue) return;
-            DateTime dt = ManualDate.Value.Date + ManualTime.Value; long ts = new DateTimeOffset(dt).ToUnixTimeSeconds();
+            DateTime dt = ManualDate.Value.Date + ManualTime.Value; 
+            long ts = new DateTimeOffset(dt).ToUnixTimeSeconds();
+
+            if (ManualMode == "Daily Dose") 
+            { 
+                ManualVolume = "None"; 
+                ManualReleaseCount = 0; 
+            }
+            else if (ManualMode == "Clinical-Lab" && (ManualVolume == "None" || ManualVolume == "N/A")) 
+            {
+                ManualVolume = "Normal";
+            }
+            else if (ManualMode == "Baby-Making") 
+            {
+                ManualVolume = EstimateBabyMakingVolume(ts);
+            }
 
             if (!ValidateLogInput(ManualMode, ManualClinicalVol, ManualConcentration, ManualMotility, ManualProgMotility, ManualMorphology, ManualPhLevel, ts, null, ManualReleaseCount, ManualVolumeConfidence))
             {
                 return;
             }
 
-            int z = ManualZinc ? 1 : 0, m = ManualMaca ? 1 : 0, d = ManualVitD ? 1 : 0, c = ManualVitC ? 1 : 0;
-            string vol = ManualVolume;
-            if (ManualMode == "Clinical-Lab" && (vol == "None" || vol == "N/A")) vol = "Normal";
-            if (ManualMode == "Baby-Making") vol = EstimateBabyMakingVolume(ts);
+            int z = ManualZinc ? 1 : 0, m = ManualMaca ? 1 : 0, d = ManualVitD ? 1 : 0, c = ManualVitC ? 1 : 0, tad = ManualTadalafil ? 1 : 0;
             var confidence = ManualMode == "Baby-Making" ? VolumeConfidence.Estimated : ManualVolumeConfidence;
 
-            var newLog = new LogRecord { Timestamp = ts, Mode = ManualMode, Volume = vol, ReleaseCount = ManualReleaseCount, VolumeConfidence = confidence, HeatFlag = ManualHeat, Supplements = $"{{\"zinc\":{z},\"maca\":{m},\"vitD\":{d},\"vitC\":{c}}}", ClinicalVol = ManualClinicalVol ?? 0.0, Concentration = ManualConcentration ?? 0, Motility = ManualMotility ?? 0, ProgMotility = ManualProgMotility ?? 0, Morphology = ManualMorphology ?? 0, PhLevel = ManualPhLevel ?? 0.0, Notes = ManualNotes };
+            var newLog = new LogRecord { Timestamp = ts, Mode = ManualMode, Volume = ManualVolume, ReleaseCount = ManualReleaseCount, VolumeConfidence = confidence, HeatFlag = ManualHeat, Supplements = $"{{\"zinc\":{z},\"maca\":{m},\"vitD\":{d},\"vitC\":{c},\"tadalafil\":{tad}}}", ClinicalVol = ManualClinicalVol ?? 0.0, Concentration = ManualConcentration ?? 0, Motility = ManualMotility ?? 0, ProgMotility = ManualProgMotility ?? 0, Morphology = ManualMorphology ?? 0, PhLevel = ManualPhLevel ?? 0.0, Notes = ManualNotes };
             
             _dbService.InsertLog(newLog, ManualLabFileName, _manualLabFileData);
             _dbService.MarkDirty();
@@ -835,7 +884,11 @@ namespace DadPlanner2.ViewModels
             if (log == null) return;
             EditId = log.Id; var dtOffset = DateTimeOffset.FromUnixTimeSeconds(log.Timestamp).ToLocalTime(); EditDate = dtOffset.Date; EditTime = dtOffset.TimeOfDay;
             EditMode = log.Mode; EditVolume = log.Volume; EditReleaseCount = log.ReleaseCount; EditVolumeConfidence = log.VolumeConfidence; EditHeat = log.HeatFlag;
-            EditZinc = log.Supplements.Contains("\"zinc\":1"); EditMaca = log.Supplements.Contains("\"maca\":1"); EditVitD = log.Supplements.Contains("\"vitD\":1"); EditVitC = log.Supplements.Contains("\"vitC\":1");
+            EditZinc = log.Supplements.Contains("\"zinc\":1"); 
+            EditMaca = log.Supplements.Contains("\"maca\":1"); 
+            EditVitD = log.Supplements.Contains("\"vitD\":1"); 
+            EditVitC = log.Supplements.Contains("\"vitC\":1");
+            EditTadalafil = log.Supplements.Contains("\"tadalafil\":1");
             EditClinicalVol = log.ClinicalVol > 0 ? log.ClinicalVol : null; EditConcentration = log.Concentration > 0 ? log.Concentration : null; EditMotility = log.Motility > 0 ? log.Motility : null; EditProgMotility = log.ProgMotility > 0 ? log.ProgMotility : null; EditMorphology = log.Morphology > 0 ? log.Morphology : null; EditPhLevel = log.PhLevel > 0 ? log.PhLevel : null;
             EditNotes = log.Notes ?? "";
             var history = _dbService.GetLogEditHistory(log.Id);
@@ -867,19 +920,28 @@ namespace DadPlanner2.ViewModels
         private void SaveEditLog()
         {
             if (!EditDate.HasValue || !EditTime.HasValue) return;
-            DateTime dt = EditDate.Value.Date + EditTime.Value; long ts = new DateTimeOffset(dt).ToUnixTimeSeconds();
+            DateTime dt = EditDate.Value.Date + EditTime.Value; 
+            long ts = new DateTimeOffset(dt).ToUnixTimeSeconds();
+
+            if (EditMode == "Daily Dose") 
+            { 
+                EditVolume = "None"; 
+                EditReleaseCount = 0; 
+            }
+            else if (EditMode == "Clinical-Lab" && (EditVolume == "None" || EditVolume == "N/A")) 
+            {
+                EditVolume = "Normal";
+            }
 
             if (!ValidateLogInput(EditMode, EditClinicalVol, EditConcentration, EditMotility, EditProgMotility, EditMorphology, EditPhLevel, ts, EditId, EditReleaseCount, EditVolumeConfidence))
             {
                 return;
             }
 
-            int z = EditZinc ? 1 : 0, m = EditMaca ? 1 : 0, d = EditVitD ? 1 : 0, c = EditVitC ? 1 : 0;
-            string vol = EditVolume;
-            if (EditMode == "Clinical-Lab" && (vol == "None" || vol == "N/A")) vol = "Normal";
+            int z = EditZinc ? 1 : 0, m = EditMaca ? 1 : 0, d = EditVitD ? 1 : 0, c = EditVitC ? 1 : 0, tad = EditTadalafil ? 1 : 0;
             var confidence = EditMode == "Baby-Making" ? VolumeConfidence.Estimated : EditVolumeConfidence;
 
-            var updatedLog = new LogRecord { Id = EditId, Timestamp = ts, Mode = EditMode, Volume = vol, ReleaseCount = EditReleaseCount, VolumeConfidence = confidence, HeatFlag = EditHeat, Supplements = $"{{\"zinc\":{z},\"maca\":{m},\"vitD\":{d},\"vitC\":{c}}}", ClinicalVol = EditClinicalVol ?? 0.0, Concentration = EditConcentration ?? 0, Motility = EditMotility ?? 0, ProgMotility = EditProgMotility ?? 0, Morphology = EditMorphology ?? 0, PhLevel = EditPhLevel ?? 0.0, Notes = EditNotes };
+            var updatedLog = new LogRecord { Id = EditId, Timestamp = ts, Mode = EditMode, Volume = EditVolume, ReleaseCount = EditReleaseCount, VolumeConfidence = confidence, HeatFlag = EditHeat, Supplements = $"{{\"zinc\":{z},\"maca\":{m},\"vitD\":{d},\"vitC\":{c},\"tadalafil\":{tad}}}", ClinicalVol = EditClinicalVol ?? 0.0, Concentration = EditConcentration ?? 0, Motility = EditMotility ?? 0, ProgMotility = EditProgMotility ?? 0, Morphology = EditMorphology ?? 0, PhLevel = EditPhLevel ?? 0.0, Notes = EditNotes };
             
             _dbService.UpdateLog(updatedLog, EditLabFileName, _editLabFileData);
             _dbService.MarkDirty();
@@ -903,7 +965,7 @@ namespace DadPlanner2.ViewModels
         {
             if (Logs.Count < 2) { ShowAlert("Error", "Not enough data. Keep logging!"); return; }
 
-            var releaseLogs = Logs.Where(l => l.Volume != "None" && l.Volume != "N/A").OrderBy(l => l.Timestamp).ToList();
+            var releaseLogs = Logs.Where(l => l.Volume != "None" && l.Volume != "N/A" && l.Mode != "Daily Dose").OrderBy(l => l.Timestamp).ToList();
             var uncompromisedLogs = new List<LogRecord>();
             foreach (var l in releaseLogs) { long shadowWindow = l.Timestamp - (74 * 24 * 3600); if (!Logs.Any(x => x.Timestamp >= shadowWindow && x.Timestamp < l.Timestamp && x.HeatFlag >= 2)) uncompromisedLogs.Add(l); }
             if (uncompromisedLogs.Count < 2) { ShowAlert("Error", "Not enough uncompromised release data points to calibrate."); return; }
@@ -921,11 +983,12 @@ namespace DadPlanner2.ViewModels
         [RelayCommand]
         private void AnalyzeSupplements()
         {
-            if (Logs.Count < 10) { ShowAlert("Error", "Need more data points to run statistical analysis. Keep logging!"); return; }
+            var validLogs = Logs.Where(l => l.Mode != "Daily Dose").ToList();
+            if (validLogs.Count < 10) { ShowAlert("Error", "Need more data points to run statistical analysis. Keep logging!"); return; }
 
             var analysis = _supplementAnalysis.Analyze(
-                Logs,
-                (timestamp, supplement, days) => _supplementSaturation.Calculate(Logs, timestamp, supplement, days));
+                validLogs,
+                (timestamp, supplement, days) => _supplementSaturation.Calculate(Logs.ToList(), timestamp, supplement, days));
             if (analysis.InsufficientData)
             {
                 ShowAlert("Analysis Needs More Data", "Too few uncompromised release events remain after thermal-shadow filtering.");
@@ -975,7 +1038,7 @@ namespace DadPlanner2.ViewModels
                 DeltaChartSeries = Array.Empty<ISeries>();
                 return;
             }
-            DeltaResult = _clinicalDelta.AnalyzeDelta(Logs, SelectedLabA.Id, SelectedLabB.Id);
+            DeltaResult = _clinicalDelta.AnalyzeDelta(Logs.ToList(), SelectedLabA.Id, SelectedLabB.Id);
             UpdateDeltaChart();
         }
 
@@ -1055,7 +1118,7 @@ namespace DadPlanner2.ViewModels
                 endTs = Logs.Max(l => l.Timestamp) + 86400;
             }
 
-            var curves = _pkService.CalculateCurves(Logs, startTs, endTs);
+            var curves = _pkService.CalculateCurves(Logs.ToList(), startTs, endTs);
 
             if (curves.Count == 0 || curves.Values.All(c => c.Count == 0))
             {
@@ -1098,6 +1161,15 @@ namespace DadPlanner2.ViewModels
                     Name = "Vitamin C",
                     Fill = null,
                     Stroke = new SolidColorPaint(new SKColor(245, 124, 0)) { StrokeThickness = 2 },
+                    GeometrySize = 0,
+                    LineSmoothness = 0.8
+                },
+                new LineSeries<ObservablePoint>
+                {
+                    Values = curves.ContainsKey("Tadalafil") ? curves["Tadalafil"] : new List<ObservablePoint>(),
+                    Name = "Tadalafil",
+                    Fill = null,
+                    Stroke = new SolidColorPaint(new SKColor(229, 57, 53)) { StrokeThickness = 2 },
                     GeometrySize = 0,
                     LineSmoothness = 0.8
                 }
@@ -1221,7 +1293,7 @@ namespace DadPlanner2.ViewModels
         private void CheckThermalShadow()
         {
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
-            var shadow = _telemetryAnalysis.GetThermalShadowDetails(Logs, now);
+            var shadow = _telemetryAnalysis.GetThermalShadowDetails(Logs.ToList(), now);
             if (shadow.IsActive)
             {
                 IsShadowActive = true;
@@ -1249,8 +1321,11 @@ namespace DadPlanner2.ViewModels
         private void UpdateTelemetry()
         {
             long now = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            
+            var releaseLogs = Logs.Where(l => l.Mode != "Daily Dose").ToList();
+            
             var metrics = _telemetryAnalysis.CalculateRecoveryMetrics(
-                Logs,
+                releaseLogs,
                 now,
                 MinHours,
                 MaxHours);
@@ -1315,7 +1390,7 @@ namespace DadPlanner2.ViewModels
             long thirtyDaysInSeconds = 2592000;
             long cutoffTimestamp = now - thirtyDaysInSeconds;
             
-            var recentEvents = Logs.Where(l => l.Timestamp >= cutoffTimestamp).ToList();
+            var recentEvents = releaseLogs.Where(l => l.Timestamp >= cutoffTimestamp).ToList();
 
             if (recentEvents.Count == 0)
             {
@@ -1323,14 +1398,14 @@ namespace DadPlanner2.ViewModels
             }
             else
             {
-                double eventsPerWeek = _telemetryAnalysis.CalculateFrequencyPerWeek(Logs, now);
+                double eventsPerWeek = _telemetryAnalysis.CalculateFrequencyPerWeek(releaseLogs, now);
                 HudFrequency = $"{eventsPerWeek:F1}/wk";
             }
         }
 
         private void UpdateCharts()
         {
-            var releaseLogs = Logs.Where(l => l.Volume != "None" && l.Volume != "N/A").OrderBy(l => l.Timestamp).ToList();
+            var releaseLogs = Logs.Where(l => l.Volume != "None" && l.Volume != "N/A" && l.Mode != "Daily Dose").OrderBy(l => l.Timestamp).ToList();
             
             if (releaseLogs.Count == 0)
             {
@@ -1444,7 +1519,7 @@ namespace DadPlanner2.ViewModels
                 };
             }
 
-            TotalEventCount = Logs.Count;
+            TotalEventCount = Logs.Count(l => l.Mode != "Daily Dose");
             int maint = Logs.Count(l => l.Mode == "Maintenance"); 
             int play = Logs.Count(l => l.Mode == "Playtime"); 
             int baby = Logs.Count(l => l.Mode == "Baby-Making"); 
@@ -1464,8 +1539,8 @@ namespace DadPlanner2.ViewModels
 
             int volHigh = Logs.Count(l => l.Volume == "High"); 
             int volNormal = Logs.Count(l => l.Volume == "Normal"); 
-            int volLow = Logs.Count(l => l.Volume == "Low"); 
-            int volDry = Logs.Count(l => l.Volume == "None" || l.Volume == "N/A");
+            int volLow = Logs.Count(l => l.Volume == "Low" && l.Mode != "Daily Dose"); 
+            int volDry = Logs.Count(l => (l.Volume == "None" || l.Volume == "N/A") && l.Mode != "Daily Dose");
 
             VolumeSeries = new ISeries[] { 
                 new RowSeries<int> 
@@ -1516,7 +1591,8 @@ namespace DadPlanner2.ViewModels
             var actualPoints = new List<ObservablePoint>();
             var baselinePoints = new List<ObservablePoint>();
             
-            var logsByDate = Logs.GroupBy(l => DateTimeOffset.FromUnixTimeSeconds(l.Timestamp).ToLocalTime().Date)
+            var logsByDate = Logs.Where(l => l.Mode != "Daily Dose")
+                .GroupBy(l => DateTimeOffset.FromUnixTimeSeconds(l.Timestamp).ToLocalTime().Date)
                 .ToDictionary(g => g.Key, g => g.Sum(l => 
                 {
                     double multiplier = l.Volume == "High" ? 1.5 : l.Volume == "Normal" ? 1.0 : l.Volume == "Low" ? 0.5 : 0.0;
@@ -1705,7 +1781,7 @@ namespace DadPlanner2.ViewModels
                 {
                     if (IsVolumeMode)
                     {
-                        var yieldLogs = dayLogs.Where(l => l.Volume != "None" && l.Volume != "N/A").ToList();
+                        var yieldLogs = dayLogs.Where(l => l.Volume != "None" && l.Volume != "N/A" && l.Mode != "Daily Dose").ToList();
                         if (yieldLogs.Count > 0)
                         {
                             var dominantLog = yieldLogs.OrderByDescending(l => l.Volume == "High" ? 3 : l.Volume == "Normal" ? 2 : 1).First();
@@ -1716,17 +1792,24 @@ namespace DadPlanner2.ViewModels
                             dayData.ModesText = "Modes Detected: " + string.Join(", ", yieldLogs.Select(l => l.Mode).Distinct());
                             dayData.ColorHex = GetHeatmapColor(dominantLog.Mode, yieldScore, 3);
                         }
+                        else if (dayLogs.Any(l => l.Mode == "Daily Dose"))
+                        {
+                            dayData.Level = 1;
+                            dayData.MainInfoText = "Supplements Only";
+                            dayData.ModesText = "Daily Dose Tracked";
+                            dayData.ColorHex = GetHeatmapColor("Daily Dose", 1, 1);
+                        }
                     }
                     else
                     {
                         int dailyReleaseTotal = dayLogs.Sum(l => l.ReleaseCount);
                         
-                        dayData.Level = dailyReleaseTotal; 
-                        dayData.MainInfoText = $"Total Releases: {dailyReleaseTotal} (in {dayLogs.Count} session{(dayLogs.Count == 1 ? "" : "s")})";
+                        dayData.Level = dailyReleaseTotal > 0 ? dailyReleaseTotal : 1; 
+                        dayData.MainInfoText = dailyReleaseTotal > 0 ? $"Total Releases: {dailyReleaseTotal} (in {dayLogs.Count} session{(dayLogs.Count == 1 ? "" : "s")})" : "Supplements Only";
                         dayData.ModesText = "Modes Detected: " + string.Join(", ", dayLogs.Select(l => l.Mode).Distinct());
                         
                         var dominantLog = dayLogs.GroupBy(l => l.Mode).OrderByDescending(g => g.Count()).First().First();
-                        dayData.ColorHex = GetHeatmapColor(dominantLog.Mode, dailyReleaseTotal, globalMaxReleases);
+                        dayData.ColorHex = GetHeatmapColor(dominantLog.Mode, dayData.Level, globalMaxReleases);
                     }
                 }
                 HeatmapDays.Add(dayData);
@@ -1741,7 +1824,8 @@ namespace DadPlanner2.ViewModels
                 "Maintenance"  => (1, 67, 122),     
                 "Playtime"     => (74, 20, 140),    
                 "Baby-Making"  => (27, 94, 32),     
-                "Clinical-Lab" => (38, 50, 56),     
+                "Clinical-Lab" => (38, 50, 56),
+                "Daily Dose"   => (60, 75, 85),     
                 _              => (1, 67, 122)
             };
 
@@ -1750,6 +1834,7 @@ namespace DadPlanner2.ViewModels
                 "Playtime"     => (243, 229, 245),  
                 "Baby-Making"  => (200, 230, 201),  
                 "Clinical-Lab" => (207, 216, 220),  
+                "Daily Dose"   => (144, 164, 174),
                 _              => (144, 202, 249)
             };
 
@@ -1768,7 +1853,7 @@ namespace DadPlanner2.ViewModels
             LiveChartsCore.Kernel.ChartPoint? point = null;
             if (obj is LiveChartsCore.Kernel.ChartPoint singlePoint) point = singlePoint; else if (obj is IEnumerable<LiveChartsCore.Kernel.ChartPoint> points) point = points.FirstOrDefault();
             if (point == null) return;
-            var releaseLogs = Logs.Where(l => l.Volume != "None" && l.Volume != "N/A").OrderBy(l => l.Timestamp).ToList();
+            var releaseLogs = Logs.Where(l => l.Volume != "None" && l.Volume != "N/A" && l.Mode != "Daily Dose").OrderBy(l => l.Timestamp).ToList();
             if (point.Index >= 0 && point.Index < releaseLogs.Count) { var log = releaseLogs[point.Index]; SelectedLog = log; RequestScrollToLog?.Invoke(log); }
         }
 
@@ -1793,6 +1878,7 @@ namespace DadPlanner2.ViewModels
                 if (Log.Supplements.Contains("\"maca\":1")) flags.Add("[Ma]"); 
                 if (Log.Supplements.Contains("\"vitD\":1")) flags.Add("[D3]"); 
                 if (Log.Supplements.Contains("\"vitC\":1")) flags.Add("[C]"); 
+                if (Log.Supplements.Contains("\"tadalafil\":1")) flags.Add("[Tad]"); 
                 return string.Join(" ", flags); 
             } 
         }
@@ -1813,11 +1899,11 @@ namespace DadPlanner2.ViewModels
         }
         
         public bool HasLab => Log.Mode == "Clinical-Lab" && LabText.Length > 0;
-        public string ModeHex => Log.Mode switch { "Maintenance" => "#007acc", "Playtime" => "#9c27b0", "Baby-Making" => "#4caf50", "Clinical-Lab" => "#546e7a", _ => "#ccc" };
+        public string ModeHex => Log.Mode switch { "Maintenance" => "#007acc", "Playtime" => "#9c27b0", "Baby-Making" => "#4caf50", "Clinical-Lab" => "#546e7a", "Daily Dose" => "#607d8b", _ => "#ccc" };
     }
 
     public class PieHoverData { public string Category { get; set; } = ""; public int Count { get; set; } public string ColorHex { get; set; } = ""; public double Percentage { get; set; } }
     public class BarHoverData { public string Category { get; set; } = ""; public int Count { get; set; } public string ColorHex { get; set; } = ""; }
     public class EnthusiasmHoverData { public string DateText { get; set; } = ""; public double Score { get; set; } }
-    public class PkHoverData { public string DateText { get; set; } = ""; public double Zinc { get; set; } public double Maca { get; set; } public double VitD { get; set; } public double VitC { get; set; } }
+    public class PkHoverData { public string DateText { get; set; } = ""; public double Zinc { get; set; } public double Maca { get; set; } public double VitD { get; set; } public double VitC { get; set; } public double Tadalafil { get; set; } }
 }

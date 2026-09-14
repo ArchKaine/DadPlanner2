@@ -1,67 +1,105 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using LiveChartsCore.Defaults;
+using System.Text.Json;
 using DadPlanner2.Models;
+using LiveChartsCore.Defaults;
 
 namespace DadPlanner2.Services
 {
     public class PharmacokineticService
     {
-        // Half-lives in hours
-        private const double MacaHalfLifeHours = 20.0;
-        private const double ZincHalfLifeHours = 288.0; // 12 Days
-        private const double VitDHalfLifeHours = 432.0; // 18 Days
-        private const double VitCHalfLifeHours = 24.0;
+        // Half-lives in days
+        private const double ZincHalfLifeDays = 12.0;
+        private const double MacaHalfLifeDays = 20.0 / 24.0; // 20 hours
+        private const double VitDHalfLifeDays = 18.0;
+        private const double VitCHalfLifeDays = 24.0 / 24.0; // 24 hours
+        private const double TadalafilHalfLifeDays = 17.5 / 24.0; // 17.5 hours
 
-        public Dictionary<string, List<ObservablePoint>> CalculateCurves(IEnumerable<LogRecord> logs, double startTimestamp, double endTimestamp, double stepHours = 12.0)
+        public Dictionary<string, List<ObservablePoint>> CalculateCurves(List<LogRecord> logs, double startTs, double endTs)
         {
-            var logList = logs.OrderBy(l => l.Timestamp).ToList();
-            var results = new Dictionary<string, List<ObservablePoint>>
+            var zincPoints = new List<ObservablePoint>();
+            var macaPoints = new List<ObservablePoint>();
+            var vitDPoints = new List<ObservablePoint>();
+            var vitCPoints = new List<ObservablePoint>();
+            var tadalafilPoints = new List<ObservablePoint>();
+
+            // Extract all supplement ingestion events sorted chronologically
+            var events = new List<(long Timestamp, bool Zinc, bool Maca, bool VitD, bool VitC, bool Tadalafil)>();
+
+            foreach (var log in logs.OrderBy(l => l.Timestamp))
             {
-                { "Maca", new List<ObservablePoint>() },
-                { "Zinc", new List<ObservablePoint>() },
-                { "VitD", new List<ObservablePoint>() },
-                { "VitC", new List<ObservablePoint>() }
-            };
-
-            if (logList.Count == 0) return results;
-
-            // Extract dosing timestamps where each supplement was active
-            var macaDoses = logList.Where(l => l.Supplements.Contains("\"maca\":1")).Select(l => (double)l.Timestamp).ToList();
-            var zincDoses = logList.Where(l => l.Supplements.Contains("\"zinc\":1")).Select(l => (double)l.Timestamp).ToList();
-            var vitDDoses = logList.Where(l => l.Supplements.Contains("\"vitD\":1")).Select(l => (double)l.Timestamp).ToList();
-            var vitCDoses = logList.Where(l => l.Supplements.Contains("\"vitC\":1")).Select(l => (double)l.Timestamp).ToList();
-
-            double stepSeconds = stepHours * 3600.0;
-            double kMaca = Math.Log(2) / (MacaHalfLifeHours * 3600.0);
-            double kZinc = Math.Log(2) / (ZincHalfLifeHours * 3600.0);
-            double kVitD = Math.Log(2) / (VitDHalfLifeHours * 3600.0);
-            double kVitC = Math.Log(2) / (VitCHalfLifeHours * 3600.0);
-
-            for (double t = startTimestamp; t <= endTimestamp; t += stepSeconds)
-            {
-                results["Maca"].Add(new ObservablePoint(t, CalculateConcentration(t, macaDoses, kMaca)));
-                results["Zinc"].Add(new ObservablePoint(t, CalculateConcentration(t, zincDoses, kZinc)));
-                results["VitD"].Add(new ObservablePoint(t, CalculateConcentration(t, vitDDoses, kVitD)));
-                results["VitC"].Add(new ObservablePoint(t, CalculateConcentration(t, vitCDoses, kVitC)));
-            }
-
-            return results;
-        }
-
-        private double CalculateConcentration(double currentTime, List<double> doses, double k)
-        {
-            double concentration = 0.0;
-            foreach (var doseTime in doses)
-            {
-                if (doseTime <= currentTime)
+                try
                 {
-                    double deltaSeconds = currentTime - doseTime;
-                    concentration += Math.Exp(-k * deltaSeconds);
+                    using var doc = JsonDocument.Parse(log.Supplements);
+                    var root = doc.RootElement;
+
+                    bool z = root.TryGetProperty("zinc", out var zProp) && zProp.GetInt32() == 1;
+                    bool m = root.TryGetProperty("maca", out var mProp) && mProp.GetInt32() == 1;
+                    bool d = root.TryGetProperty("vitD", out var dProp) && dProp.GetInt32() == 1;
+                    bool c = root.TryGetProperty("vitC", out var cProp) && cProp.GetInt32() == 1;
+                    bool t = root.TryGetProperty("tadalafil", out var tProp) && tProp.GetInt32() == 1;
+
+                    if (z || m || d || c || t)
+                    {
+                        events.Add((log.Timestamp, z, m, d, c, t));
+                    }
+                }
+                catch
+                {
+                    // Fallback parsing if legacy string formatting exists
+                    bool z = log.Supplements.Contains("\"zinc\":1");
+                    bool m = log.Supplements.Contains("\"maca\":1");
+                    bool d = log.Supplements.Contains("\"vitD\":1");
+                    bool c = log.Supplements.Contains("\"vitC\":1");
+                    bool t = log.Supplements.Contains("\"tadalafil\":1");
+
+                    if (z || m || d || c || t)
+                    {
+                        events.Add((log.Timestamp, z, m, d, c, t));
+                    }
                 }
             }
-            return Math.Round(concentration, 3);
+
+            // FIXED: Sample every 4 hours instead of every 24 hours to capture sub-day pharmacokinetic spikes
+            double step = 4 * 3600.0; 
+            for (double t = startTs; t <= endTs; t += step)
+            {
+                double zincLevel = 0;
+                double macaLevel = 0;
+                double vitDLevel = 0;
+                double vitCLevel = 0;
+                double tadalafilLevel = 0;
+
+                foreach (var ev in events)
+                {
+                    if (ev.Timestamp > t) continue; // Future event relative to sample point
+
+                    double deltaDays = (t - ev.Timestamp) / 86400.0;
+                    if (deltaDays < 0) continue;
+
+                    if (ev.Zinc) zincLevel += Math.Exp(-Math.Log(2) * deltaDays / ZincHalfLifeDays);
+                    if (ev.Maca) macaLevel += Math.Exp(-Math.Log(2) * deltaDays / MacaHalfLifeDays);
+                    if (ev.VitD) vitDLevel += Math.Exp(-Math.Log(2) * deltaDays / VitDHalfLifeDays);
+                    if (ev.VitC) vitCLevel += Math.Exp(-Math.Log(2) * deltaDays / VitCHalfLifeDays);
+                    if (ev.Tadalafil) tadalafilLevel += Math.Exp(-Math.Log(2) * deltaDays / TadalafilHalfLifeDays);
+                }
+
+                zincPoints.Add(new ObservablePoint(t, Math.Round(zincLevel, 3)));
+                macaPoints.Add(new ObservablePoint(t, Math.Round(macaLevel, 3)));
+                vitDPoints.Add(new ObservablePoint(t, Math.Round(vitDLevel, 3)));
+                vitCPoints.Add(new ObservablePoint(t, Math.Round(vitCLevel, 3)));
+                tadalafilPoints.Add(new ObservablePoint(t, Math.Round(tadalafilLevel, 3)));
+            }
+
+            return new Dictionary<string, List<ObservablePoint>>
+            {
+                { "Zinc", zincPoints },
+                { "Maca", macaPoints },
+                { "VitD", vitDPoints },
+                { "VitC", vitCPoints },
+                { "Tadalafil", tadalafilPoints }
+            };
         }
     }
 }

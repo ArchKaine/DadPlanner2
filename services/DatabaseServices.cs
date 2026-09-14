@@ -345,13 +345,14 @@ namespace DadPlanner2.Services
             using var reader = cmdLogs.ExecuteReader();
             while (reader.Read())
             {
+                string mode = reader.GetString(2);
                 logs.Add(new LogRecord
                 {
                     Id = reader.GetInt64(0),
                     Timestamp = reader.GetInt64(1),
-                    Mode = reader.GetString(2),
+                    Mode = mode,
                     Volume = reader.GetString(3),
-                    ReleaseCount = Math.Max(1, Convert.ToInt32(reader.GetValue(4))),
+                    ReleaseCount = mode == "Daily Dose" ? 0 : Math.Max(1, Convert.ToInt32(reader.GetValue(4))),
                     VolumeConfidence = ParseVolumeConfidence(reader.GetString(5)),
                     HeatFlag = Convert.ToInt32(reader.GetValue(6)),
                     Supplements = reader.GetString(7),
@@ -583,26 +584,28 @@ namespace DadPlanner2.Services
             cmd.ExecuteNonQuery();
         }
 
-        public void SaveSupplementsState(bool zn, bool ma, bool vitD, bool vitC)
+        public void SaveSupplementsState(bool zn, bool ma, bool vitD, bool vitC, bool tad)
         {
             using var db = CreateConnection();
             using var cmd = db.CreateCommand();
-            cmd.CommandText = "INSERT OR REPLACE INTO Settings (Key, Value) VALUES ('supp_zn', $zn), ('supp_ma', $ma), ('supp_vitD', $vitD), ('supp_vitC', $vitC)";
+            cmd.CommandText = "INSERT OR REPLACE INTO Settings (Key, Value) VALUES ('supp_zn', $zn), ('supp_ma', $ma), ('supp_vitD', $vitD), ('supp_vitC', $vitC), ('supp_tad', $tad)";
             cmd.Parameters.AddWithValue("$zn", zn.ToString());
             cmd.Parameters.AddWithValue("$ma", ma.ToString());
             cmd.Parameters.AddWithValue("$vitD", vitD.ToString());
             cmd.Parameters.AddWithValue("$vitC", vitC.ToString());
+            cmd.Parameters.AddWithValue("$tad", tad.ToString());
             cmd.ExecuteNonQuery();
         }
 
-        public (bool zn, bool ma, bool vitD, bool vitC) GetSupplementsState()
+        public (bool zn, bool ma, bool vitD, bool vitC, bool tad) GetSupplementsState()
         {
             using var db = CreateConnection();
             return (
                 GetSettingStr(db, "supp_zn") == "True",
                 GetSettingStr(db, "supp_ma") == "True",
                 GetSettingStr(db, "supp_vitD") == "True",
-                GetSettingStr(db, "supp_vitC") == "True"
+                GetSettingStr(db, "supp_vitC") == "True",
+                GetSettingStr(db, "supp_tad") == "True"
             );
         }
 
@@ -767,9 +770,13 @@ namespace DadPlanner2.Services
             int testRecordCount = 300;
             int singleHeatEventIndex = rand.Next(0, testRecordCount);
 
+            // ==========================================
+            // 1. GENERATE THE RELEASE EVENTS
+            // ==========================================
+            long releaseTs = currentTs;
             for (int i = 0; i < testRecordCount; i++)
             {
-                int cycleDay = (int)((currentTs / 86400) % 28);
+                int cycleDay = (int)((releaseTs / 86400) % 28);
                 if (cycleDay < 0) cycleDay += 28;
 
                 bool isOvulationWindow = cycleDay >= 12 && cycleDay <= 16;
@@ -803,13 +810,14 @@ namespace DadPlanner2.Services
                 int randomMaca = rand.Next(100) < 50 ? 1 : 0;
                 int randomVitD = rand.Next(100) < 60 ? 1 : 0;
                 int randomVitC = rand.Next(100) < 70 ? 1 : 0;
+                int randomTad = rand.Next(100) < 40 ? 1 : 0;
 
-                string fakeSupps = $"{{\"zinc\":{randomZinc},\"maca\":{randomMaca},\"vitD\":{randomVitD},\"vitC\":{randomVitC}}}";
+                string fakeSupps = $"{{\"zinc\":{randomZinc},\"maca\":{randomMaca},\"vitD\":{randomVitD},\"vitC\":{randomVitC},\"tadalafil\":{randomTad}}}";
 
                 if (randomMaca == 1) gapHours -= rand.Next(5, 12);
                 if (gapHours < 8) gapHours = 8;
 
-                currentTs -= (gapHours * 3600);
+                releaseTs -= (gapHours * 3600);
 
                 string randomVol = "Normal";
                 if (randomZinc == 1)
@@ -876,7 +884,7 @@ namespace DadPlanner2.Services
 
                 using var insertCmd = db.CreateCommand();
                 insertCmd.CommandText = "INSERT INTO Logs (Timestamp, Mode, Volume, ReleaseCount, VolumeConfidence, HeatFlag, Supplements, Concentration, Motility, Morphology, ClinicalVol, ProgMotility, PhLevel, Notes) VALUES ($ts, $mode, $vol, $count, $confidence, $heat, $supps, $conc, $mot, $morph, $cvol, $pmot, $ph, $notes)";
-                insertCmd.Parameters.AddWithValue("$ts", currentTs);
+                insertCmd.Parameters.AddWithValue("$ts", releaseTs);
                 insertCmd.Parameters.AddWithValue("$mode", randomMode);
                 insertCmd.Parameters.AddWithValue("$vol", randomVol);
                 insertCmd.Parameters.AddWithValue("$count", releaseCount);
@@ -891,6 +899,44 @@ namespace DadPlanner2.Services
                 insertCmd.Parameters.AddWithValue("$ph", ph);
                 insertCmd.Parameters.AddWithValue("$notes", "");
                 insertCmd.ExecuteNonQuery();
+            }
+
+            // ==========================================
+            // 2. GENERATE THE DAILY DOSES (For PK Chart)
+            // ==========================================
+            long dailyTs = currentTs - (120 * 86400); 
+            
+            for (int d = 0; d < 120; d++)
+            {
+                dailyTs += 86400; 
+                
+                if (rand.Next(100) > 15)
+                {
+                    int c = rand.Next(100) < 50 ? 1 : 0;
+                    int tad = rand.Next(100) < 45 ? 1 : 0;
+                    string dailySupps = $"{{\"zinc\":1,\"maca\":1,\"vitD\":1,\"vitC\":{c},\"tadalafil\":{tad}}}";
+                    
+                    long logTime = dailyTs - (currentTs % 86400) + (9 * 3600) + rand.Next(-3600, 3600);
+                    if (logTime > currentTs) logTime = currentTs - 3600; 
+
+                    using var insertCmd = db.CreateCommand();
+                    insertCmd.CommandText = "INSERT INTO Logs (Timestamp, Mode, Volume, ReleaseCount, VolumeConfidence, HeatFlag, Supplements, Concentration, Motility, Morphology, ClinicalVol, ProgMotility, PhLevel, Notes) VALUES ($ts, $mode, $vol, $count, $confidence, $heat, $supps, $conc, $mot, $morph, $cvol, $pmot, $ph, $notes)";
+                    insertCmd.Parameters.AddWithValue("$ts", logTime);
+                    insertCmd.Parameters.AddWithValue("$mode", "Daily Dose");
+                    insertCmd.Parameters.AddWithValue("$vol", "None");
+                    insertCmd.Parameters.AddWithValue("$count", 0);
+                    insertCmd.Parameters.AddWithValue("$confidence", nameof(VolumeConfidence.Unknown));
+                    insertCmd.Parameters.AddWithValue("$heat", 0);
+                    insertCmd.Parameters.AddWithValue("$supps", dailySupps);
+                    insertCmd.Parameters.AddWithValue("$conc", 0);
+                    insertCmd.Parameters.AddWithValue("$mot", 0);
+                    insertCmd.Parameters.AddWithValue("$morph", 0);
+                    insertCmd.Parameters.AddWithValue("$cvol", 0.0);
+                    insertCmd.Parameters.AddWithValue("$pmot", 0);
+                    insertCmd.Parameters.AddWithValue("$ph", 0.0);
+                    insertCmd.Parameters.AddWithValue("$notes", "Sandbox Simulated Dose");
+                    insertCmd.ExecuteNonQuery();
+                }
             }
         }
 

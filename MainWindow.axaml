@@ -76,7 +76,7 @@
                 <TextBlock Text="Dad-Planner System Utility" FontSize="24" FontWeight="Bold" VerticalAlignment="Center"/>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
                     <Button Classes="btn-icon" Content="[?] Help" Command="{Binding OpenHelpCommand}" Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1"/>
-                    <Button Classes="btn-icon" Content="[PDF] 90-Day Report" Command="{Binding GeneratePdfCommand}" Background="#546e7a"/>
+                    <Button Classes="btn-icon" Content="{Binding PdfButtonText}" Command="{Binding GeneratePdfCommand}" Background="#546e7a"/>
                     <Button Classes="btn-icon" Content="[+] Add Past Log" Command="{Binding OpenManualLogCommand}"/>
                     <Button Classes="btn-icon" Content="[=] Settings" Command="{Binding OpenSettingsCommand}"/>
                 </StackPanel>
@@ -335,6 +335,10 @@
                                                 <PathIcon Data="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4Z" Width="10" Height="10" Foreground="#f57c00" VerticalAlignment="Center"/>
                                                 <TextBlock Text="C (24h)" FontSize="9" Foreground="#f57c00" FontWeight="Bold"/>
                                             </StackPanel>
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <PathIcon Data="M11,2H13V19H11V2M9,20H15V22H9V20M12,0L15,3H9L12,0Z" Width="10" Height="10" Foreground="#e53935" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Tad (17.5h)" FontSize="9" Foreground="#e53935" FontWeight="Bold"/>
+                                            </StackPanel>
                                         </StackPanel>
                                     </Grid>
                                 </Viewbox>
@@ -374,32 +378,47 @@
                                 </ComboBox>
                             </Grid>
                             <Border Background="#252526" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10">
-                                <StackPanel Orientation="Horizontal" Spacing="12">
-                                    <TextBlock Text="SUPPS:" FontSize="11" FontWeight="Bold" Foreground="#888" VerticalAlignment="Center"/>
-                                    <CheckBox IsChecked="{Binding ZincActive}">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <PathIcon Data="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1Z" Width="11" Height="11" Foreground="#007acc" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Zn" FontSize="11" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </CheckBox>
-                                    <CheckBox IsChecked="{Binding MacaActive}">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <PathIcon Data="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 2,11 2,11C2,11 4,8 9,7C14,6 17,8 17,8Z" Width="11" Height="11" Foreground="#4caf50" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Ma" FontSize="11" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </CheckBox>
-                                    <CheckBox IsChecked="{Binding VitDActive}">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <PathIcon Data="M12,9C10.34,9 9,10.34 9,12C9,13.66 10.34,15 12,15C13.66,15 15,13.66 15,12C15,10.34 13.66,9 12,9M12,4.5C13.13,4.5 13.5,4.87 13.5,6V7.5C13.5,8.63 13.13,9 12,9C10.87,9 10.5,8.63 10.5,7.5V6C10.5,4.87 10.87,4.5 12,4.5M12,15C10.87,15 10.5,15.37 10.5,16.5V18C10.5,19.13 10.87,19.5 12,19.5C13.13,19.5 13.5,19.13 13.5,18V16.5C13.5,15.37 13.13,15 12,15M4.5,12C4.5,10.87 4.87,10.5 6,10.5H7.5C8.63,10.5 9,10.87 9,12C9,13.13 8.63,13.5 7.5,13.5H6C4.87,13.5 4.5,13.13 4.5,12M15,12C15,13.13 15.37,13.5 16.5,13.5H18C19.13,13.5 19.5,13.13 19.5,12C19.5,10.87 19.13,10.5 18,10.5H16.5C15.37,10.5 15,10.87 15,12Z" Width="11" Height="11" Foreground="#ffb74d" VerticalAlignment="Center"/>
-                                            <TextBlock Text="D3" FontSize="11" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </CheckBox>
-                                    <CheckBox IsChecked="{Binding VitCActive}">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <PathIcon Data="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4Z" Width="11" Height="11" Foreground="#f57c00" VerticalAlignment="Center"/>
-                                            <TextBlock Text="C" FontSize="11" VerticalAlignment="Center"/>
-                                        </StackPanel>
-                                    </CheckBox>
+                                <StackPanel Spacing="10">
+                                    <StackPanel Orientation="Horizontal" Spacing="8">
+                                        <TextBlock Text="SUPPS:" FontSize="11" FontWeight="Bold" Foreground="#888" VerticalAlignment="Center"/>
+                                        <CheckBox IsChecked="{Binding ZincActive}">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <PathIcon Data="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1Z" Width="11" Height="11" Foreground="#007acc" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Zn" FontSize="11" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </CheckBox>
+                                        <CheckBox IsChecked="{Binding MacaActive}">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <PathIcon Data="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 2,11 2,11C2,11 4,8 9,7C14,6 17,8 17,8Z" Width="11" Height="11" Foreground="#4caf50" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Ma" FontSize="11" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </CheckBox>
+                                        <CheckBox IsChecked="{Binding VitDActive}">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <PathIcon Data="M12,9C10.34,9 9,10.34 9,12C9,13.66 10.34,15 12,15C13.66,15 15,13.66 15,12C15,10.34 13.66,9 12,9M12,4.5C13.13,4.5 13.5,4.87 13.5,6V7.5C13.5,8.63 13.13,9 12,9C10.87,9 10.5,8.63 10.5,7.5V6C10.5,4.87 10.87,4.5 12,4.5M12,15C10.87,15 10.5,15.37 10.5,16.5V18C10.5,19.13 10.87,19.5 12,19.5C13.13,19.5 13.5,19.13 13.5,18V16.5C13.5,15.37 13.13,15 12,15M4.5,12C4.5,10.87 4.87,10.5 6,10.5H7.5C8.63,10.5 9,10.87 9,12C9,13.13 8.63,13.5 7.5,13.5H6C4.87,13.5 4.5,13.13 4.5,12M15,12C15,13.13 15.37,13.5 16.5,13.5H18C19.13,13.5 19.5,13.13 19.5,12C19.5,10.87 19.13,10.5 18,10.5H16.5C15.37,10.5 15,10.87 15,12Z" Width="11" Height="11" Foreground="#ffb74d" VerticalAlignment="Center"/>
+                                                <TextBlock Text="D3" FontSize="11" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </CheckBox>
+                                        <CheckBox IsChecked="{Binding VitCActive}">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <PathIcon Data="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4Z" Width="11" Height="11" Foreground="#f57c00" VerticalAlignment="Center"/>
+                                                <TextBlock Text="C" FontSize="11" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </CheckBox>
+                                        <CheckBox IsChecked="{Binding TadalafilActive}">
+                                            <StackPanel Orientation="Horizontal" Spacing="4">
+                                                <PathIcon Data="M11,2H13V19H11V2M9,20H15V22H9V20M12,0L15,3H9L12,0Z" Width="11" Height="11" Foreground="#e53935" VerticalAlignment="Center"/>
+                                                <TextBlock Text="Tad" FontSize="11" VerticalAlignment="Center"/>
+                                            </StackPanel>
+                                        </CheckBox>
+                                    </StackPanel>
+
+                                    <!-- Quick Log Button -->
+                                    <Button Content="Quick-Log Daily Supplements (No Timeline Reset)" 
+                                            Command="{Binding LogDailySupplementsCommand}" 
+                                            Background="#1e1e1e" BorderBrush="#444" BorderThickness="1" 
+                                            Foreground="#aaa" FontSize="10" 
+                                            HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
                                 </StackPanel>
                             </Border>
                             <Border Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="6" Padding="10">
@@ -439,6 +458,7 @@
                                 <x:String>Playtime</x:String>
                                 <x:String>Baby-Making</x:String>
                                 <x:String>Clinical-Lab</x:String>
+                                <x:String>Daily Dose</x:String>
                             </ComboBox>
                             
                             <ComboBox Grid.Column="2" SelectedItem="{Binding FilterVolume}" HorizontalAlignment="Stretch" Margin="5,0,5,0">
@@ -455,6 +475,7 @@
                                 <x:String>Maca</x:String>
                                 <x:String>Vit D3</x:String>
                                 <x:String>Vit C</x:String>
+                                <x:String>Tadalafil</x:String>
                             </ComboBox>
                         </Grid>
                     </Border>
@@ -557,20 +578,24 @@
                         <Rectangle Height="1" Fill="#333" Margin="0,4"/>
                         <TextBlock Text="{Binding HoveredPk.DateText}" Foreground="#aaa" FontSize="12"/>
                         <StackPanel Orientation="Horizontal" Spacing="10">
-                            <TextBlock Text="Zinc (12d):" Foreground="#007acc" FontSize="12" Width="80"/>
+                            <TextBlock Text="Zinc (12d):" Foreground="#007acc" FontSize="12" Width="90"/>
                             <TextBlock Text="{Binding HoveredPk.Zinc, StringFormat='{}{0:F2}'}" Foreground="#fff" FontWeight="Bold" FontSize="12"/>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="10">
-                            <TextBlock Text="Maca (20h):" Foreground="#9c27b0" FontSize="12" Width="80"/>
+                            <TextBlock Text="Maca (20h):" Foreground="#9c27b0" FontSize="12" Width="90"/>
                             <TextBlock Text="{Binding HoveredPk.Maca, StringFormat='{}{0:F2}'}" Foreground="#fff" FontWeight="Bold" FontSize="12"/>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="10">
-                            <TextBlock Text="Vit D3 (18d):" Foreground="#4caf50" FontSize="12" Width="80"/>
+                            <TextBlock Text="Vit D3 (18d):" Foreground="#4caf50" FontSize="12" Width="90"/>
                             <TextBlock Text="{Binding HoveredPk.VitD, StringFormat='{}{0:F2}'}" Foreground="#fff" FontWeight="Bold" FontSize="12"/>
                         </StackPanel>
                         <StackPanel Orientation="Horizontal" Spacing="10">
-                            <TextBlock Text="Vit C (24h):" Foreground="#f57c00" FontSize="12" Width="80"/>
+                            <TextBlock Text="Vit C (24h):" Foreground="#f57c00" FontSize="12" Width="90"/>
                             <TextBlock Text="{Binding HoveredPk.VitC, StringFormat='{}{0:F2}'}" Foreground="#fff" FontWeight="Bold" FontSize="12"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Spacing="10">
+                            <TextBlock Text="Tadalafil (17.5h):" Foreground="#e53935" FontSize="12" Width="90"/>
+                            <TextBlock Text="{Binding HoveredPk.Tadalafil, StringFormat='{}{0:F2}'}" Foreground="#fff" FontWeight="Bold" FontSize="12"/>
                         </StackPanel>
                     </StackPanel>
 
@@ -869,7 +894,7 @@
                             <TextBlock Text="• Volume: Categorical yield estimate (Normal, Low, High, None/Dry)." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
                             <TextBlock Text="• Release Count: Number of releases completed in the session. Multi-release sessions count as one recovery event for gap calculations, but contribute the full count toward frequency metrics." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
                             <TextBlock Text="• Volume Confidence: Reliability rating of the volume estimate. Observed indicates direct visual inspection; Estimated indicates an algorithmically inferred volume; Unknown is unverified." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Supps Checkboxes: Supplements active during the lookback period (Zn = Zinc, Ma = Maca Root, D3 = Vitamin D3, C = Vitamin C). State persists automatically across sessions." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Supps Checkboxes: Supplements active during the lookback period (Zn = Zinc, Ma = Maca Root, D3 = Vitamin D3, C = Vitamin C, Tad = Tadalafil). State persists automatically across sessions." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
                             <TextBlock Text="• Clinical Metrics: Optional laboratory inputs (volume in mL, concentration in M/mL, total motility %, progressive motility %, normal morphology %, and pH) for formal diagnostic evaluations." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
 
                             <!-- Section 3: Event Modes -->
@@ -880,6 +905,7 @@
                             <TextBlock Text="• Playtime (Purple): Partnered recreational session. Defaults to observed volume." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
                             <TextBlock Text="• Baby-Making (Green): Conception attempt. Automatically applies an estimated volume based on recovery gap telemetry and Zinc saturation unless manually overridden." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
                             <TextBlock Text="• Clinical-Lab (Slate): Diagnostic semen sample. Prompts for formal laboratory measurements and PDF lab report attachments." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Daily Dose (Blue-Grey): A quick-log mechanism exclusively for tracking supplement/medication intake and calculating pharmacokinetic decay without resetting the recovery window." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
 
                             <!-- Section 4: Biological Recovery Phases -->
                             <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
@@ -917,10 +943,11 @@
                                 <TextBlock Text="7. Pharmacokinetics &amp; Supplement Tolerance Cycling" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
                             </Border>
                             <TextBlock Text="Supplement analysis evaluates both empirical frequency and exponential elimination kinetics (C = C₀ · e⁻ᵏᵗ):" TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• Zinc (t½ ≈ 12 Days): Essential for chromatin packaging and seminal volume. Active Zinc saturation upgrades volume expectations during rapid recovery gaps. Caution: chronic high-dose zinc (&gt;40mg/day) competes with copper absorption; dietary copper balance is recommended." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Maca Root (t½ ≈ 20 Hours): Rapid clearance of macamides requiring daily consistency. Adaptogenic modulation builds receptor tolerance after 8–10 continuous weeks; the system actively notifies you when a 1-week washout period is recommended to reset receptor sensitivity." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Vitamin D3 (t½ ≈ 18 Days): Strongly correlates with progressive motility. Requires 6–8 weeks to achieve cellular steady-state. Fat-soluble: always take with dietary lipids." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Vitamin C (t½ ≈ 24 Hours): Rapid plasma clearance. Acts as the primary water-soluble seminal antioxidant, preventing sperm agglutination and reactive oxygen damage." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Zinc (t½ ≈ 12 Days): Essential for chromatin packaging and seminal volume." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Maca Root (t½ ≈ 20 Hours): Rapid clearance of macamides requiring daily consistency." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Vitamin D3 (t½ ≈ 18 Days): Strongly correlates with progressive motility." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Vitamin C (t½ ≈ 24 Hours): Primary water-soluble seminal antioxidant." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Tadalafil (t½ ≈ 17.5 Hours): Phosphodiesterase-5 inhibitor supporting pelvic/testicular microcirculation." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
 
                             <!-- Section 8: Interactive Charts -->
                             <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
@@ -988,6 +1015,7 @@
                                 <x:String>Playtime</x:String>
                                 <x:String>Baby-Making</x:String>
                                 <x:String>Clinical-Lab</x:String>
+                                <x:String>Daily Dose</x:String>
                             </ComboBox>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="5,0,0,0">
@@ -1018,7 +1046,7 @@
                                 <ComboBoxItem>Temp: L2 (Fever)</ComboBoxItem>
                                 <ComboBoxItem>Temp: L3 (Severe)</ComboBoxItem>
                             </ComboBox>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="15" VerticalAlignment="Center">
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                                 <CheckBox IsChecked="{Binding ManualZinc}">
                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                         <PathIcon Data="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1Z" Width="11" Height="11" Foreground="#007acc" VerticalAlignment="Center"/>
@@ -1041,6 +1069,12 @@
                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                         <PathIcon Data="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4Z" Width="11" Height="11" Foreground="#f57c00" VerticalAlignment="Center"/>
                                         <TextBlock Text="C" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <CheckBox IsChecked="{Binding ManualTadalafil}">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <PathIcon Data="M11,2H13V19H11V2M9,20H15V22H9V20M12,0L15,3H9L12,0Z" Width="11" Height="11" Foreground="#e53935" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Tad" FontSize="11" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </CheckBox>
                             </StackPanel>
@@ -1102,6 +1136,7 @@
                                 <x:String>Playtime</x:String>
                                 <x:String>Baby-Making</x:String>
                                 <x:String>Clinical-Lab</x:String>
+                                <x:String>Daily Dose</x:String>
                             </ComboBox>
                         </StackPanel>
                         <StackPanel Grid.Column="1" Margin="5,0,0,0">
@@ -1132,7 +1167,7 @@
                                 <ComboBoxItem>Temp: L2 (Fever)</ComboBoxItem>
                                 <ComboBoxItem>Temp: L3 (Severe)</ComboBoxItem>
                             </ComboBox>
-                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="15" VerticalAlignment="Center">
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
                                 <CheckBox IsChecked="{Binding EditZinc}">
                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                         <PathIcon Data="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1Z" Width="11" Height="11" Foreground="#007acc" VerticalAlignment="Center"/>
@@ -1155,6 +1190,12 @@
                                     <StackPanel Orientation="Horizontal" Spacing="4">
                                         <PathIcon Data="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4Z" Width="11" Height="11" Foreground="#f57c00" VerticalAlignment="Center"/>
                                         <TextBlock Text="C" FontSize="11" VerticalAlignment="Center"/>
+                                    </StackPanel>
+                                </CheckBox>
+                                <CheckBox IsChecked="{Binding EditTadalafil}">
+                                    <StackPanel Orientation="Horizontal" Spacing="4">
+                                        <PathIcon Data="M11,2H13V19H11V2M9,20H15V22H9V20M12,0L15,3H9L12,0Z" Width="11" Height="11" Foreground="#e53935" VerticalAlignment="Center"/>
+                                        <TextBlock Text="Tad" FontSize="11" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </CheckBox>
                             </StackPanel>

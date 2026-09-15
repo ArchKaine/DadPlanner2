@@ -9,7 +9,7 @@
         x:Class="DadPlanner2.MainWindow"
         x:DataType="vm:MainWindowViewModel"
         x:Name="RootWindow"
-        Title="Dad-Planner System Utility" Width="2134" Height="1200"
+        Title="Dad-Planner System Utility" Width="2134" Height="1225"
         Background="#121212" Foreground="#e0e0e0"
         WindowStartupLocation="CenterScreen">
 
@@ -59,6 +59,22 @@
             <Setter Property="BorderThickness" Value="1"/>
             <Setter Property="CornerRadius" Value="6"/>
             <Setter Property="Padding" Value="15"/>
+        </Style>
+
+        <!-- Compact Dose Selector Combobox -->
+        <Style Selector="ComboBox.dose-selector">
+            <Setter Property="Background" Value="#1a1a1a"/>
+            <Setter Property="Foreground" Value="#e0e0e0"/>
+            <Setter Property="BorderBrush" Value="#444"/>
+            <Setter Property="BorderThickness" Value="1"/>
+            <Setter Property="CornerRadius" Value="4"/>
+            <Setter Property="Padding" Value="6,2"/>
+            <Setter Property="MinHeight" Value="24"/>
+            <Setter Property="Height" Value="24"/>
+            <Setter Property="Width" Value="55"/>
+        </Style>
+        <Style Selector="ComboBox.dose-selector:pointerover /template/ Border#border">
+            <Setter Property="BorderBrush" Value="#007acc"/>
         </Style>
     </Window.Styles>
 
@@ -252,7 +268,7 @@
                                     <ToggleSwitch Grid.Column="1" OffContent="Release Frequency" OnContent="Clinical Volume" IsChecked="{Binding IsVolumeMode}" FontSize="11" Foreground="#aaa" MinWidth="0" Margin="0" Padding="0"/>
                                 </Grid>
 
-                                <Viewbox Height="110" Stretch="Uniform" HorizontalAlignment="Center">
+                                <Viewbox Height="110" Stretch="Uniform" HorizontalAlignment="Stretch">
                                     <ItemsControl ItemsSource="{Binding HeatmapDays}">
                                         <ItemsControl.ItemsPanel>
                                             <ItemsPanelTemplate>
@@ -282,7 +298,7 @@
                                 </Viewbox>
                                 
                                 <!-- Explicit Heatmap Legend -->
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4" Margin="0,5,30,0">
+                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4" Margin="0,5,10,0">
                                     <TextBlock Text="Base Color = Mode" FontSize="9" FontWeight="Bold" Foreground="#777" VerticalAlignment="Center" Margin="0,0,10,0"/>
                                     <TextBlock Text="Intensity:" FontSize="9" Foreground="#666" VerticalAlignment="Center" Margin="0,0,2,0"/>
                                     <TextBlock Text="Low" FontSize="9" Foreground="#666" VerticalAlignment="Center" Margin="0,0,2,0"/>
@@ -294,54 +310,50 @@
                                 </StackPanel>
 
                                 <!-- ENTHUSIASM MACRO-TREND GRAPH -->
-                                <Viewbox Height="140" Stretch="Uniform" HorizontalAlignment="Center" Margin="0,5,0,0">
-                                    <Grid Width="795" Height="140"> 
-                                        <lvc:CartesianChart x:Name="EnthusiasmChart" Series="{Binding EnthusiasmSeries}" XAxes="{Binding EnthusiasmXAxes}" YAxes="{Binding EnthusiasmYAxes}" TooltipPosition="Hidden" />
-                                        
-                                        <!-- Ghost Line & Actual Line Legends -->
-                                        <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,10,0,0" IsHitTestVisible="False" Spacing="4">
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <Border Width="12" Height="3" Background="#f57c00" VerticalAlignment="Center"/>
-                                                <TextBlock Text="ACTUAL 14-DAY EXPENDITURE" FontSize="9" FontWeight="Bold" Foreground="#888" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <TextBlock Text="- - -" FontWeight="Bold" Foreground="#777" VerticalAlignment="Center" Margin="0,0,0,2"/>
-                                                <TextBlock Text="{Binding EnthusiasmTargetScore, StringFormat='TARGET EXPENDITURE: {0:F1}'}" FontSize="9" FontWeight="Bold" Foreground="#777" VerticalAlignment="Center"/>
-                                            </StackPanel>
+                                <Grid Height="140" Margin="0,15,0,0"> 
+                                    <lvc:CartesianChart x:Name="EnthusiasmChart" Series="{Binding EnthusiasmSeries}" XAxes="{Binding EnthusiasmXAxes}" YAxes="{Binding EnthusiasmYAxes}" TooltipPosition="Hidden" ZoomMode="X" />
+                                    
+                                    <!-- Ghost Line & Actual Line Legends -->
+                                    <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,10,0,0" IsHitTestVisible="False" Spacing="4">
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <Border Width="12" Height="3" Background="#f57c00" VerticalAlignment="Center"/>
+                                            <TextBlock Text="ACTUAL 14-DAY EXPENDITURE" FontSize="9" FontWeight="Bold" Foreground="#888" VerticalAlignment="Center"/>
                                         </StackPanel>
-                                    </Grid>
-                                </Viewbox>
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <TextBlock Text="- - -" FontWeight="Bold" Foreground="#777" VerticalAlignment="Center" Margin="0,0,0,2"/>
+                                            <TextBlock Text="{Binding EnthusiasmTargetScore, StringFormat='TARGET EXPENDITURE: {0:F1}'}" FontSize="9" FontWeight="Bold" Foreground="#777" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
 
                                 <!-- PHARMACOKINETIC DECAY OVERLAY -->
-                                <Viewbox Height="140" Stretch="Uniform" HorizontalAlignment="Center" Margin="0,15,0,0">
-                                    <Grid Width="795" Height="140"> 
-                                        <lvc:CartesianChart x:Name="PkChart" Series="{Binding PkSeries}" XAxes="{Binding PkXAxes}" YAxes="{Binding PkYAxes}" TooltipPosition="Hidden" />
-                                        
-                                        <!-- PK Legend -->
-                                        <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,10,0,0" IsHitTestVisible="False" Spacing="15">
-                                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                                <PathIcon Data="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1Z" Width="10" Height="10" Foreground="#007acc" VerticalAlignment="Center"/>
-                                                <TextBlock Text="Zn (12d)" FontSize="9" Foreground="#007acc" FontWeight="Bold"/>
-                                            </StackPanel>
-                                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                                <PathIcon Data="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 2,11 2,11C2,11 4,8 9,7C14,6 17,8 17,8Z" Width="10" Height="10" Foreground="#9c27b0" VerticalAlignment="Center"/>
-                                                <TextBlock Text="Ma (20h)" FontSize="9" Foreground="#9c27b0" FontWeight="Bold"/>
-                                            </StackPanel>
-                                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                                <PathIcon Data="M12,9C10.34,9 9,10.34 9,12C9,13.66 10.34,15 12,15C13.66,15 15,13.66 15,12C15,10.34 13.66,9 12,9M12,4.5C13.13,4.5 13.5,4.87 13.5,6V7.5C13.5,8.63 13.13,9 12,9C10.87,9 10.5,8.63 10.5,7.5V6C10.5,4.87 10.87,4.5 12,4.5M12,15C10.87,15 10.5,15.37 10.5,16.5V18C10.5,19.13 10.87,19.5 12,19.5C13.13,19.5 13.5,19.13 13.5,18V16.5C13.5,15.37 13.13,15 12,15M4.5,12C4.5,10.87 4.87,10.5 6,10.5H7.5C8.63,10.5 9,10.87 9,12C9,13.13 8.63,13.5 7.5,13.5H6C4.87,13.5 4.5,13.13 4.5,12M15,12C15,13.13 15.37,13.5 16.5,13.5H18C19.13,13.5 19.5,13.13 19.5,12C19.5,10.87 19.13,10.5 18,10.5H16.5C15.37,10.5 15,10.87 15,12Z" Width="10" Height="10" Foreground="#4caf50" VerticalAlignment="Center"/>
-                                                <TextBlock Text="D3 (18d)" FontSize="9" Foreground="#4caf50" FontWeight="Bold"/>
-                                            </StackPanel>
-                                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                                <PathIcon Data="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4Z" Width="10" Height="10" Foreground="#f57c00" VerticalAlignment="Center"/>
-                                                <TextBlock Text="C (24h)" FontSize="9" Foreground="#f57c00" FontWeight="Bold"/>
-                                            </StackPanel>
-                                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                                <PathIcon Data="M11,2H13V19H11V2M9,20H15V22H9V20M12,0L15,3H9L12,0Z" Width="10" Height="10" Foreground="#e53935" VerticalAlignment="Center"/>
-                                                <TextBlock Text="Tad (17.5h)" FontSize="9" Foreground="#e53935" FontWeight="Bold"/>
-                                            </StackPanel>
+                                <Grid Height="140" Margin="0,15,0,0"> 
+                                    <lvc:CartesianChart x:Name="PkChart" Series="{Binding PkSeries}" XAxes="{Binding PkXAxes}" YAxes="{Binding PkYAxes}" TooltipPosition="Hidden" ZoomMode="X" />
+                                    
+                                    <!-- PK Legend -->
+                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,10,0,0" IsHitTestVisible="False" Spacing="15">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <PathIcon Data="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1Z" Width="10" Height="10" Foreground="#007acc" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Zn (12d)" FontSize="9" Foreground="#007acc" FontWeight="Bold"/>
                                         </StackPanel>
-                                    </Grid>
-                                </Viewbox>
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <PathIcon Data="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 2,11 2,11C2,11 4,8 9,7C14,6 17,8 17,8Z" Width="10" Height="10" Foreground="#9c27b0" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Ma (20h)" FontSize="9" Foreground="#9c27b0" FontWeight="Bold"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <PathIcon Data="M12,9C10.34,9 9,10.34 9,12C9,13.66 10.34,15 12,15C13.66,15 15,13.66 15,12C15,10.34 13.66,9 12,9M12,4.5C13.13,4.5 13.5,4.87 13.5,6V7.5C13.5,8.63 13.13,9 12,9C10.87,9 10.5,8.63 10.5,7.5V6C10.5,4.87 10.87,4.5 12,4.5M12,15C10.87,15 10.5,15.37 10.5,16.5V18C10.5,19.13 10.87,19.5 12,19.5C13.13,19.5 13.5,19.13 13.5,18V16.5C13.5,15.37 13.13,15 12,15M4.5,12C4.5,10.87 4.87,10.5 6,10.5H7.5C8.63,10.5 9,10.87 9,12C9,13.13 8.63,13.5 7.5,13.5H6C4.87,13.5 4.5,13.13 4.5,12M15,12C15,13.13 15.37,13.5 16.5,13.5H18C19.13,13.5 19.5,13.13 19.5,12C19.5,10.87 19.13,10.5 18,10.5H16.5C15.37,10.5 15,10.87 15,12Z" Width="10" Height="10" Foreground="#4caf50" VerticalAlignment="Center"/>
+                                            <TextBlock Text="D3 (18d)" FontSize="9" Foreground="#4caf50" FontWeight="Bold"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <PathIcon Data="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4Z" Width="10" Height="10" Foreground="#f57c00" VerticalAlignment="Center"/>
+                                            <TextBlock Text="C (24h)" FontSize="9" Foreground="#f57c00" FontWeight="Bold"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <PathIcon Data="M11,2H13V19H11V2M9,20H15V22H9V20M12,0L15,3H9L12,0Z" Width="10" Height="10" Foreground="#e53935" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Tad (17.5h)" FontSize="9" Foreground="#e53935" FontWeight="Bold"/>
+                                        </StackPanel>
+                                    </StackPanel>
+                                </Grid>
                                 
                             </StackPanel>
                         </Border>
@@ -354,7 +366,18 @@
                     <!-- NEW EVENT FORM -->
                     <Border Grid.Row="0" BorderBrush="#333" BorderThickness="1" CornerRadius="8" Padding="15">
                         <StackPanel Spacing="12">
-                            <TextBlock Text="LOG NEW EVENT" FontWeight="Bold" Foreground="#888"/>
+                            <Grid ColumnDefinitions="*, Auto">
+                                <TextBlock Grid.Column="0" Text="LOG NEW EVENT" FontWeight="Bold" Foreground="#888" VerticalAlignment="Center"/>
+                                <!-- Silent Diurnal Hint -->
+                                <TextBlock Grid.Column="1" 
+                                           Text="{Binding DiurnalPeakText}" 
+                                           IsVisible="{Binding DiurnalPeakText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                           FontSize="10" 
+                                           Foreground="#4caf50" 
+                                           FontWeight="SemiBold" 
+                                           VerticalAlignment="Center"/>
+                            </Grid>
+                            
                             <Grid ColumnDefinitions="*, *">
                                 <ComboBox Grid.Column="0" SelectedIndex="{Binding SelectedHeat}" HorizontalAlignment="Stretch" Margin="0,0,5,0">
                                     <ComboBoxItem>Temp: Normal</ComboBoxItem>
@@ -405,12 +428,20 @@
                                                 <TextBlock Text="C" FontSize="11" VerticalAlignment="Center"/>
                                             </StackPanel>
                                         </CheckBox>
-                                        <CheckBox IsChecked="{Binding TadalafilActive}">
-                                            <StackPanel Orientation="Horizontal" Spacing="4">
-                                                <PathIcon Data="M11,2H13V19H11V2M9,20H15V22H9V20M12,0L15,3H9L12,0Z" Width="11" Height="11" Foreground="#e53935" VerticalAlignment="Center"/>
-                                                <TextBlock Text="Tad" FontSize="11" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                        </CheckBox>
+                                        <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                            <CheckBox IsChecked="{Binding TadalafilActive}">
+                                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                                    <PathIcon Data="M11,2H13V19H11V2M9,20H15V22H9V20M12,0L15,3H9L12,0Z" Width="11" Height="11" Foreground="#e53935" VerticalAlignment="Center"/>
+                                                    <TextBlock Text="Tad" FontSize="11" VerticalAlignment="Center"/>
+                                                </StackPanel>
+                                            </CheckBox>
+                                            <ComboBox Classes="dose-selector" SelectedItem="{Binding TadalafilDose}" IsEnabled="{Binding TadalafilActive}" Margin="0,0,4,0">
+                                                <sys:Int32>5</sys:Int32>
+                                                <sys:Int32>10</sys:Int32>
+                                                <sys:Int32>20</sys:Int32>
+                                            </ComboBox>
+                                            <TextBlock Text="mg" FontSize="9" Foreground="#888" VerticalAlignment="Center"/>
+                                        </StackPanel>
                                     </StackPanel>
 
                                     <!-- Quick Log Button -->
@@ -602,6 +633,128 @@
                 </StackPanel>
             </Border>
         </Canvas>
+
+        <!-- HELP MODAL -->
+        <Border IsVisible="{Binding IsHelpOpen}" Background="#B2000000" ZIndex="200">
+            <Border Background="#1e1e1e" BorderBrush="#444" BorderThickness="1" CornerRadius="8" Width="780" MaxHeight="750" Padding="25" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 10 30 0 #A8000000">
+                <StackPanel Spacing="15">
+                    <Grid>
+                        <TextBlock Text="Dad-Planner 2: Operator's Manual &amp; Field Guide" FontSize="20" FontWeight="Bold" Foreground="White"/>
+                        <Button Content="[X]" Command="{Binding CloseHelpCommand}" Background="Transparent" Foreground="#888" HorizontalAlignment="Right"/>
+                    </Grid>
+
+                    <ScrollViewer MaxHeight="620" HorizontalScrollBarVisibility="Disabled">
+                        <StackPanel Spacing="15" Margin="0,0,15,0">
+
+                            <!-- Section 1: Quick Start -->
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5">
+                                <TextBlock Text="1. Quick Start &amp; Overview" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="Dad-Planner 2 (DP2) keeps tabs on recovery windows, release events, reproductive habits, and clinical semen analysis records—all entirely offline and air-gapped. Log events on the fly using the right-hand panel, or click 'Add Past Log' in the header to drop in historical sessions." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Navigation: The top header gives you quick access to this manual, your 90-day PDF medical summary, manual logging, and system settings." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Data Grid: Your event log, sorted descending. Shows timestamps, mode badges, volume tiers, active supplements, and quick action buttons (PDF, EDIT, PURGE)." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+
+                            <!-- Section 2: Logging a Session -->
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
+                                <TextBlock Text="2. Logging Controls &amp; Parameters" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="The right-hand panel handles all the nitty-gritty biological and pharmaceutical factors for each session:" TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Scrotal Temp Flag: Tracks thermal stress. Normal is standard body temp; L1 is mild warmth; L2 is a fever or a hot soak/sauna session; L3 is severe thermal shock." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Volume: Categorical yield estimate (Normal, Low, High, None/Dry)." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Release Count: How many releases happened during the session. Multi-release sessions count as a single recovery event for gap spacing, but log the full count for your frequency totals." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Volume Confidence: How sure you are about the volume. Observed means direct visual check; Estimated means the app calculated it based on your history; Unknown is unverified." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Supps Checkboxes: Active supplements during the lookback period (Zn = Zinc, Ma = Maca Root, D3 = Vitamin D3, C = Vitamin C, Tad = Tadalafil). Your settings stick around automatically." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Clinical Metrics: Optional lab inputs (volume in mL, concentration in M/mL, total motility %, progressive motility %, normal morphology %, and pH) for formal diagnostic tracking." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+
+                            <!-- Section 3: Event Modes -->
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
+                                <TextBlock Text="3. Event Modes &amp; Automated Logic" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="• Maintenance (Blue): Standard periodic clearance to keep things running smoothly." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Playtime (Purple): Partnered recreational sessions. Defaults to observed volume." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Baby-Making (Green): Targeted conception attempts. Automatically calculates an estimated volume using your recovery gap telemetry and Zinc saturation levels unless overridden." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Clinical-Lab (Slate): Diagnostic semen sample. Prompts for formal lab numbers and lets you attach the official PDF report." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Daily Dose (Blue-Grey): A quick-log tool purely for tracking supplement intake and pharmacokinetic decay without resetting your recovery gap timer." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+
+                            <!-- Section 4: Biological Recovery Phases -->
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
+                                <TextBlock Text="4. Biological Recovery Phases (HUD Telemetry)" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="DP2 models recovery using a 4-phase biological state machine rather than a dumb countdown clock:" TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• RECHARGING (0h to Min Rest): The rebound window. Volume and concentration are actively rebuilding. The progress bar shows how close you are to your baseline floor. Shown in Blue." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• OPTIMAL VIABILITY (Peak Window, e.g. 24h–72h): The biological sweet spot. Concentration and progressive motility hit their peak with minimal DNA Fragmentation Index (DFI). Shown in Vibrant Green." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• EXTENDED RESERVE (Ceiling to 120h): Volume and count are high, but sitting in storage too long starts ramping up oxidative stress. Shown in Amber." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• VIABILITY FADING (&gt;120h): Accelerated senescence. A sigmoid decay curve models rapid DFI escalation down to a 55% dynamic floor. Past 144 hours, aggressive turnover alerts kick in. Shown in Red." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+
+                            <!-- Section 5: Thermal Shadow & Stages -->
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
+                                <TextBlock Text="5. The 74-Day Thermal Shadow &amp; Spermatogenesis Stages" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="Spermatogenesis takes roughly 74 days from start to finish. Scrotal heat exposure (Level 2 fever or Level 3 severe heat) triggers a 74-day recovery tracker broken down into three developmental phases:" TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Stage 1 (Days 1–14): Epididymal Transit. Heat hits already-stored cells. Motility and vitality drop immediately." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Stage 2 (Days 15–45): Spermiogenesis Transition. Affects maturing spermatids undergoing nuclear compaction. Morphology variations peak here." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Stage 3 (Days 46–74): Meiotic Regeneration. Early spermatocytes regenerate, and counts bounce back toward baseline as fresh cohorts mature." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Clinical Override: Logging a formal Clinical Lab record with concentration &gt;= 15 M/mL and progressive motility &gt;= 40% after a heat event acts as an empirical ground-truth override, instantly clearing the shadow." TextWrapping="Wrap" Foreground="#ffe0b2" Margin="10,0,0,0"/>
+
+                            <!-- Section 6: WHO Abstinence Standards -->
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
+                                <TextBlock Text="6. WHO 2021 Clinical Abstinence Compliance" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="The World Health Organization (WHO 6th Edition, 2021) sets strict abstinence rules prior to diagnostic testing:" TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• WHO Gold Standard: 48 to 72 hours (2 to 3 days). The ideal clinical balance of volume, concentration, and motility." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• WHO Acceptable: 48 to 168 hours (2 to 7 days)." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Sub-48h (&lt;48h): Results in falsely depressed concentration and volume." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Extended (&gt;7d): Yields higher counts but tanks motility and spikes fragmentation." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="Locking in your upcoming appointment date in Settings turns on a compliance tracker in the Blackout banner so you know if your pacing will land you right in the 48–72h sweet spot." TextWrapping="Wrap" Foreground="#ccc"/>
+
+                            <!-- Section 7: Pharmacokinetics -->
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
+                                <TextBlock Text="7. Pharmacokinetics &amp; Supplement Kinetics" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="The app models rolling saturation and elimination curves (C = C₀ · e⁻ᵏᵗ) for your stack:" TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Zinc (t½ ≈ 12 Days): Crucial for chromatin packaging and seminal volume." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Maca Root (t½ ≈ 20 Hours): Fast clearance requiring daily consistency." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Vitamin D3 (t½ ≈ 18 Days): Strongly tied to progressive motility." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Vitamin C (t½ ≈ 24 Hours): Your primary water-soluble antioxidant shield." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+                            <TextBlock Text="• Tadalafil (t½ ≈ 17.5 Hours): PDE5 inhibitor supporting microcirculation." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
+
+                            <!-- Section 8: Interactive Charts -->
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
+                                <TextBlock Text="8. Charts, Analytics &amp; Activity Matrix" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="• Recovery Gap Timeline: Plots hours between consecutive releases over time. Color-coded dots reflect mode. Click any point to select and jump to that log in the table." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Event Distribution: Donut chart showing session breakdown by mode." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Yield Profile: Bar chart showing distribution of volume tiers." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• 365-Day Activity Matrix: GitHub-style annual heatmap. Toggle between Release Frequency and Clinical Volume. Darker tiles mean heavier activity." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Interactive Drill-Down: Click any day's square in the heatmap to instantly select and scroll to that session in the log table." TextWrapping="Wrap" Foreground="#90caf9"/>
+                            <TextBlock Text="• 14-Day Enthusiasm: Rolling 14-day cumulative release expenditure compared against your optimal baseline." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Analyze Supps: Compares saturated versus unsaturated release windows for each supplement (saturated = present in at least 50% of recent logs)." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Auto-Calibrate: Automatically computes recommended Min Rest and Max Limit values from your uncompromised historical logs." TextWrapping="Wrap" Foreground="#ccc"/>
+
+                            <!-- Section 9: Editing & History -->
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
+                                <TextBlock Text="9. Editing &amp; Audit History" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="• Edit Log: Click EDIT on any table row to fix timestamps, volume, counts, confidence, or lab metrics. Every change creates an immutable snapshot in the local audit history." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Restore: Past versions of an edited record can be reviewed and rolled back right from the edit dialog." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Purge: Permanently deletes a log entry and its associated history snapshots." TextWrapping="Wrap" Foreground="#ccc"/>
+
+                            <!-- Section 10: Reports & Safety -->
+                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
+                                <TextBlock Text="10. Reports, Database Safety &amp; Privacy" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
+                            </Border>
+                            <TextBlock Text="• 90-Day Report: Compiles a clean, printable PDF report (Baseline_Summary.pdf) complete with timelines, charts, logs, and supplement correlation stats." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Data Export: Dumps all logs, history, and analytics to portable JSON and CSV files." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• SQLite WAL Mode &amp; Safety: Uses Write-Ahead Logging with busy timeouts and automatic safety snapshots before migrations so your data never gets locked or corrupted." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Auto-Backup: Backups are automatically written on exit (keeping the last 10). You can also trigger manual backups or restores in Settings." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Stealth Mode: Hit ESC at any time to blur the entire window for instant privacy." TextWrapping="Wrap" Foreground="#ccc"/>
+                            <TextBlock Text="• Sandbox Mode: Toggle this in Settings whenever you want to test the app against 300 simulated historical records and thermal events." TextWrapping="Wrap" Foreground="#ccc"/>
+
+                        </StackPanel>
+                    </ScrollViewer>
+                </StackPanel>
+            </Border>
+        </Border>
 
         <!-- GENERIC ALERT MODAL -->
         <Border IsVisible="{Binding IsAlertOpen}" Background="#B2000000" ZIndex="200">
@@ -846,6 +999,8 @@
                             <Button Content="Analyze Supps" Command="{Binding AnalyzeSupplementsCommand}" Background="#4caf50" Foreground="White" HorizontalAlignment="Stretch" Margin="2"/>
                             <Button Content="Compare Labs" Command="{Binding OpenDeltaCommand}" Background="#007acc" Foreground="White" HorizontalAlignment="Stretch" Margin="2"/>
                         </UniformGrid>
+                        <!-- BIOMETRICS WIZARD BUTTON -->
+                        <Button Content="Calibrate Biometric Capacity" Command="{Binding OpenBiometricsCommand}" Background="#1e4a6d" Foreground="White" HorizontalAlignment="Stretch" Margin="2,10,2,2"/>
                     </StackPanel>
 
                     <StackPanel Spacing="10">
@@ -865,131 +1020,91 @@
             </Border>
         </Border>
 
-        <!-- COMPREHENSIVE PIMS CLINICAL & OPERATIONAL USER MANUAL -->
-        <Border IsVisible="{Binding IsHelpOpen}" Background="#B2000000" ZIndex="100">
-            <Border Background="#1e1e1e" BorderBrush="#444" BorderThickness="1" CornerRadius="8" Width="780" Padding="25" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 10 30 0 #A8000000">
+        <!-- BIOMETRICS & CAPACITY CALIBRATION MODAL -->
+        <Border IsVisible="{Binding IsBiometricsOpen}" Background="#B2000000" ZIndex="110">
+            <Border Background="#1e1e1e" BorderBrush="#1e4a6d" BorderThickness="1" CornerRadius="8" Width="600" Padding="25" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 10 30 0 #A8000000">
                 <StackPanel Spacing="15">
                     <Grid>
-                        <TextBlock Text="PIMS Clinical &amp; Operational Manual" FontSize="20" FontWeight="Bold" Foreground="White"/>
-                        <Button Content="[X]" Command="{Binding CloseHelpCommand}" Background="Transparent" Foreground="#888" HorizontalAlignment="Right"/>
+                        <TextBlock Text="Biometric Capacity Calibration" FontSize="20" FontWeight="Bold" Foreground="White"/>
+                        <Button Content="[X]" Command="{Binding CloseBiometricsCommand}" Background="Transparent" Foreground="#888" HorizontalAlignment="Right"/>
                     </Grid>
 
-                    <ScrollViewer MaxHeight="620" HorizontalScrollBarVisibility="Disabled">
-                        <StackPanel Spacing="15" Margin="0,0,15,0">
-
-                            <!-- Section 1: Quick Start -->
-                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5">
-                                <TextBlock Text="1. Quick Start &amp; Overview" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
-                            </Border>
-                            <TextBlock Text="PIMS (Personal Inventory Management System) tracks recovery windows, release events, reproductive habits, and clinical semen analysis records. Use the right-hand panel to log events as they happen, or open 'Add Past Log' from the header to record historical sessions." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• Navigation: The top header provides one-click access to this Help manual, the 90-Day Clinical PDF Report, Retroactive Manual Logging, and System Settings." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Data Grid: Displays recent recorded events in descending order. Each row displays timestamp, mode color badge, categorical volume, supplements taken, and direct action buttons (PDF, EDIT, PURGE)." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-
-                            <!-- Section 2: Logging a Session -->
-                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
-                                <TextBlock Text="2. Logging Controls &amp; Parameters" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
-                            </Border>
-                            <TextBlock Text="The right-hand logging panel captures biological, physical, and pharmaceutical factors for each session:" TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• Scrotal Temp Flag: Captures thermal exposure. Normal represents baseline body temperature; L1 is mild elevated warmth; L2 represents febrile illness or prolonged hot tub/sauna exposure; L3 represents severe thermal shock." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Volume: Categorical yield estimate (Normal, Low, High, None/Dry)." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Release Count: Number of releases completed in the session. Multi-release sessions count as one recovery event for gap calculations, but contribute the full count toward frequency metrics." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Volume Confidence: Reliability rating of the volume estimate. Observed indicates direct visual inspection; Estimated indicates an algorithmically inferred volume; Unknown is unverified." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Supps Checkboxes: Supplements active during the lookback period (Zn = Zinc, Ma = Maca Root, D3 = Vitamin D3, C = Vitamin C, Tad = Tadalafil). State persists automatically across sessions." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Clinical Metrics: Optional laboratory inputs (volume in mL, concentration in M/mL, total motility %, progressive motility %, normal morphology %, and pH) for formal diagnostic evaluations." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-
-                            <!-- Section 3: Event Modes -->
-                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
-                                <TextBlock Text="3. Event Modes &amp; Automated Logic" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
-                            </Border>
-                            <TextBlock Text="• Maintenance (Blue): Standard personal clearance session to maintain healthy turnover." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Playtime (Purple): Partnered recreational session. Defaults to observed volume." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Baby-Making (Green): Conception attempt. Automatically applies an estimated volume based on recovery gap telemetry and Zinc saturation unless manually overridden." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Clinical-Lab (Slate): Diagnostic semen sample. Prompts for formal laboratory measurements and PDF lab report attachments." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Daily Dose (Blue-Grey): A quick-log mechanism exclusively for tracking supplement/medication intake and calculating pharmacokinetic decay without resetting the recovery window." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-
-                            <!-- Section 4: Biological Recovery Phases -->
-                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
-                                <TextBlock Text="4. Biological Recovery Phases (HUD Telemetry)" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
-                            </Border>
-                            <TextBlock Text="The telemetry engine models recovery using a 4-phase biological state machine rather than a simple countdown timer:" TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• RECHARGING (0h to Min Rest): The oligospermic rebound window. Volume and concentration are rapidly rebuilding. The progress bar visualizes progression toward the calibrated baseline floor. Displayed in Blue." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• OPTIMAL VIABILITY (Peak Window, e.g. 24h–72h): The biological sweet spot. Sperm concentration and progressive motility achieve optimal balance with minimal DNA Fragmentation Index (DFI). Displayed in Vibrant Green." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• EXTENDED RESERVE (Ceiling to 120h): Seminal volume and total count remain high, but prolonged epididymal storage begins to elevate oxidative stress. Displayed in Amber." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• VIABILITY FADING (&gt;120h): Accelerated senescence. Telemetry applies a non-linear Gompertz/Sigmoid decay curve modeling rapid DFI escalation down to a 55% dynamic floor. Past 144 hours, aggressive turnover alerts activate. Displayed in Red." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-
-                            <!-- Section 5: Thermal Shadow & Stages -->
-                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
-                                <TextBlock Text="5. The 74-Day Thermal Shadow &amp; Spermatogenesis Stages" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
-                            </Border>
-                            <TextBlock Text="Human spermatogenesis requires approximately 74 days from germ cell division to mature ejaculation. Scrotal heat exposure (Level 2 fever or Level 3 severe heat/sauna) triggers a 74-day compromised state tracked across three clinical developmental stages:" TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• Stage 1 (Days 1–14): Epididymal Transit. Heat directly damaged already-formed stored cells. Motility and vitality exhibit immediate, noticeable drops." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Stage 2 (Days 15–45): Spermiogenesis Transition. Affects maturing spermatids undergoing nuclear compaction. Morphology variations and abnormal forms peak in this phase." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Stage 3 (Days 46–74): Meiotic Regeneration. Early spermatocytes regenerate. Sperm count begins rebounding toward pre-insult baseline as the undamaged cohort matures." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Clinical Override: A formal Clinical Lab record with concentration &gt;= 15 M/mL and progressive motility &gt;= 40% executed after the heat event acts as an empirical ground-truth override, instantly clearing the shadow." TextWrapping="Wrap" Foreground="#ffe0b2" Margin="10,0,0,0"/>
-
-                            <!-- Section 6: WHO Abstinence Standards -->
-                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
-                                <TextBlock Text="6. WHO 2021 Clinical Abstinence Compliance" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
-                            </Border>
-                            <TextBlock Text="The World Health Organization (WHO 6th Edition, 2021) establishes strict abstinence guidelines prior to diagnostic semen analysis:" TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• WHO Gold Standard: 48 to 72 hours (2 to 3 days). Produces the most accurate clinical balance of volume, concentration, and progressive motility." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• WHO Acceptable: 48 to 168 hours (2 to 7 days)." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Sub-48h (&lt;48h): Results in falsely depressed concentration and volume metrics." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Extended (&gt;7d): Results in artificially elevated counts but significantly diminished motility and elevated DNA fragmentation." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="Setting your appointment date in Settings activates an automated compliance calculator in the Blackout banner that tracks whether your projected abstinence will hit the 48–72h window on testing day." TextWrapping="Wrap" Foreground="#ccc"/>
-
-                            <!-- Section 7: Pharmacokinetics -->
-                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
-                                <TextBlock Text="7. Pharmacokinetics &amp; Supplement Tolerance Cycling" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
-                            </Border>
-                            <TextBlock Text="Supplement analysis evaluates both empirical frequency and exponential elimination kinetics (C = C₀ · e⁻ᵏᵗ):" TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• Zinc (t½ ≈ 12 Days): Essential for chromatin packaging and seminal volume." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Maca Root (t½ ≈ 20 Hours): Rapid clearance of macamides requiring daily consistency." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Vitamin D3 (t½ ≈ 18 Days): Strongly correlates with progressive motility." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Vitamin C (t½ ≈ 24 Hours): Primary water-soluble seminal antioxidant." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-                            <TextBlock Text="• Tadalafil (t½ ≈ 17.5 Hours): Phosphodiesterase-5 inhibitor supporting pelvic/testicular microcirculation." TextWrapping="Wrap" Foreground="#ccc" Margin="10,0,0,0"/>
-
-                            <!-- Section 8: Interactive Charts -->
-                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
-                                <TextBlock Text="8. Charts, Analytics &amp; Activity Matrix" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
-                            </Border>
-                            <TextBlock Text="• Recovery Gap Timeline: Plots hours between consecutive releases over time. Color-coded dots indicate event mode. Click any point to select and scroll to that log entry in the table." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• Event Distribution: Donut chart showing the proportion of sessions by mode." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• Yield Profile: Bar chart showing distribution of categorical volume levels." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• 365-Day Activity Matrix: GitHub-style annual heatmap. Toggle between Release Frequency and Clinical Volume. Darker tiles represent higher activity." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• Interactive Drill-Down: Click any day's square in the matrix to immediately select and scroll to that day's session in the raw event log table on the right." TextWrapping="Wrap" Foreground="#90caf9"/>
-                            <TextBlock Text="• 14-Day Enthusiasm: Rolling 14-day cumulative release expenditure compared against an optimal baseline derived from your calibrated minimum recovery threshold." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• Analyze Supps: Compares saturated versus unsaturated release windows for each supplement. Saturated means the supplement was present in at least 50% of releases during the lookback window." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• Auto-Calibrate: Calculates recommended Min Rest (average successful gap) and Max Limit (mean + 1 std dev, capped at 120h) from uncompromised historical logs." TextWrapping="Wrap" Foreground="#ccc"/>
-
-                            <!-- Section 9: Editing & History -->
-                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
-                                <TextBlock Text="9. Editing &amp; Audit History" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
-                            </Border>
-                            <TextBlock Text="• Edit Log: Click EDIT on any row in the log table to modify timestamps, volume, release count, confidence, flags, or lab metrics. Every edit creates an immutable snapshot in the LogEditHistory table." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• Restore: Previous versions of an edited record can be inspected and restored directly from the edit dialog." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• Purge: Permanently removes a log record and its associated history snapshots." TextWrapping="Wrap" Foreground="#ccc"/>
-
-                            <!-- Section 10: Reports & Safety -->
-                            <Border BorderBrush="#333" BorderThickness="0,0,0,1" Padding="0,0,0,5" Margin="0,10,0,0">
-                                <TextBlock Text="10. Reports, Database Safety &amp; Privacy" Foreground="#007acc" FontWeight="Bold" FontSize="16"/>
-                            </Border>
-                            <TextBlock Text="• 90-Day Report: Generates a clinical-grade PDF report (Baseline_Summary.pdf) containing the recovery timeline, event distribution, volume profile, raw event log, and supplement correlation tables." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• Data Export: Exports all logs, edit history, and supplement analysis tables to portable JSON and CSV files in the backup directory." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• SQLite WAL Mode &amp; Safety: The database uses Write-Ahead Logging with busy timeouts and automatic pre-migration safety snapshots to prevent locks or corruption." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• Auto-Backup: Database snapshots are created on exit (retaining the last 10). Manual backups can be triggered in Settings." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• Stealth Mode: Press ESC at any time to instantly toggle stealth mode, which blurs the entire interface for privacy." TextWrapping="Wrap" Foreground="#ccc"/>
-                            <TextBlock Text="• Sandbox Mode: Toggle in Settings to swap the live database with a synthetic dataset containing 300 simulated records with biological cycles and thermal events." TextWrapping="Wrap" Foreground="#ccc"/>
-
+                    <Border Background="#263238" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="6" Padding="15">
+                        <StackPanel Spacing="8">
+                            <TextBlock Text="SAFE MEASUREMENT PROTOCOL" FontWeight="Bold" Foreground="#90a4ae" FontSize="11"/>
+                            <TextBlock Text="A clinical ultrasound is the gold standard for volumetric data. If measuring manually at home, strictly observe the following:" TextWrapping="Wrap" Foreground="#ccc" FontSize="12"/>
+                            <TextBlock Text="1. Measure in a warm environment. The cremaster and dartos muscles must be completely relaxed to allow safe isolation." TextWrapping="Wrap" Foreground="#ccc" FontSize="12"/>
+                            <TextBlock Text="2. Use digital calipers (zeroed) or a rigid ruler. Gently isolate the testicle against the scrotal skin. DO NOT squeeze or compress the tissue." TextWrapping="Wrap" Foreground="#e53935" FontWeight="Bold" FontSize="12"/>
+                            <TextBlock Text="3. Take three measurements per side: Pole-to-Pole (Length), and side-to-side (Width and Height)." TextWrapping="Wrap" Foreground="#ccc" FontSize="12"/>
                         </StackPanel>
-                    </ScrollViewer>
+                    </Border>
+
+                    <TextBlock Text="All measurements must be entered in Centimeters (cm)." Foreground="#888" FontStyle="Italic" FontSize="12" HorizontalAlignment="Center"/>
+
+                    <Grid ColumnDefinitions="*, *" Margin="0,10,0,0">
+                        <!-- Left Testicle -->
+                        <Border Grid.Column="0" Background="#151515" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="15" Margin="0,0,5,0">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="LEFT TESTICLE" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center"/>
+                                <Grid ColumnDefinitions="Auto, *">
+                                    <TextBlock Grid.Column="0" Text="Length (cm)" VerticalAlignment="Center" Foreground="#888" Width="75" FontSize="12"/>
+                                    <TextBox Grid.Column="1" Text="{Binding BioLeftL}" Watermark="e.g. 4.1"/>
+                                </Grid>
+                                <Grid ColumnDefinitions="Auto, *">
+                                    <TextBlock Grid.Column="0" Text="Width (cm)" VerticalAlignment="Center" Foreground="#888" Width="75" FontSize="12"/>
+                                    <TextBox Grid.Column="1" Text="{Binding BioLeftW}" Watermark="e.g. 2.3"/>
+                                </Grid>
+                                <Grid ColumnDefinitions="Auto, *">
+                                    <TextBlock Grid.Column="0" Text="Height (cm)" VerticalAlignment="Center" Foreground="#888" Width="75" FontSize="12"/>
+                                    <TextBox Grid.Column="1" Text="{Binding BioLeftH}" Watermark="e.g. 2.7"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+
+                        <!-- Right Testicle -->
+                        <Border Grid.Column="1" Background="#151515" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="15" Margin="5,0,0,0">
+                            <StackPanel Spacing="10">
+                                <TextBlock Text="RIGHT TESTICLE" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center"/>
+                                <Grid ColumnDefinitions="Auto, *">
+                                    <TextBlock Grid.Column="0" Text="Length (cm)" VerticalAlignment="Center" Foreground="#888" Width="75" FontSize="12"/>
+                                    <TextBox Grid.Column="1" Text="{Binding BioRightL}" Watermark="e.g. 4.4"/>
+                                </Grid>
+                                <Grid ColumnDefinitions="Auto, *">
+                                    <TextBlock Grid.Column="0" Text="Width (cm)" VerticalAlignment="Center" Foreground="#888" Width="75" FontSize="12"/>
+                                    <TextBox Grid.Column="1" Text="{Binding BioRightW}" Watermark="e.g. 2.4"/>
+                                </Grid>
+                                <Grid ColumnDefinitions="Auto, *">
+                                    <TextBlock Grid.Column="0" Text="Height (cm)" VerticalAlignment="Center" Foreground="#888" Width="75" FontSize="12"/>
+                                    <TextBox Grid.Column="1" Text="{Binding BioRightH}" Watermark="e.g. 3.0"/>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </Grid>
+
+                    <Border Background="#1a1a1a" BorderBrush="#4caf50" BorderThickness="1" CornerRadius="6" Padding="15" Margin="0,10,0,0">
+                        <Grid ColumnDefinitions="*, Auto">
+                            <StackPanel Grid.Column="0" VerticalAlignment="Center">
+                                <TextBlock Text="TOTAL SPERMATOGENIC CAPACITY" FontSize="11" FontWeight="Bold" Foreground="#888"/>
+                                <TextBlock Text="Formula: (L × W × H × 0.71)" FontSize="10" Foreground="#555"/>
+                            </StackPanel>
+                            <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="5" VerticalAlignment="Center">
+                                <TextBlock Text="{Binding CalculatedTotalVolume, StringFormat='{}{0:F1}'}" FontSize="24" FontWeight="Bold" Foreground="#4caf50"/>
+                                <TextBlock Text="mL" FontSize="14" Foreground="#888" VerticalAlignment="Bottom" Margin="0,0,0,3"/>
+                            </StackPanel>
+                        </Grid>
+                    </Border>
+
+                    <Grid ColumnDefinitions="*, *" Margin="0,10,0,0">
+                        <Button Grid.Column="0" Content="Clear &amp; Reset" Command="{Binding ClearBiometricsCommand}" HorizontalAlignment="Stretch" Background="#d32f2f" Foreground="White" FontWeight="Bold" Margin="0,0,5,0"/>
+                        <Button Grid.Column="1" Content="Save &amp; Scale Telemetry" Command="{Binding SaveBiometricsCommand}" HorizontalAlignment="Stretch" Background="#1e4a6d" Foreground="White" FontWeight="Bold" Margin="5,0,0,0"/>
+                    </Grid>
                 </StackPanel>
             </Border>
         </Border>
 
         <!-- MANUAL LOG MODAL -->
         <Border IsVisible="{Binding IsManualLogOpen}" Background="#B2000000" ZIndex="100">
-            <Border Background="#1e1e1e" BorderBrush="#444" BorderThickness="1" CornerRadius="8" Width="550" Padding="25" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 10 30 0 #A8000000">
+            <Border Background="#1e1e1e" BorderBrush="#444" BorderThickness="1" CornerRadius="8" Width="680" Padding="25" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 10 30 0 #A8000000">
                 <StackPanel Spacing="15">
                     <Grid>
                         <TextBlock Text="Add Retroactive Log" FontSize="20" FontWeight="Bold" Foreground="White"/>
@@ -1071,12 +1186,20 @@
                                         <TextBlock Text="C" FontSize="11" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </CheckBox>
-                                <CheckBox IsChecked="{Binding ManualTadalafil}">
-                                    <StackPanel Orientation="Horizontal" Spacing="4">
-                                        <PathIcon Data="M11,2H13V19H11V2M9,20H15V22H9V20M12,0L15,3H9L12,0Z" Width="11" Height="11" Foreground="#e53935" VerticalAlignment="Center"/>
-                                        <TextBlock Text="Tad" FontSize="11" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </CheckBox>
+                                <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                    <CheckBox IsChecked="{Binding ManualTadalafil}">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <PathIcon Data="M11,2H13V19H11V2M9,20H15V22H9V20M12,0L15,3H9L12,0Z" Width="11" Height="11" Foreground="#e53935" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Tad" FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </CheckBox>
+                                    <ComboBox Classes="dose-selector" SelectedItem="{Binding ManualTadalafilDose}" IsEnabled="{Binding ManualTadalafil}" Margin="0,0,4,0">
+                                        <sys:Int32>5</sys:Int32>
+                                        <sys:Int32>10</sys:Int32>
+                                        <sys:Int32>20</sys:Int32>
+                                    </ComboBox>
+                                    <TextBlock Text="mg" FontSize="9" Foreground="#888" VerticalAlignment="Center"/>
+                                </StackPanel>
                             </StackPanel>
                         </Grid>
                     </Border>
@@ -1110,7 +1233,7 @@
 
         <!-- EDIT LOG MODAL -->
         <Border IsVisible="{Binding IsEditLogOpen}" Background="#B2000000" ZIndex="100">
-            <Border Background="#1e1e1e" BorderBrush="#444" BorderThickness="1" CornerRadius="8" Width="550" Padding="25" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 10 30 0 #A8000000">
+            <Border Background="#1e1e1e" BorderBrush="#444" BorderThickness="1" CornerRadius="8" Width="680" Padding="25" VerticalAlignment="Center" HorizontalAlignment="Center" BoxShadow="0 10 30 0 #A8000000">
                 <StackPanel Spacing="15">
                     <Grid>
                         <TextBlock Text="Modify Existing Log" FontSize="20" FontWeight="Bold" Foreground="White"/>
@@ -1192,12 +1315,20 @@
                                         <TextBlock Text="C" FontSize="11" VerticalAlignment="Center"/>
                                     </StackPanel>
                                 </CheckBox>
-                                <CheckBox IsChecked="{Binding EditTadalafil}">
-                                    <StackPanel Orientation="Horizontal" Spacing="4">
-                                        <PathIcon Data="M11,2H13V19H11V2M9,20H15V22H9V20M12,0L15,3H9L12,0Z" Width="11" Height="11" Foreground="#e53935" VerticalAlignment="Center"/>
-                                        <TextBlock Text="Tad" FontSize="11" VerticalAlignment="Center"/>
-                                    </StackPanel>
-                                </CheckBox>
+                                <StackPanel Orientation="Horizontal" Spacing="2" VerticalAlignment="Center">
+                                    <CheckBox IsChecked="{Binding EditTadalafil}">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <PathIcon Data="M11,2H13V19H11V2M9,20H15V22H9V20M12,0L15,3H9L12,0Z" Width="11" Height="11" Foreground="#e53935" VerticalAlignment="Center"/>
+                                            <TextBlock Text="Tad" FontSize="11" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                    </CheckBox>
+                                    <ComboBox Classes="dose-selector" SelectedItem="{Binding EditTadalafilDose}" IsEnabled="{Binding EditTadalafil}" Margin="0,0,4,0">
+                                        <sys:Int32>5</sys:Int32>
+                                        <sys:Int32>10</sys:Int32>
+                                        <sys:Int32>20</sys:Int32>
+                                    </ComboBox>
+                                    <TextBlock Text="mg" FontSize="9" Foreground="#888" VerticalAlignment="Center"/>
+                                </StackPanel>
                             </StackPanel>
                         </Grid>
                     </Border>

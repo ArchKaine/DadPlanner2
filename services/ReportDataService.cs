@@ -11,7 +11,7 @@ public sealed class ReportDataService
     private readonly ClinicalDeltaService _clinicalDeltaService = new();
     public const int ReportWindowDays = 90;
 
-    public ReportData Create(IEnumerable<LogRecord> sourceLogs, long nowTimestamp)
+    public ReportData Create(IEnumerable<LogRecord> sourceLogs, long nowTimestamp, double userTotalVolume)
     {
         long cutoff = nowTimestamp - ReportWindowDays * 24L * 3600;
         var allLogs = sourceLogs.OrderBy(log => log.Timestamp).ToList();
@@ -70,7 +70,8 @@ public sealed class ReportDataService
             logs.Count(log => log.Volume == "Normal"),
             logs.Count(log => log.Volume == "Low"),
             logs.Count(log => log.Volume is "None" or "N/A"),
-            latestDelta);
+            latestDelta,
+            userTotalVolume);
     }
 }
 
@@ -87,4 +88,5 @@ public sealed record ReportData(
     int NormalCount,
     int LowCount,
     int DryCount,
-    ClinicalDeltaResult? LatestDelta);
+    ClinicalDeltaResult? LatestDelta,
+    double UserTotalVolume);

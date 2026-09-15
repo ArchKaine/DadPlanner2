@@ -59,6 +59,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private bool _isAlertOpen;
         [ObservableProperty] private bool _isAnalysisOpen;
         [ObservableProperty] private bool _isDeltaOpen;
+        [ObservableProperty] private bool _isBiometricsOpen;
         [ObservableProperty] private bool _isStealthMode;
         [ObservableProperty] private bool _isVolumeMode;
         
@@ -101,7 +102,26 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private bool _includeNotesInReport = false;
         [ObservableProperty] private bool _showWankAlert;
 
-        // Dynamic PDF Button Text 
+        // Biometric Variables (Nullable so boxes can be truly empty)
+        [ObservableProperty] private double? _bioLeftL;
+        [ObservableProperty] private double? _bioLeftW;
+        [ObservableProperty] private double? _bioLeftH;
+        [ObservableProperty] private double? _bioRightL;
+        [ObservableProperty] private double? _bioRightW;
+        [ObservableProperty] private double? _bioRightH;
+        [ObservableProperty] private double _userTotalVolume = 30.0; 
+
+        public double CalculatedTotalVolume => 
+            Math.Round(((BioLeftL ?? 0) * (BioLeftW ?? 0) * (BioLeftH ?? 0) * 0.71) + 
+                       ((BioRightL ?? 0) * (BioRightW ?? 0) * (BioRightH ?? 0) * 0.71), 1);
+
+        partial void OnBioLeftLChanged(double? value) => OnPropertyChanged(nameof(CalculatedTotalVolume));
+        partial void OnBioLeftWChanged(double? value) => OnPropertyChanged(nameof(CalculatedTotalVolume));
+        partial void OnBioLeftHChanged(double? value) => OnPropertyChanged(nameof(CalculatedTotalVolume));
+        partial void OnBioRightLChanged(double? value) => OnPropertyChanged(nameof(CalculatedTotalVolume));
+        partial void OnBioRightWChanged(double? value) => OnPropertyChanged(nameof(CalculatedTotalVolume));
+        partial void OnBioRightHChanged(double? value) => OnPropertyChanged(nameof(CalculatedTotalVolume));
+
         public string PdfButtonText => IncludeNotesInReport ? "[PDF] 90-Day Report (W/ Notes)" : "[PDF] 90-Day Report (Clinical)";
 
         private string _backupPath = "";
@@ -121,6 +141,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private bool _vitDActive;
         [ObservableProperty] private bool _vitCActive;
         [ObservableProperty] private bool _tadalafilActive;
+        [ObservableProperty] private int _tadalafilDose = 10;
         [ObservableProperty] private string _selectedNotes = "";
         
         public bool ShowClinicalFields => SelectedMode == "Clinical-Lab";
@@ -143,6 +164,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private bool _manualVitD;
         [ObservableProperty] private bool _manualVitC;
         [ObservableProperty] private bool _manualTadalafil;
+        [ObservableProperty] private int _manualTadalafilDose = 10;
         [ObservableProperty] private string _manualNotes = "";
         
         public bool ShowManualClinicalFields => ManualMode == "Clinical-Lab";
@@ -168,6 +190,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private bool _editVitD;
         [ObservableProperty] private bool _editVitC;
         [ObservableProperty] private bool _editTadalafil;
+        [ObservableProperty] private int _editTadalafilDose = 10;
         [ObservableProperty] private string _editNotes = "";
         
         public bool ShowEditClinicalFields => EditMode == "Clinical-Lab";
@@ -221,6 +244,9 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private ISeries[] _pkSeries = Array.Empty<ISeries>();
         [ObservableProperty] private Axis[] _pkXAxes = Array.Empty<Axis>();
         [ObservableProperty] private Axis[] _pkYAxes = Array.Empty<Axis>();
+
+        // --- DIURNAL PROPERTIES ---
+        [ObservableProperty] private string _diurnalPeakText = "Awaiting data...";
         
         [ObservableProperty] private int _totalEventCount;
         [ObservableProperty] private string _legendMaint = "";
@@ -248,7 +274,8 @@ namespace DadPlanner2.ViewModels
             MacaActive = savedSupps.ma;
             VitDActive = savedSupps.vitD;
             VitCActive = savedSupps.vitC;
-            TadalafilActive = savedSupps.tad;
+            TadalafilActive = savedSupps.tadActive;
+            TadalafilDose = savedSupps.tadDose;
             
             _enableSenescenceAlert = _dbService.GetSenescenceAlertSetting();
             _includeNotesInReport = _dbService.GetIncludeNotesInReportSetting();
@@ -317,6 +344,8 @@ namespace DadPlanner2.ViewModels
         [RelayCommand] private void CloseAlert() => IsAlertOpen = false;
         [RelayCommand] private void CloseAnalysis() => IsAnalysisOpen = false;
         [RelayCommand] private void CloseDelta() => IsDeltaOpen = false;
+        [RelayCommand] private void OpenBiometrics() { IsBiometricsOpen = true; CloseSettings(); }
+        [RelayCommand] private void CloseBiometrics() => IsBiometricsOpen = false;
         [RelayCommand] private void ConfirmAlert() { _alertConfirmAction?.Invoke(); IsAlertOpen = false; }
         
         [RelayCommand] 
@@ -345,7 +374,38 @@ namespace DadPlanner2.ViewModels
             CloseSettings(); 
         }
         
-        [RelayCommand] private void GeneratePdf() => _dbService.Generate90DayReport();
+        [RelayCommand] 
+        private void SaveBiometrics()
+        {
+            if (CalculatedTotalVolume > 0)
+            {
+                UserTotalVolume = CalculatedTotalVolume;
+                _dbService.SaveBiometrics(BioLeftL, BioLeftW, BioLeftH, BioRightL, BioRightW, BioRightH, UserTotalVolume);
+                _dbService.MarkDirty();
+                ShowAlert("Biometrics Saved", $"Max endurance ceiling scaled to accommodate {UserTotalVolume:F1}mL total capacity.");
+                CloseBiometrics();
+                UpdateTelemetry(); 
+            }
+            else
+            {
+                ShowAlert("Invalid Data", "Please enter valid measurements.");
+            }
+        }
+
+        [RelayCommand]
+        private void ClearBiometrics()
+        {
+            BioLeftL = null; BioLeftW = null; BioLeftH = null;
+            BioRightL = null; BioRightW = null; BioRightH = null;
+            UserTotalVolume = 30.0;
+            _dbService.ClearBiometrics();
+            _dbService.MarkDirty();
+            ShowAlert("Biometrics Cleared", "Custom capacity removed. Reverting to 30.0mL clinical baseline.");
+            CloseBiometrics();
+            UpdateTelemetry();
+        }
+
+        [RelayCommand] private void GeneratePdf() => _dbService.Generate90DayReport(UserTotalVolume);
         [RelayCommand] private void OpenPdf(long id) => _dbService.OpenLabReportPdf(id);
 
         [RelayCommand]
@@ -432,17 +492,43 @@ namespace DadPlanner2.ViewModels
         private void ZoomChart(string range)
         {
             if (XAxes.Length == 0) return;
-            var axis = XAxes[0];
+            var mainAxis = XAxes[0];
+            var entAxis = EnthusiasmXAxes.Length > 0 ? EnthusiasmXAxes[0] : null;
+            var pkAxis = PkXAxes.Length > 0 ? PkXAxes[0] : null;
             
             if (range == "ALL")
             {
-                axis.MinLimit = _chartMinX;
-                axis.MaxLimit = _chartMaxX;
+                mainAxis.MinLimit = _chartMinX;
+                mainAxis.MaxLimit = _chartMaxX;
+                
+                if (entAxis != null) 
+                { 
+                    entAxis.MinLimit = _chartMinX; 
+                    entAxis.MaxLimit = _chartMaxX; 
+                }
+                if (pkAxis != null) 
+                { 
+                    pkAxis.MinLimit = _chartMinX; 
+                    pkAxis.MaxLimit = _chartMaxX; 
+                }
             }
             else if (int.TryParse(range, out int days))
             {
-                axis.MaxLimit = _chartMaxX;
-                axis.MinLimit = _chartMaxX - (days * 86400.0);
+                double minLimit = _chartMaxX - (days * 86400.0);
+                
+                mainAxis.MaxLimit = _chartMaxX;
+                mainAxis.MinLimit = minLimit;
+                
+                if (entAxis != null) 
+                { 
+                    entAxis.MaxLimit = _chartMaxX; 
+                    entAxis.MinLimit = minLimit; 
+                }
+                if (pkAxis != null) 
+                { 
+                    pkAxis.MaxLimit = _chartMaxX; 
+                    pkAxis.MinLimit = minLimit; 
+                }
             }
         }
 
@@ -680,7 +766,7 @@ namespace DadPlanner2.ViewModels
                         "Maca" => log.Supplements.Contains("\"maca\":1"),
                         "Vit D3" => log.Supplements.Contains("\"vitD\":1"),
                         "Vit C" => log.Supplements.Contains("\"vitC\":1"),
-                        "Tadalafil" => log.Supplements.Contains("\"tadalafil\":1"),
+                        "Tadalafil" => ParseTadalafilDose(log.Supplements) > 0,
                         _ => true
                     };
                     if (!hasMatch) continue;
@@ -693,6 +779,21 @@ namespace DadPlanner2.ViewModels
             {
                 SelectedLog = selected;
             }
+        }
+
+        private int ParseTadalafilDose(string supps)
+        {
+            if (string.IsNullOrEmpty(supps)) return 0;
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(supps);
+                if (doc.RootElement.TryGetProperty("tadalafil", out var tProp)) return tProp.GetInt32();
+            }
+            catch
+            {
+                if (supps.Contains("\"tadalafil\":1")) return 10; // Legacy default
+            }
+            return 0;
         }
 
         private void LoadData()
@@ -708,7 +809,14 @@ namespace DadPlanner2.ViewModels
             MacaActive = savedSupps.ma;
             VitDActive = savedSupps.vitD;
             VitCActive = savedSupps.vitC;
-            TadalafilActive = savedSupps.tad;
+            TadalafilActive = savedSupps.tadActive;
+            TadalafilDose = savedSupps.tadDose;
+
+            // Load Biometrics
+            var bio = _dbService.GetBiometrics();
+            BioLeftL = bio.LeftL; BioLeftW = bio.LeftW; BioLeftH = bio.LeftH;
+            BioRightL = bio.RightL; BioRightW = bio.RightW; BioRightH = bio.RightH;
+            UserTotalVolume = bio.TotalVolume > 0 ? bio.TotalVolume : 30.0;
 
             Logs.Clear();
             var records = _dbService.GetAllLogs();
@@ -790,7 +898,8 @@ namespace DadPlanner2.ViewModels
         [RelayCommand]
         private void LogDailySupplements()
         {
-            string supps = $"{{\"zinc\":{(ZincActive ? 1 : 0)},\"maca\":{(MacaActive ? 1 : 0)},\"vitD\":{(VitDActive ? 1 : 0)},\"vitC\":{(VitCActive ? 1 : 0)},\"tadalafil\":{(TadalafilActive ? 1 : 0)}}}";
+            int tDose = TadalafilActive ? TadalafilDose : 0;
+            string supps = $"{{\"zinc\":{(ZincActive ? 1 : 0)},\"maca\":{(MacaActive ? 1 : 0)},\"vitD\":{(VitDActive ? 1 : 0)},\"vitC\":{(VitCActive ? 1 : 0)},\"tadalafil\":{tDose}}}";
             long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
             var log = new LogRecord 
@@ -807,7 +916,7 @@ namespace DadPlanner2.ViewModels
             };
 
             _dbService.InsertLog(log); 
-            _dbService.SaveSupplementsState(ZincActive, MacaActive, VitDActive, VitCActive, TadalafilActive);
+            _dbService.SaveSupplementsState(ZincActive, MacaActive, VitDActive, VitCActive, TadalafilActive, TadalafilDose);
             _dbService.MarkDirty();
 
             LoadData(); 
@@ -818,7 +927,8 @@ namespace DadPlanner2.ViewModels
         [RelayCommand]
         private void LogEvent(string mode)
         {
-            string supps = $"{{\"zinc\":{(ZincActive ? 1 : 0)},\"maca\":{(MacaActive ? 1 : 0)},\"vitD\":{(VitDActive ? 1 : 0)},\"vitC\":{(VitCActive ? 1 : 0)},\"tadalafil\":{(TadalafilActive ? 1 : 0)}}}";
+            int tDose = TadalafilActive ? TadalafilDose : 0;
+            string supps = $"{{\"zinc\":{(ZincActive ? 1 : 0)},\"maca\":{(MacaActive ? 1 : 0)},\"vitD\":{(VitDActive ? 1 : 0)},\"vitC\":{(VitCActive ? 1 : 0)},\"tadalafil\":{tDose}}}";
             long timestamp = DateTimeOffset.UtcNow.ToUnixTimeSeconds();
 
             if (!ValidateLogInput(mode, ClinicalVol, Concentration, Motility, ProgMotility, Morphology, PhLevel, timestamp, null, SelectedReleaseCount, SelectedVolumeConfidence))
@@ -834,7 +944,7 @@ namespace DadPlanner2.ViewModels
             var log = new LogRecord { Timestamp = timestamp, Mode = mode, Volume = vol, ReleaseCount = SelectedReleaseCount, VolumeConfidence = confidence, HeatFlag = SelectedHeat, Supplements = supps, ClinicalVol = ClinicalVol ?? 0.0, Concentration = Concentration ?? 0, Motility = Motility ?? 0, ProgMotility = ProgMotility ?? 0, Morphology = Morphology ?? 0, PhLevel = PhLevel ?? 0.0, Notes = SelectedNotes };
 
             _dbService.InsertLog(log); 
-            _dbService.SaveSupplementsState(ZincActive, MacaActive, VitDActive, VitCActive, TadalafilActive);
+            _dbService.SaveSupplementsState(ZincActive, MacaActive, VitDActive, VitCActive, TadalafilActive, TadalafilDose);
             _dbService.MarkDirty();
 
             LoadData(); ClearForm(); DatabaseService.ShowNotification("Event Logged", $"Successfully recorded {mode} event.");
@@ -866,10 +976,10 @@ namespace DadPlanner2.ViewModels
                 return;
             }
 
-            int z = ManualZinc ? 1 : 0, m = ManualMaca ? 1 : 0, d = ManualVitD ? 1 : 0, c = ManualVitC ? 1 : 0, tad = ManualTadalafil ? 1 : 0;
+            int z = ManualZinc ? 1 : 0, m = ManualMaca ? 1 : 0, d = ManualVitD ? 1 : 0, c = ManualVitC ? 1 : 0, tDose = ManualTadalafil ? ManualTadalafilDose : 0;
             var confidence = ManualMode == "Baby-Making" ? VolumeConfidence.Estimated : ManualVolumeConfidence;
 
-            var newLog = new LogRecord { Timestamp = ts, Mode = ManualMode, Volume = ManualVolume, ReleaseCount = ManualReleaseCount, VolumeConfidence = confidence, HeatFlag = ManualHeat, Supplements = $"{{\"zinc\":{z},\"maca\":{m},\"vitD\":{d},\"vitC\":{c},\"tadalafil\":{tad}}}", ClinicalVol = ManualClinicalVol ?? 0.0, Concentration = ManualConcentration ?? 0, Motility = ManualMotility ?? 0, ProgMotility = ManualProgMotility ?? 0, Morphology = ManualMorphology ?? 0, PhLevel = ManualPhLevel ?? 0.0, Notes = ManualNotes };
+            var newLog = new LogRecord { Timestamp = ts, Mode = ManualMode, Volume = ManualVolume, ReleaseCount = ManualReleaseCount, VolumeConfidence = confidence, HeatFlag = ManualHeat, Supplements = $"{{\"zinc\":{z},\"maca\":{m},\"vitD\":{d},\"vitC\":{c},\"tadalafil\":{tDose}}}", ClinicalVol = ManualClinicalVol ?? 0.0, Concentration = ManualConcentration ?? 0, Motility = ManualMotility ?? 0, ProgMotility = ManualProgMotility ?? 0, Morphology = ManualMorphology ?? 0, PhLevel = ManualPhLevel ?? 0.0, Notes = ManualNotes };
             
             _dbService.InsertLog(newLog, ManualLabFileName, _manualLabFileData);
             _dbService.MarkDirty();
@@ -888,7 +998,11 @@ namespace DadPlanner2.ViewModels
             EditMaca = log.Supplements.Contains("\"maca\":1"); 
             EditVitD = log.Supplements.Contains("\"vitD\":1"); 
             EditVitC = log.Supplements.Contains("\"vitC\":1");
-            EditTadalafil = log.Supplements.Contains("\"tadalafil\":1");
+            
+            int parsedTadDose = ParseTadalafilDose(log.Supplements);
+            EditTadalafil = parsedTadDose > 0;
+            EditTadalafilDose = parsedTadDose > 0 ? parsedTadDose : 10;
+            
             EditClinicalVol = log.ClinicalVol > 0 ? log.ClinicalVol : null; EditConcentration = log.Concentration > 0 ? log.Concentration : null; EditMotility = log.Motility > 0 ? log.Motility : null; EditProgMotility = log.ProgMotility > 0 ? log.ProgMotility : null; EditMorphology = log.Morphology > 0 ? log.Morphology : null; EditPhLevel = log.PhLevel > 0 ? log.PhLevel : null;
             EditNotes = log.Notes ?? "";
             var history = _dbService.GetLogEditHistory(log.Id);
@@ -938,10 +1052,10 @@ namespace DadPlanner2.ViewModels
                 return;
             }
 
-            int z = EditZinc ? 1 : 0, m = EditMaca ? 1 : 0, d = EditVitD ? 1 : 0, c = EditVitC ? 1 : 0, tad = EditTadalafil ? 1 : 0;
+            int z = EditZinc ? 1 : 0, m = EditMaca ? 1 : 0, d = EditVitD ? 1 : 0, c = EditVitC ? 1 : 0, tDose = EditTadalafil ? EditTadalafilDose : 0;
             var confidence = EditMode == "Baby-Making" ? VolumeConfidence.Estimated : EditVolumeConfidence;
 
-            var updatedLog = new LogRecord { Id = EditId, Timestamp = ts, Mode = EditMode, Volume = EditVolume, ReleaseCount = EditReleaseCount, VolumeConfidence = confidence, HeatFlag = EditHeat, Supplements = $"{{\"zinc\":{z},\"maca\":{m},\"vitD\":{d},\"vitC\":{c},\"tadalafil\":{tad}}}", ClinicalVol = EditClinicalVol ?? 0.0, Concentration = EditConcentration ?? 0, Motility = EditMotility ?? 0, ProgMotility = EditProgMotility ?? 0, Morphology = EditMorphology ?? 0, PhLevel = EditPhLevel ?? 0.0, Notes = EditNotes };
+            var updatedLog = new LogRecord { Id = EditId, Timestamp = ts, Mode = EditMode, Volume = EditVolume, ReleaseCount = EditReleaseCount, VolumeConfidence = confidence, HeatFlag = EditHeat, Supplements = $"{{\"zinc\":{z},\"maca\":{m},\"vitD\":{d},\"vitC\":{c},\"tadalafil\":{tDose}}}", ClinicalVol = EditClinicalVol ?? 0.0, Concentration = EditConcentration ?? 0, Motility = EditMotility ?? 0, ProgMotility = EditProgMotility ?? 0, Morphology = EditMorphology ?? 0, PhLevel = EditPhLevel ?? 0.0, Notes = EditNotes };
             
             _dbService.UpdateLog(updatedLog, EditLabFileName, _editLabFileData);
             _dbService.MarkDirty();
@@ -974,10 +1088,34 @@ namespace DadPlanner2.ViewModels
             for (int i = 0; i < uncompromisedLogs.Count - 1; i++) { double gap = (uncompromisedLogs[i + 1].Timestamp - uncompromisedLogs[i].Timestamp) / 3600.0; allGaps.Add(gap); if ((uncompromisedLogs[i + 1].Mode == "Maintenance" || uncompromisedLogs[i + 1].Mode == "Clinical-Lab") && (uncompromisedLogs[i + 1].Volume == "Normal" || uncompromisedLogs[i + 1].Volume == "High")) validGaps.Add(gap); }
             if (validGaps.Count == 0) { ShowAlert("Error", "No successful uncompromised recoveries recorded yet."); return; }
 
-            double roundedMin = Math.Round(validGaps.Average(), 1); double meanAll = allGaps.Average(); double stdDev = Math.Sqrt(allGaps.Sum(val => Math.Pow(val - meanAll, 2)) / allGaps.Count);
-            double recommendedMax = Math.Round(meanAll + stdDev, 1); if (recommendedMax > 120.0) recommendedMax = 120.0;
+            double roundedMin = Math.Round(validGaps.Average(), 1); 
+            double meanAll = allGaps.Average(); 
+            double stdDev = Math.Sqrt(allGaps.Sum(val => Math.Pow(val - meanAll, 2)) / allGaps.Count);
+            double recommendedMax = Math.Round(meanAll + stdDev, 1); 
+            if (recommendedMax > 120.0) recommendedMax = 120.0;
 
-            ShowAlert("Auto-Calibrate", $"Calibration Complete.\n(Thermal Shadow events excluded)\n\n[FLOOR] Minimum recovery gap: {roundedMin} hours.\n[CEILING] Max endurance: {recommendedMax} hours.\n\nUpdate your threshold settings?", () => { MinHours = roundedMin; MaxHours = recommendedMax; SaveSettings(); });
+            // --- LAB-DRIVEN CALIBRATION ENGINE ---
+            var latestLab = Logs.Where(l => l.Mode == "Clinical-Lab" && l.Concentration > 0).OrderByDescending(l => l.Timestamp).FirstOrDefault();
+            string labFeedback = "";
+            
+            if (latestLab != null)
+            {
+                // WHO Criteria for sub-optimal: < 15M/mL conc, < 40% tot motility, < 32% prog motility
+                if (latestLab.Concentration < 15 || latestLab.ProgMotility < 32 || latestLab.Motility < 40)
+                {
+                    roundedMin = Math.Round(roundedMin * 1.15, 1); // +15% penalty extension
+                    labFeedback = "\n\n[LAB CALIBRATION] Recent sub-optimal clinical metrics (WHO criteria) applied a +15% extension to the minimum recovery floor.";
+                }
+                // Optimal turnover criteria
+                else if (latestLab.Concentration >= 40 && latestLab.ProgMotility >= 50)
+                {
+                    roundedMin = Math.Round(roundedMin * 0.90, 1); // -10% bonus reduction
+                    labFeedback = "\n\n[LAB CALIBRATION] Recent pristine clinical metrics applied a -10% reduction to the minimum recovery floor.";
+                }
+            }
+            // -------------------------------------
+
+            ShowAlert("Auto-Calibrate", $"Calibration Complete.\n(Thermal Shadow events excluded)\n\n[FLOOR] Minimum recovery gap: {roundedMin} hours.{labFeedback}\n[CEILING] Max endurance: {recommendedMax} hours.\n\nUpdate your threshold settings?", () => { MinHours = roundedMin; MaxHours = recommendedMax; SaveSettings(); });
         }
 
         [RelayCommand]
@@ -1134,7 +1272,9 @@ namespace DadPlanner2.ViewModels
                     Name = "Zinc Saturation",
                     Fill = null,
                     Stroke = new SolidColorPaint(new SKColor(0, 122, 204)) { StrokeThickness = 2 },
-                    GeometrySize = 0,
+                    GeometrySize = 4,
+                    GeometryFill = new SolidColorPaint(new SKColor(0, 122, 204)),
+                    GeometryStroke = new SolidColorPaint(new SKColor(0, 122, 204)),
                     LineSmoothness = 0.8
                 },
                 new LineSeries<ObservablePoint>
@@ -1143,7 +1283,9 @@ namespace DadPlanner2.ViewModels
                     Name = "Maca Kinetics",
                     Fill = null,
                     Stroke = new SolidColorPaint(new SKColor(156, 39, 176)) { StrokeThickness = 2 },
-                    GeometrySize = 0,
+                    GeometrySize = 4,
+                    GeometryFill = new SolidColorPaint(new SKColor(156, 39, 176)),
+                    GeometryStroke = new SolidColorPaint(new SKColor(156, 39, 176)),
                     LineSmoothness = 0.8
                 },
                 new LineSeries<ObservablePoint>
@@ -1152,7 +1294,9 @@ namespace DadPlanner2.ViewModels
                     Name = "Vitamin D3",
                     Fill = null,
                     Stroke = new SolidColorPaint(new SKColor(76, 175, 80)) { StrokeThickness = 2 },
-                    GeometrySize = 0,
+                    GeometrySize = 4,
+                    GeometryFill = new SolidColorPaint(new SKColor(76, 175, 80)),
+                    GeometryStroke = new SolidColorPaint(new SKColor(76, 175, 80)),
                     LineSmoothness = 0.8
                 },
                 new LineSeries<ObservablePoint>
@@ -1161,7 +1305,9 @@ namespace DadPlanner2.ViewModels
                     Name = "Vitamin C",
                     Fill = null,
                     Stroke = new SolidColorPaint(new SKColor(245, 124, 0)) { StrokeThickness = 2 },
-                    GeometrySize = 0,
+                    GeometrySize = 4,
+                    GeometryFill = new SolidColorPaint(new SKColor(245, 124, 0)),
+                    GeometryStroke = new SolidColorPaint(new SKColor(245, 124, 0)),
                     LineSmoothness = 0.8
                 },
                 new LineSeries<ObservablePoint>
@@ -1170,7 +1316,9 @@ namespace DadPlanner2.ViewModels
                     Name = "Tadalafil",
                     Fill = null,
                     Stroke = new SolidColorPaint(new SKColor(229, 57, 53)) { StrokeThickness = 2 },
-                    GeometrySize = 0,
+                    GeometrySize = 4,
+                    GeometryFill = new SolidColorPaint(new SKColor(229, 57, 53)),
+                    GeometryStroke = new SolidColorPaint(new SKColor(229, 57, 53)),
                     LineSmoothness = 0.8
                 }
             };
@@ -1199,6 +1347,49 @@ namespace DadPlanner2.ViewModels
                     TicksPaint = null 
                 } 
             };
+        }
+
+        private void UpdateDiurnalInsight()
+        {
+            var releaseLogs = Logs.Where(l => l.Mode != "Daily Dose").ToList();
+            if (releaseLogs.Count < 5)
+            {
+                DiurnalPeakText = "Awaiting data to calculate peak biological window.";
+                return;
+            }
+
+            var hourBuckets = new double[24];
+            foreach (var log in releaseLogs)
+            {
+                if (log.Volume == "Normal" || log.Volume == "High" || log.Mode == "Clinical-Lab")
+                {
+                    int hour = DateTimeOffset.FromUnixTimeSeconds(log.Timestamp).ToLocalTime().Hour;
+                    double score = (log.Volume == "High" || log.Mode == "Clinical-Lab") ? 1.5 : 1.0;
+                    hourBuckets[hour] += score;
+                }
+            }
+
+            double maxWindow = 0;
+            int bestStartHour = 0;
+            for (int i = 0; i < 24; i++)
+            {
+                double windowSum = hourBuckets[i] + hourBuckets[(i + 1) % 24] + hourBuckets[(i + 2) % 24];
+                if (windowSum > maxWindow)
+                {
+                    maxWindow = windowSum;
+                    bestStartHour = i;
+                }
+            }
+
+            if (maxWindow > 0)
+            {
+                int endHour = (bestStartHour + 3) % 24;
+                DiurnalPeakText = $"* Historical data indicates peak yield window is {bestStartHour:D2}:00 - {endHour:D2}:00.";
+            }
+            else
+            {
+                DiurnalPeakText = "";
+            }
         }
 
         private static string FormatAnalysisCard(string label, SupplementComparison comparison)
@@ -1328,7 +1519,8 @@ namespace DadPlanner2.ViewModels
                 releaseLogs,
                 now,
                 MinHours,
-                MaxHours);
+                MaxHours,
+                UserTotalVolume); 
             
             if (metrics.HasRelease)
             {
@@ -1444,32 +1636,29 @@ namespace DadPlanner2.ViewModels
                 // --- FORECASTING ENGINE ---
                 var predictionPts = new List<ChartLogPoint>();
                 var predictionLineData = new List<ChartLogPoint>();
-                var recentLogs = releaseLogs.OrderByDescending(l => l.Timestamp).Take(15).ToList();
+                
+                var prediction = _telemetryAnalysis.PredictNextEvent(releaseLogs);
 
-                if (recentLogs.Count >= 2 && gapData.Count > 0)
+                if (prediction.IsValid && gapData.Count > 0)
                 {
-                    var gaps = new List<double>();
-                    for (int i = 0; i < recentLogs.Count - 1; i++) 
-                        gaps.Add((recentLogs[i].Timestamp - recentLogs[i + 1].Timestamp) / 3600.0);
-                    
-                    double meanGap = gaps.Average();
-                    double stdDev = Math.Sqrt(gaps.Sum(g => Math.Pow(g - meanGap, 2)) / gaps.Count);
-
                     var lastActual = gapData.Last();
-                    predictionLineData.Add(lastActual);
+                    predictionLineData.Add(lastActual); // Connect dashed line from the last real dot
 
-                    double predictedTs1 = lastActual.X!.Value + (meanGap * 3600.0);
-                    double predictedTs2 = predictedTs1 + (meanGap * 3600.0);
+                    // Predict next 2 events using the adaptive gap
+                    double predictedTs1 = lastActual.X!.Value + (prediction.MeanGapHours * 3600.0);
+                    double predictedTs2 = predictedTs1 + (prediction.MeanGapHours * 3600.0);
 
-                    var p1Log = new LogRecord { Mode = "Predicted", Volume = "Statistical Mean", Timestamp = (long)predictedTs1, Supplements = "{}" };
-                    var p2Log = new LogRecord { Mode = "Predicted", Volume = "Statistical Mean", Timestamp = (long)predictedTs2, Supplements = "{}" };
+                    // Create dummy log records for the tooltip binding
+                    var p1Log = new LogRecord { Mode = "Predicted", Volume = "Adaptive Forecast", Timestamp = (long)predictedTs1, Supplements = "{}" };
+                    var p2Log = new LogRecord { Mode = "Predicted", Volume = "Adaptive Forecast", Timestamp = (long)predictedTs2, Supplements = "{}" };
 
-                    var p1 = new ChartLogPoint { X = predictedTs1, Y = meanGap, IsPrediction = true, StdDev = stdDev, Log = p1Log };
-                    var p2 = new ChartLogPoint { X = predictedTs2, Y = meanGap, IsPrediction = true, StdDev = stdDev, Log = p2Log };
+                    var p1 = new ChartLogPoint { X = predictedTs1, Y = prediction.MeanGapHours, IsPrediction = true, StdDev = prediction.StdDevHours, Log = p1Log };
+                    var p2 = new ChartLogPoint { X = predictedTs2, Y = prediction.MeanGapHours, IsPrediction = true, StdDev = prediction.StdDevHours, Log = p2Log };
 
                     predictionPts.Add(p1); predictionPts.Add(p2);
                     predictionLineData.Add(p1); predictionLineData.Add(p2);
 
+                    // Extend chart view further out to fit the predicted points
                     _chartMaxX = predictedTs2 + 43200; 
                 }
                 // ---------------------------
@@ -1636,30 +1825,53 @@ namespace DadPlanner2.ViewModels
             
             UpdateEnthusiasmChart();
             UpdatePharmacokineticChart();
+            UpdateDiurnalInsight();
         }
 
         private void UpdateEnthusiasmChart()
         {
+            var releaseLogs = Logs.Where(l => l.Mode != "Daily Dose").OrderBy(l => l.Timestamp).ToList();
             var today = DateTime.Today;
-            var actualPoints = new List<ObservablePoint>();
-            var baselinePoints = new List<ObservablePoint>();
             
-            var logsByDate = Logs.Where(l => l.Mode != "Daily Dose")
+            var logsByDate = releaseLogs
                 .GroupBy(l => DateTimeOffset.FromUnixTimeSeconds(l.Timestamp).ToLocalTime().Date)
                 .ToDictionary(g => g.Key, g => g.Sum(l => 
                 {
-                    double multiplier = l.Volume == "High" ? 1.5 : l.Volume == "Normal" ? 1.0 : l.Volume == "Low" ? 0.5 : 0.0;
-                    return l.ReleaseCount * multiplier;
+                    double fluidScore = l.Volume == "High" ? 1.0 : l.Volume == "Normal" ? 0.6 : l.Volume == "Low" ? 0.3 : 0.0;
+                    double neuroScore = l.ReleaseCount * 0.4;
+                    return fluidScore + neuroScore;
                 }));
 
-            int windowSize = 14; 
+            var prediction = _telemetryAnalysis.PredictNextEvent(releaseLogs);
+            if (prediction.IsValid && releaseLogs.Count > 0)
+            {
+                long lastTs = releaseLogs.Last().Timestamp;
+                long predictedTs1 = lastTs + (long)(prediction.MeanGapHours * 3600.0);
+                long predictedTs2 = predictedTs1 + (long)(prediction.MeanGapHours * 3600.0);
+                
+                var pDate1 = DateTimeOffset.FromUnixTimeSeconds(predictedTs1).ToLocalTime().Date;
+                var pDate2 = DateTimeOffset.FromUnixTimeSeconds(predictedTs2).ToLocalTime().Date;
+
+                if (logsByDate.ContainsKey(pDate1)) logsByDate[pDate1] += 1.0; else logsByDate[pDate1] = 1.0;
+                if (logsByDate.ContainsKey(pDate2)) logsByDate[pDate2] += 1.0; else logsByDate[pDate2] = 1.0;
+            }
+
+            var historicalPoints = new List<ObservablePoint>();
+            var predictedPoints = new List<ObservablePoint>();
+            var baselinePoints = new List<ObservablePoint>();
             
+            int windowSize = 14; 
             double optimalScore = 336.0 / Math.Max(1.0, MinHours);
             EnthusiasmTargetScore = optimalScore;
             
-            for (int i = 364; i >= 0; i--)
+            DateTime maxChartDate = DateTimeOffset.FromUnixTimeSeconds((long)_chartMaxX).ToLocalTime().Date;
+            if (maxChartDate < today) maxChartDate = today;
+
+            int totalDays = (maxChartDate - today.AddDays(-364)).Days;
+            
+            for (int i = 0; i <= totalDays; i++)
             {
-                var targetDate = today.AddDays(-i);
+                var targetDate = today.AddDays(-364 + i);
                 double rollingSum = 0;
                 
                 for (int j = 0; j < windowSize; j++)
@@ -1669,8 +1881,18 @@ namespace DadPlanner2.ViewModels
                 }
                 
                 long targetTs = new DateTimeOffset(targetDate).ToUnixTimeSeconds();
-                actualPoints.Add(new ObservablePoint(targetTs, rollingSum));
+                var point = new ObservablePoint(targetTs, rollingSum);
+                
                 baselinePoints.Add(new ObservablePoint(targetTs, optimalScore));
+
+                if (targetDate <= today) 
+                {
+                    historicalPoints.Add(point);
+                }
+                if (targetDate >= today) 
+                {
+                    predictedPoints.Add(point);
+                }
             }
 
             EnthusiasmSeries = new ISeries[]
@@ -1685,24 +1907,39 @@ namespace DadPlanner2.ViewModels
                         StrokeThickness = 2,
                         PathEffect = new LiveChartsCore.SkiaSharpView.Painting.Effects.DashEffect(new float[] { 6, 6 }) 
                     },
-                    GeometrySize = 0,
-                    GeometryFill = null,
-                    GeometryStroke = null,
+                    GeometrySize = 4,
+                    GeometryFill = new SolidColorPaint(new SKColor(100, 100, 100)),
+                    GeometryStroke = new SolidColorPaint(new SKColor(100, 100, 100)),
                     LineSmoothness = 1.0,
                     IsHoverable = false 
                 },
                 new LineSeries<ObservablePoint>
                 {
-                    Values = actualPoints,
+                    Values = historicalPoints,
                     Name = "14-Day Enthusiasm",
                     Fill = new LinearGradientPaint(
                         new[] { new SKColor(245, 124, 0, 180), new SKColor(245, 124, 0, 0) }, 
                         new SKPoint(0.5f, 0), 
                         new SKPoint(0.5f, 1)),
                     Stroke = new SolidColorPaint(new SKColor(245, 124, 0)) { StrokeThickness = 3 },
-                    GeometrySize = 0,
-                    GeometryFill = null,
-                    GeometryStroke = null,
+                    GeometrySize = 4,
+                    GeometryFill = new SolidColorPaint(new SKColor(245, 124, 0)),
+                    GeometryStroke = new SolidColorPaint(new SKColor(245, 124, 0)),
+                    LineSmoothness = 1.0 
+                },
+                new LineSeries<ObservablePoint>
+                {
+                    Values = predictedPoints,
+                    Name = "Projected Enthusiasm",
+                    Fill = null,
+                    Stroke = new SolidColorPaint(new SKColor(245, 124, 0, 120)) 
+                    { 
+                        StrokeThickness = 3,
+                        PathEffect = new LiveChartsCore.SkiaSharpView.Painting.Effects.DashEffect(new float[] { 6, 6 }) 
+                    },
+                    GeometrySize = 4,
+                    GeometryFill = new SolidColorPaint(new SKColor(245, 124, 0, 120)),
+                    GeometryStroke = new SolidColorPaint(new SKColor(245, 124, 0, 120)),
                     LineSmoothness = 1.0 
                 }
             };
@@ -1752,9 +1989,19 @@ namespace DadPlanner2.ViewModels
 
             var allPoints = new List<ObservablePoint>();
             var actualSeries = EnthusiasmSeries.FirstOrDefault(s => s.Name == "14-Day Enthusiasm");
+            var projectedSeries = EnthusiasmSeries.FirstOrDefault(s => s.Name == "Projected Enthusiasm");
+            
             if (actualSeries != null && actualSeries.Values is IEnumerable<ObservablePoint> pts) 
             {
                 allPoints.AddRange(pts);
+            }
+            if (projectedSeries != null && projectedSeries.Values is IEnumerable<ObservablePoint> projPts) 
+            {
+                foreach (var pt in projPts)
+                {
+                    if (!allPoints.Any(p => p.X == pt.X))
+                        allPoints.Add(pt);
+                }
             }
 
             if (allPoints.Count == 0) { IsTooltipVisible = false; return; }
@@ -1942,7 +2189,7 @@ namespace DadPlanner2.ViewModels
                 if (Log.Supplements.Contains("\"maca\":1")) flags.Add("[Ma]"); 
                 if (Log.Supplements.Contains("\"vitD\":1")) flags.Add("[D3]"); 
                 if (Log.Supplements.Contains("\"vitC\":1")) flags.Add("[C]"); 
-                if (Log.Supplements.Contains("\"tadalafil\":1")) flags.Add("[Tad]"); 
+                if (Log.Supplements.Contains("\"tadalafil\"") && !Log.Supplements.Contains("\"tadalafil\":0")) flags.Add("[Tad]"); 
                 return string.Join(" ", flags); 
             } 
         }

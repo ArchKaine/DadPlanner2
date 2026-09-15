@@ -25,7 +25,6 @@ public sealed class ReportDocumentService
     public void Generate(
         ReportData reportData,
         string pdfPath,
-        SupplementAnalysisResult? supplementAnalysis = null,
         bool includeNotes = true)
     {
         var logs = reportData.Logs;
@@ -33,20 +32,20 @@ public sealed class ReportDocumentService
         double avgGap = reportData.AverageGap;
         double minGap = reportData.MinimumGap;
 
-        // Line Chart (Recovery Gap Timeline)
+        // Line Chart (Recovery Gap Timeline) - Scaled 2x for DPI Crispness
         var lineChart = new SKCartesianChart
         {
-            Width = 900, Height = 250,
+            Width = 1800, Height = 500,
             Series = new ISeries[] {
                 new LineSeries<DateTimePoint> {
                     Values = gapData,
                     Fill = new SolidColorPaint(new SKColor(0, 122, 204, 50)),
-                    Stroke = new SolidColorPaint(new SKColor(0, 122, 204)) { StrokeThickness = 2 },
-                    GeometrySize = 6
+                    Stroke = new SolidColorPaint(new SKColor(0, 122, 204)) { StrokeThickness = 4 },
+                    GeometrySize = 12
                 }
             },
-            XAxes = new[] { new Axis { Labeler = val => new DateTime((long)val).ToString("MMM dd"), LabelsPaint = new SolidColorPaint(SKColors.Black) } },
-            YAxes = new[] { new Axis { Name = "Gap (Hrs)", LabelsPaint = new SolidColorPaint(SKColors.Black), NamePaint = new SolidColorPaint(SKColors.Black) } },
+            XAxes = new[] { new Axis { Labeler = val => new DateTime((long)val).ToString("MMM dd"), LabelsPaint = new SolidColorPaint(SKColors.Black), TextSize = 20 } },
+            YAxes = new[] { new Axis { Name = "Gap (Hrs)", LabelsPaint = new SolidColorPaint(SKColors.Black), NamePaint = new SolidColorPaint(SKColors.Black), TextSize = 20, NameTextSize = 24 } },
             Background = SKColors.White
         };
 
@@ -59,10 +58,10 @@ public sealed class ReportDocumentService
         int baby = reportData.BabyMakingCount;
         int lab = reportData.ClinicalLabCount;
 
-        // Pie Chart (Event Distribution)
+        // Pie Chart (Event Distribution) - Scaled 2x for DPI Crispness
         var pieChart = new SKPieChart
         {
-            Width = 450, Height = 300,
+            Width = 900, Height = 600,
             Series = new ISeries[] {
                 new PieSeries<int> { Values = new[] { maint }, Name = "Maintenance", Fill = new SolidColorPaint(new SKColor(0, 122, 204)) },
                 new PieSeries<int> { Values = new[] { play }, Name = "Playtime", Fill = new SolidColorPaint(new SKColor(156, 39, 176)) },
@@ -71,7 +70,8 @@ public sealed class ReportDocumentService
             },
             Background = SKColors.White,
             LegendPosition = LiveChartsCore.Measure.LegendPosition.Right,
-            LegendTextPaint = new SolidColorPaint(SKColors.Black)
+            LegendTextPaint = new SolidColorPaint(SKColors.Black),
+            LegendTextSize = 20
         };
 
         byte[] pieBytes;
@@ -83,22 +83,22 @@ public sealed class ReportDocumentService
         int low = reportData.LowCount;
         int dry = reportData.DryCount;
 
-        // Bar Chart (Yield Profile)
+        // Bar Chart (Yield Profile) - Scaled 2x for DPI Crispness
         var barChart = new SKCartesianChart
         {
-            Width = 450, Height = 300,
+            Width = 900, Height = 600,
             Series = new ISeries[] {
                 new ColumnSeries<int> {
                     Values = new[] { dry, low, norm, high },
                     Fill = new SolidColorPaint(new SKColor(0, 122, 204)),
                     DataLabelsPaint = new SolidColorPaint(SKColors.White),
-                    DataLabelsSize = 12,
+                    DataLabelsSize = 24,
                     DataLabelsPosition = LiveChartsCore.Measure.DataLabelsPosition.Middle,
                     DataLabelsFormatter = p => p.Model > 0 ? p.Model.ToString() : ""
                 }
             },
-            XAxes = new[] { new Axis { Labels = new[] { "Dry", "Low", "Normal", "High" }, LabelsPaint = new SolidColorPaint(SKColors.Black) } },
-            YAxes = new[] { new Axis { LabelsPaint = new SolidColorPaint(SKColors.Black), MinLimit = 0 } },
+            XAxes = new[] { new Axis { Labels = new[] { "Dry", "Low", "Normal", "High" }, LabelsPaint = new SolidColorPaint(SKColors.Black), TextSize = 20 } },
+            YAxes = new[] { new Axis { LabelsPaint = new SolidColorPaint(SKColors.Black), MinLimit = 0, TextSize = 20 } },
             Background = SKColors.White
         };
 
@@ -107,7 +107,7 @@ public sealed class ReportDocumentService
         using (var data = img.Encode(SKEncodedImageFormat.Png, 100)) barBytes = data.ToArray();
 
         string pdfFont = RuntimeInformation.IsOSPlatform(OSPlatform.Linux) ? "Liberation Sans" :
-                        RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "Helvetica" : Fonts.Arial;
+                         RuntimeInformation.IsOSPlatform(OSPlatform.OSX) ? "Helvetica" : Fonts.Arial;
 
         // Calculate 90-day Thermal Status
         var heatEvents = logs.Where(l => l.HeatFlag >= 2).OrderByDescending(l => l.Timestamp).ToList();
@@ -155,7 +155,7 @@ public sealed class ReportDocumentService
                     {
                         col.Item().Text($"Date: {DateTime.Now:MMM dd, yyyy}").SemiBold();
                         col.Item().Text("Cycle: 90-Day Retrospective");
-                        col.Item().Text("WHO Reference: 6th Ed. (2021)").FontSize(9).FontColor(Colors.Grey.Darken1);
+                        col.Item().Text($"Total Spermatogenic Capacity: {reportData.UserTotalVolume:F1} mL").FontSize(9).FontColor(Colors.Grey.Darken1);
                     });
                 });
 
@@ -213,7 +213,7 @@ public sealed class ReportDocumentService
                             col.Item().PaddingBottom(10).Text("Clinical Delta Matrix (Latest Lab Comparison)")
                                 .SemiBold().FontSize(12).FontColor(Colors.Grey.Darken2);
                             col.Item().PaddingBottom(5).Text($"Comparing baseline [{DateTimeOffset.FromUnixTimeSeconds(delta.LabA.Timestamp).ToLocalTime():MMM dd, yyyy}] " +
-                                                    $"to follow-up [{DateTimeOffset.FromUnixTimeSeconds(delta.LabB.Timestamp).ToLocalTime():MMM dd, yyyy}]")
+                                                              $"to follow-up [{DateTimeOffset.FromUnixTimeSeconds(delta.LabB.Timestamp).ToLocalTime():MMM dd, yyyy}]")
                                 .FontSize(8).Italic();
 
                             col.Item().PaddingBottom(15).Table(table =>
@@ -338,67 +338,6 @@ public sealed class ReportDocumentService
                                 isAlternate = !isAlternate;
                             }
                         });
-
-                        if (supplementAnalysis != null)
-                        {
-                            col.Item().PaddingTop(15).Text("Observed Supplement Associations & Saturation")
-                                .SemiBold().FontSize(12).FontColor(Colors.Grey.Darken2);
-                            col.Item().Text("Personal observational comparisons only; not clinical evidence. "
-                                + "Evaluates 50% target presence and exponential steady-state saturation. "
-                                + "Confidence counts use O=Observed, E=Estimated, U=Unknown.")
-                                .FontSize(8).Italic();
-
-                            col.Item().PaddingTop(5).Table(table =>
-                            {
-                                table.ColumnsDefinition(columns =>
-                                {
-                                    columns.RelativeColumn(1.5f);
-                                    columns.RelativeColumn(1.2f);
-                                    columns.RelativeColumn(1.7f);
-                                    columns.RelativeColumn(1.7f);
-                                    columns.RelativeColumn(1.7f);
-                                    columns.RelativeColumn(1.5f);
-                                    columns.RelativeColumn(3);
-                                });
-                                table.Header(header =>
-                                {
-                                    header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Supplement").SemiBold();
-                                    header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Window").SemiBold();
-                                    header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Saturated").SemiBold();
-                                    header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Unsaturated").SemiBold();
-                                    header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Successes").SemiBold();
-                                    header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Proportion").SemiBold();
-                                    header.Cell().BorderBottom(1).BorderColor(Colors.Black).Text("Targets").SemiBold();
-                                });
-
-                                foreach (var comparison in new[]
-                                {
-                                    supplementAnalysis.Zinc,
-                                    supplementAnalysis.Maca,
-                                    supplementAnalysis.VitaminD,
-                                    supplementAnalysis.VitaminC
-                                })
-                                {
-                                    int releaseEvents = comparison.SaturationAudits.Sum(audit => audit.ReleaseEventCount);
-                                    int supplementEvents = comparison.SaturationAudits.Sum(audit => audit.SupplementEventCount);
-                                    double proportion = releaseEvents == 0 ? 0 : supplementEvents / (double)releaseEvents;
-                                    string targets = string.Join(", ", comparison.SaturationAudits.Select(audit =>
-                                        $"{DateTimeOffset.FromUnixTimeSeconds(audit.TargetTimestamp).ToLocalTime():MMM dd} "
-                                        + (audit.IsSaturated ? "S" : "U")));
-
-                                    table.Cell().PaddingVertical(3).Text(comparison.Supplement);
-                                    table.Cell().PaddingVertical(3).Text($"{comparison.WindowDays} days");
-                                    table.Cell().PaddingVertical(3).Text(
-                                        $"{comparison.SaturatedCount} ({FormatConfidenceCounts(comparison.SaturatedConfidenceCounts)})");
-                                    table.Cell().PaddingVertical(3).Text(
-                                        $"{comparison.UnsaturatedCount} ({FormatConfidenceCounts(comparison.UnsaturatedConfidenceCounts)})");
-                                    table.Cell().PaddingVertical(3).Text(
-                                        FormatSuccessCounts(comparison));
-                                    table.Cell().PaddingVertical(3).Text($"{proportion:P1}");
-                                    table.Cell().PaddingVertical(3).Text(targets.Length == 0 ? "No target events" : targets);
-                                }
-                            });
-                        }
                     }
                 });
 
@@ -417,17 +356,5 @@ public sealed class ReportDocumentService
         });
 
         document.GeneratePdf(pdfPath);
-    }
-
-    private static string FormatConfidenceCounts(ConfidenceCounts counts) =>
-        $"O:{counts.Observed} E:{counts.Estimated} U:{counts.Unknown}";
-
-    private static string FormatSuccessCounts(SupplementComparison comparison)
-    {
-        if (!comparison.SaturatedSuccesses.HasValue && !comparison.UnsaturatedSuccesses.HasValue)
-            return "-";
-
-        return $"S {FormatConfidenceCounts(comparison.SaturatedSuccessesByConfidence)} / "
-            + $"U {FormatConfidenceCounts(comparison.UnsaturatedSuccessesByConfidence)}";
     }
 }

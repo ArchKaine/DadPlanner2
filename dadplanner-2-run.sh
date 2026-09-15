@@ -54,4 +54,4 @@ fi
 
 echo "✅ All dependencies verified."
 echo "Building and launching Dad Planner 2..."
-dotnet run --project "$PROJECT_FILE" --no-restore
+dotnet run --project "$PROJECT_FILE"

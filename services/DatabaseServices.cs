@@ -584,28 +584,35 @@ namespace DadPlanner2.Services
             cmd.ExecuteNonQuery();
         }
 
-        public void SaveSupplementsState(bool zn, bool ma, bool vitD, bool vitC, bool tad)
+        public void SaveSupplementsState(bool zn, bool ma, bool vitD, bool vitC, bool tadActive, int tadDose)
         {
             using var db = CreateConnection();
             using var cmd = db.CreateCommand();
-            cmd.CommandText = "INSERT OR REPLACE INTO Settings (Key, Value) VALUES ('supp_zn', $zn), ('supp_ma', $ma), ('supp_vitD', $vitD), ('supp_vitC', $vitC), ('supp_tad', $tad)";
+            cmd.CommandText = "INSERT OR REPLACE INTO Settings (Key, Value) VALUES ('supp_zn', $zn), ('supp_ma', $ma), ('supp_vitD', $vitD), ('supp_vitC', $vitC), ('supp_tadActive', $tadActive), ('supp_tadDose', $tadDose)";
             cmd.Parameters.AddWithValue("$zn", zn.ToString());
             cmd.Parameters.AddWithValue("$ma", ma.ToString());
             cmd.Parameters.AddWithValue("$vitD", vitD.ToString());
             cmd.Parameters.AddWithValue("$vitC", vitC.ToString());
-            cmd.Parameters.AddWithValue("$tad", tad.ToString());
+            cmd.Parameters.AddWithValue("$tadActive", tadActive.ToString());
+            cmd.Parameters.AddWithValue("$tadDose", tadDose.ToString());
             cmd.ExecuteNonQuery();
         }
 
-        public (bool zn, bool ma, bool vitD, bool vitC, bool tad) GetSupplementsState()
+        public (bool zn, bool ma, bool vitD, bool vitC, bool tadActive, int tadDose) GetSupplementsState()
         {
             using var db = CreateConnection();
+            int dose = 10;
+            var doseStr = GetSettingStr(db, "supp_tadDose");
+            if (int.TryParse(doseStr, out int parsedDose) && parsedDose > 0)
+                dose = parsedDose;
+
             return (
                 GetSettingStr(db, "supp_zn") == "True",
                 GetSettingStr(db, "supp_ma") == "True",
                 GetSettingStr(db, "supp_vitD") == "True",
                 GetSettingStr(db, "supp_vitC") == "True",
-                GetSettingStr(db, "supp_tad") == "True"
+                GetSettingStr(db, "supp_tadActive") == "True",
+                dose
             );
         }
 
@@ -770,9 +777,6 @@ namespace DadPlanner2.Services
             int testRecordCount = 300;
             int singleHeatEventIndex = rand.Next(0, testRecordCount);
 
-            // ==========================================
-            // 1. GENERATE THE RELEASE EVENTS
-            // ==========================================
             long releaseTs = currentTs;
             for (int i = 0; i < testRecordCount; i++)
             {
@@ -810,7 +814,7 @@ namespace DadPlanner2.Services
                 int randomMaca = rand.Next(100) < 50 ? 1 : 0;
                 int randomVitD = rand.Next(100) < 60 ? 1 : 0;
                 int randomVitC = rand.Next(100) < 70 ? 1 : 0;
-                int randomTad = rand.Next(100) < 40 ? 1 : 0;
+                int randomTad = rand.Next(100) < 40 ? 10 : 0;
 
                 string fakeSupps = $"{{\"zinc\":{randomZinc},\"maca\":{randomMaca},\"vitD\":{randomVitD},\"vitC\":{randomVitC},\"tadalafil\":{randomTad}}}";
 
@@ -901,9 +905,6 @@ namespace DadPlanner2.Services
                 insertCmd.ExecuteNonQuery();
             }
 
-            // ==========================================
-            // 2. GENERATE THE DAILY DOSES (For PK Chart)
-            // ==========================================
             long dailyTs = currentTs - (120 * 86400); 
             
             for (int d = 0; d < 120; d++)
@@ -913,7 +914,7 @@ namespace DadPlanner2.Services
                 if (rand.Next(100) > 15)
                 {
                     int c = rand.Next(100) < 50 ? 1 : 0;
-                    int tad = rand.Next(100) < 45 ? 1 : 0;
+                    int tad = rand.Next(100) < 45 ? 10 : 0;
                     string dailySupps = $"{{\"zinc\":1,\"maca\":1,\"vitD\":1,\"vitC\":{c},\"tadalafil\":{tad}}}";
                     
                     long logTime = dailyTs - (currentTs % 86400) + (9 * 3600) + rand.Next(-3600, 3600);
@@ -958,21 +959,17 @@ namespace DadPlanner2.Services
             }
         }
 
-        public void Generate90DayReport()
+        public void Generate90DayReport(double userTotalVolume)
         {
             var logs = GetAllLogs();
-            var reportData = _reportData.Create(logs, DateTimeOffset.UtcNow.ToUnixTimeSeconds());
-            var supplementAnalysis = _supplementAnalysis.Analyze(
-                logs,
-                (timestamp, supplement, days) =>
-                    _supplementSaturation.Calculate(logs, timestamp, supplement, days));
+            var reportData = _reportData.Create(logs, DateTimeOffset.UtcNow.ToUnixTimeSeconds(), userTotalVolume);
             string pdfPath = Path.Combine(_dbDir, "Baseline_Summary.pdf");
 
             bool includeNotes = GetIncludeNotesInReportSetting();
 
             try
             {
-                _reportDocument.Generate(reportData, pdfPath, supplementAnalysis, includeNotes);
+                _reportDocument.Generate(reportData, pdfPath, includeNotes);
                 OpenFileCrossPlatform(pdfPath);
             }
             catch (IOException)
@@ -999,7 +996,12 @@ namespace DadPlanner2.Services
                         ArgumentList = { "open", path }
                     });
                 else if (RuntimeInformation.IsOSPlatform(OSPlatform.OSX))
-                    Process.Start("open", path);
+                    Process.Start(new ProcessStartInfo
+                    {
+                        FileName = "open",
+                        ArgumentList = { path },
+                        UseShellExecute = false
+                    });
             }
             catch (Exception ex)
             {
@@ -1046,8 +1048,48 @@ namespace DadPlanner2.Services
             }
             catch { }
         }
-    }
+        
+        public void SaveBiometrics(double? ll, double? lw, double? lh, double? rl, double? rw, double? rh, double total)
+        {
+            string json = $"{{\"ll\":{ll ?? 0},\"lw\":{lw ?? 0},\"lh\":{lh ?? 0},\"rl\":{rl ?? 0},\"rw\":{rw ?? 0},\"rh\":{rh ?? 0},\"total\":{total}}}";
+            using var db = CreateConnection();
+            using var cmd = db.CreateCommand();
+            cmd.CommandText = "INSERT OR REPLACE INTO Settings (Key, Value) VALUES ('Biometrics', $val)";
+            cmd.Parameters.AddWithValue("$val", json);
+            cmd.ExecuteNonQuery();
+        }
 
+        public void ClearBiometrics()
+        {
+            using var db = CreateConnection();
+            using var cmd = db.CreateCommand();
+            cmd.CommandText = "DELETE FROM Settings WHERE Key = 'Biometrics'";
+            cmd.ExecuteNonQuery();
+        }
+
+        public (double? LeftL, double? LeftW, double? LeftH, double? RightL, double? RightW, double? RightH, double TotalVolume) GetBiometrics()
+        {
+            using var db = CreateConnection();
+            using var cmd = db.CreateCommand();
+            cmd.CommandText = "SELECT Value FROM Settings WHERE Key = 'Biometrics'";
+            var result = cmd.ExecuteScalar();
+            string? json = result?.ToString();
+
+            if (string.IsNullOrEmpty(json)) return (null, null, null, null, null, null, 30.0);
+
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(json);
+                var root = doc.RootElement;
+                double? GetD(string key) => root.TryGetProperty(key, out var prop) && prop.GetDouble() > 0 ? prop.GetDouble() : null;
+                
+                return (GetD("ll"), GetD("lw"), GetD("lh"), GetD("rl"), GetD("rw"), GetD("rh"), 
+                        root.TryGetProperty("total", out var tProp) && tProp.GetDouble() > 0 ? tProp.GetDouble() : 30.0);
+            }
+            catch { return (null, null, null, null, null, null, 30.0); }
+        }
+    }
+    
     internal static class DatabaseMigrationPolicy
     {
         public static bool IsAlreadyApplied(SqliteException exception)

@@ -25,7 +25,8 @@ namespace DadPlanner2.Services
             var tadalafilPoints = new List<ObservablePoint>();
 
             // Extract all supplement ingestion events sorted chronologically
-            var events = new List<(long Timestamp, bool Zinc, bool Maca, bool VitD, bool VitC, bool Tadalafil)>();
+            // Tadalafil is now captured as an INT representing the dose in milligrams.
+            var events = new List<(long Timestamp, bool Zinc, bool Maca, bool VitD, bool VitC, int TadalafilDose)>();
 
             foreach (var log in logs.OrderBy(l => l.Timestamp))
             {
@@ -38,11 +39,16 @@ namespace DadPlanner2.Services
                     bool m = root.TryGetProperty("maca", out var mProp) && mProp.GetInt32() == 1;
                     bool d = root.TryGetProperty("vitD", out var dProp) && dProp.GetInt32() == 1;
                     bool c = root.TryGetProperty("vitC", out var cProp) && cProp.GetInt32() == 1;
-                    bool t = root.TryGetProperty("tadalafil", out var tProp) && tProp.GetInt32() == 1;
-
-                    if (z || m || d || c || t)
+                    
+                    int tDose = 0;
+                    if (root.TryGetProperty("tadalafil", out var tProp))
                     {
-                        events.Add((log.Timestamp, z, m, d, c, t));
+                        tDose = tProp.GetInt32();
+                    }
+
+                    if (z || m || d || c || tDose > 0)
+                    {
+                        events.Add((log.Timestamp, z, m, d, c, tDose));
                     }
                 }
                 catch
@@ -52,16 +58,16 @@ namespace DadPlanner2.Services
                     bool m = log.Supplements.Contains("\"maca\":1");
                     bool d = log.Supplements.Contains("\"vitD\":1");
                     bool c = log.Supplements.Contains("\"vitC\":1");
-                    bool t = log.Supplements.Contains("\"tadalafil\":1");
+                    int tDose = log.Supplements.Contains("\"tadalafil\":1") ? 10 : 0; // Legacy 1.0 bool mapped to 10mg
 
-                    if (z || m || d || c || t)
+                    if (z || m || d || c || tDose > 0)
                     {
-                        events.Add((log.Timestamp, z, m, d, c, t));
+                        events.Add((log.Timestamp, z, m, d, c, tDose));
                     }
                 }
             }
 
-            // FIXED: Sample every 4 hours instead of every 24 hours to capture sub-day pharmacokinetic spikes
+            // Sample every 4 hours instead of every 24 hours to capture sub-day pharmacokinetic spikes
             double step = 4 * 3600.0; 
             for (double t = startTs; t <= endTs; t += step)
             {
@@ -82,7 +88,13 @@ namespace DadPlanner2.Services
                     if (ev.Maca) macaLevel += Math.Exp(-Math.Log(2) * deltaDays / MacaHalfLifeDays);
                     if (ev.VitD) vitDLevel += Math.Exp(-Math.Log(2) * deltaDays / VitDHalfLifeDays);
                     if (ev.VitC) vitCLevel += Math.Exp(-Math.Log(2) * deltaDays / VitCHalfLifeDays);
-                    if (ev.Tadalafil) tadalafilLevel += Math.Exp(-Math.Log(2) * deltaDays / TadalafilHalfLifeDays);
+                    
+                    if (ev.TadalafilDose > 0) 
+                    {
+                        // Dose scaling: 10mg equals baseline amplitude (1.0). 20mg equals 2.0 amplitude.
+                        double scaleFactor = ev.TadalafilDose / 10.0;
+                        tadalafilLevel += scaleFactor * Math.Exp(-Math.Log(2) * deltaDays / TadalafilHalfLifeDays);
+                    }
                 }
 
                 zincPoints.Add(new ObservablePoint(t, Math.Round(zincLevel, 3)));

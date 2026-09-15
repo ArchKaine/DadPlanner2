@@ -59,7 +59,8 @@ namespace DadPlanner2.Services
             IEnumerable<LogRecord> logs,
             long currentTimestamp,
             double minHours = 24.0,
-            double maxHours = 72.0)
+            double maxHours = 72.0,
+            double userVolumeCapacity = 30.0) // <--- Added Biometric Parameter
         {
             var releaseLogs = logs
                 .Where(l => l.Volume != "None" && l.Volume != "N/A")
@@ -99,7 +100,13 @@ namespace DadPlanner2.Services
                 MaximumGapHours = maxGap
             };
 
-            const double fadeStartHours = 120.0;
+            // --- BIOMETRIC SCALING ENGINE ---
+            // Baseline 120h fade start for a standard 30mL total volume
+            // Scale up by 3 hours for every mL of capacity over 30mL.
+            double volumeBonusHours = Math.Max(0, (userVolumeCapacity - 30.0) * 3.0);
+            double fadeStartHours = 120.0 + volumeBonusHours; 
+            // --------------------------------
+            
             const double dynamicFloor = 0.55;
 
             if (elapsedHours < minHours)
@@ -234,6 +241,95 @@ namespace DadPlanner2.Services
             return false;
         }
 
+        private int GetTadalafilDose(string supps)
+        {
+            if (string.IsNullOrEmpty(supps)) return 0;
+            try
+            {
+                using var doc = System.Text.Json.JsonDocument.Parse(supps);
+                if (doc.RootElement.TryGetProperty("tadalafil", out var tProp)) return tProp.GetInt32();
+            }
+            catch
+            {
+                if (supps.Contains("\"tadalafil\":1")) return 10; // Legacy format fallback
+            }
+            return 0;
+        }
+        
+        public PredictionMetrics PredictNextEvent(List<LogRecord> logs)
+        {
+            // Filter to uncompromised yield events
+            var validLogs = logs.Where(l => l.Mode != "Daily Dose" && l.Volume != "None" && l.Volume != "N/A")
+                                .OrderByDescending(l => l.Timestamp)
+                                .Take(11) // Take 11 events to calculate 10 gaps
+                                .ToList();
+
+            if (validLogs.Count < 2) return new PredictionMetrics { IsValid = false };
+
+            // 1. Calculate Linear Weighted Moving Average (LWMA)
+            var gaps = new List<double>();
+            for (int i = 0; i < validLogs.Count - 1; i++)
+            {
+                gaps.Add((validLogs[i].Timestamp - validLogs[i + 1].Timestamp) / 3600.0);
+            }
+
+            double weightedSum = 0;
+            double weightTotal = 0;
+            int weight = gaps.Count;
+
+            foreach (var gap in gaps)
+            {
+                weightedSum += gap * weight;
+                weightTotal += weight;
+                weight--; // Older gaps get progressively less weight
+            }
+
+            double baseAdaptiveGap = weightedSum / weightTotal;
+            
+            // Calculate simple standard deviation for the confidence window
+            double simpleMean = gaps.Average();
+            double stdDev = Math.Sqrt(gaps.Sum(g => Math.Pow(g - simpleMean, 2)) / gaps.Count);
+
+            // 2. Apply Physiological & Pharmacological Modifiers based on the LAST event
+            var lastEvent = validLogs.First();
+            double modifier = 1.0;
+
+            // Yield Exhaustion Modifier (Includes allowance for fluid-less sessions)
+            if (lastEvent.Volume == "High") modifier += 0.15;
+            else if (lastEvent.Volume == "Low") modifier -= 0.10;
+            else if (lastEvent.Volume == "None" || lastEvent.Volume == "N/A") modifier -= 0.20; 
+
+            // Multi-Release Exhaustion Modifier (+10% per extra release)
+            if (lastEvent.ReleaseCount > 1)
+            {
+                modifier += (lastEvent.ReleaseCount - 1) * 0.10;
+            }
+
+            // Tadalafil Pharmacological Modifier (Dose-Aware)
+            long hoursSinceLastEvent = (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - lastEvent.Timestamp) / 3600;
+            int tadDose = GetTadalafilDose(lastEvent.Supplements);
+            
+            if (tadDose > 0 && hoursSinceLastEvent < 48)
+            {
+                // Scalable reduction: 5mg = 5%, 10mg = 15%, 20mg = 25%
+                double reduction = tadDose <= 5 ? 0.05 : tadDose >= 20 ? 0.25 : 0.15;
+                modifier -= reduction; 
+            }
+
+            double finalPredictedGap = baseAdaptiveGap * modifier;
+            long expectedTargetTs = lastEvent.Timestamp + (long)(finalPredictedGap * 3600);
+
+            return new PredictionMetrics
+            {
+                IsValid = true,
+                MeanGapHours = finalPredictedGap,
+                StdDevHours = stdDev,
+                ExpectedTargetTimestamp = expectedTargetTs,
+                WindowStartTimestamp = expectedTargetTs - (long)(stdDev * 3600),
+                WindowEndTimestamp = expectedTargetTs + (long)(stdDev * 3600)
+            };
+        }
+        
         public ClinicalCompliance CheckClinicalCompliance(long appointmentTimestamp, long lastReleaseTimestamp, long nowTimestamp)
         {
             if (appointmentTimestamp <= nowTimestamp) return new ClinicalCompliance { HasAppointment = false };

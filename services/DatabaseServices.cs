@@ -584,6 +584,22 @@ namespace DadPlanner2.Services
             cmd.ExecuteNonQuery();
         }
 
+        // NEW: Sticky Chart Range Persistence
+        public int GetChartRangeDays()
+        {
+            using var db = CreateConnection();
+            return (int)GetSetting(db, "chart_range_days", 90.0);
+        }
+
+        public void SaveChartRangeDays(int days)
+        {
+            using var db = CreateConnection();
+            using var cmd = db.CreateCommand();
+            cmd.CommandText = "INSERT OR REPLACE INTO Settings (Key, Value) VALUES ('chart_range_days', $val)";
+            cmd.Parameters.AddWithValue("$val", days.ToString());
+            cmd.ExecuteNonQuery();
+        }
+
         public void SaveSupplementsState(bool zn, bool ma, bool vitD, bool vitC, bool tadActive, int tadDose)
         {
             using var db = CreateConnection();

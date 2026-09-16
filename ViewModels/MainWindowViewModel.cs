@@ -15,6 +15,7 @@ using DadPlanner2.Models;
 using DadPlanner2.Services;
 using LiveChartsCore;
 using LiveChartsCore.Defaults;
+using LiveChartsCore.Measure;
 using LiveChartsCore.SkiaSharpView;
 using LiveChartsCore.SkiaSharpView.Painting;
 using SkiaSharp;
@@ -38,6 +39,8 @@ namespace DadPlanner2.ViewModels
 
         [ObservableProperty] private double _minHours = 24.0;
         [ObservableProperty] private double _maxHours = 72.0;
+        
+        [ObservableProperty] private int _chartRangeDays = 90;
 
         private double _chartMinX;
         private double _chartMaxX;
@@ -95,6 +98,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private string _hudFrequency = "--";
         
         [ObservableProperty] private DateTime? _appointmentDate;
+        [ObservableProperty] private TimeSpan? _appointmentTime;
         [ObservableProperty] private string _clinicalComplianceMessage = "";
         [ObservableProperty] private string _clinicalComplianceColor = "#0277bd";
         [ObservableProperty] private bool _enableAggressiveNotifications = true;
@@ -102,7 +106,6 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private bool _includeNotesInReport = false;
         [ObservableProperty] private bool _showWankAlert;
 
-        // Biometric Variables (Nullable so boxes can be truly empty)
         [ObservableProperty] private double? _bioLeftL;
         [ObservableProperty] private double? _bioLeftW;
         [ObservableProperty] private double? _bioLeftH;
@@ -226,6 +229,7 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private ISeries[] _chartSeries = Array.Empty<ISeries>();
         [ObservableProperty] private Axis[] _xAxes = Array.Empty<Axis>();
         [ObservableProperty] private Axis[] _yAxes = Array.Empty<Axis>();
+        [ObservableProperty] private RectangularSection[] _timelineSections = Array.Empty<RectangularSection>();
         
         [ObservableProperty] private ISeries[] _modeSeries = Array.Empty<ISeries>();
         [ObservableProperty] private ISeries[] _volumeSeries = Array.Empty<ISeries>();
@@ -245,7 +249,6 @@ namespace DadPlanner2.ViewModels
         [ObservableProperty] private Axis[] _pkXAxes = Array.Empty<Axis>();
         [ObservableProperty] private Axis[] _pkYAxes = Array.Empty<Axis>();
 
-        // --- DIURNAL PROPERTIES ---
         [ObservableProperty] private string _diurnalPeakText = "Awaiting data...";
         
         [ObservableProperty] private int _totalEventCount;
@@ -265,9 +268,16 @@ namespace DadPlanner2.ViewModels
             var thresholds = _dbService.GetThresholdSettings();
             MinHours = thresholds.Min;
             MaxHours = thresholds.Max;
+            
+            ChartRangeDays = _dbService.GetChartRangeDays();
 
             long appt = _dbService.GetAppointment();
-            if (appt > 0) AppointmentDate = DateTimeOffset.FromUnixTimeSeconds(appt).ToLocalTime().DateTime;
+            if (appt > 0)
+            {
+                var dt = DateTimeOffset.FromUnixTimeSeconds(appt).ToLocalTime();
+                AppointmentDate = dt.DateTime;
+                AppointmentTime = dt.TimeOfDay;
+            }
 
             var savedSupps = _dbService.GetSupplementsState();
             ZincActive = savedSupps.zn;
@@ -491,44 +501,54 @@ namespace DadPlanner2.ViewModels
         [RelayCommand]
         private void ZoomChart(string range)
         {
-            if (XAxes.Length == 0) return;
-            var mainAxis = XAxes[0];
-            var entAxis = EnthusiasmXAxes.Length > 0 ? EnthusiasmXAxes[0] : null;
-            var pkAxis = PkXAxes.Length > 0 ? PkXAxes[0] : null;
-            
             if (range == "ALL")
             {
-                mainAxis.MinLimit = _chartMinX;
-                mainAxis.MaxLimit = _chartMaxX;
-                
-                if (entAxis != null) 
-                { 
-                    entAxis.MinLimit = _chartMinX; 
-                    entAxis.MaxLimit = _chartMaxX; 
-                }
-                if (pkAxis != null) 
-                { 
-                    pkAxis.MinLimit = _chartMinX; 
-                    pkAxis.MaxLimit = _chartMaxX; 
-                }
+                ChartRangeDays = 0;
             }
             else if (int.TryParse(range, out int days))
             {
-                double minLimit = _chartMaxX - (days * 86400.0);
-                
-                mainAxis.MaxLimit = _chartMaxX;
-                mainAxis.MinLimit = minLimit;
-                
-                if (entAxis != null) 
-                { 
-                    entAxis.MaxLimit = _chartMaxX; 
-                    entAxis.MinLimit = minLimit; 
-                }
-                if (pkAxis != null) 
-                { 
-                    pkAxis.MaxLimit = _chartMaxX; 
-                    pkAxis.MinLimit = minLimit; 
-                }
+                ChartRangeDays = days;
+            }
+            
+            _dbService.SaveChartRangeDays(ChartRangeDays);
+            _dbService.MarkDirty();
+            ApplyChartRange();
+            UpdateHeatmap();
+        }
+
+        private void ApplyChartRange()
+        {
+            if (XAxes.Length == 0) return;
+            
+            double minLimit = _chartMinX;
+            double maxLimit = _chartMaxX;
+
+            if (ChartRangeDays > 0)
+            {
+                // Subtract the requested days (in Ticks) from the maximum chart X value
+                minLimit = _chartMaxX - TimeSpan.FromDays(ChartRangeDays).Ticks;
+                if (minLimit < _chartMinX) minLimit = _chartMinX;
+            }
+
+            // Apply to Main Timeline
+            XAxes[0].MinLimit = minLimit;
+            XAxes[0].MaxLimit = maxLimit;
+            OnPropertyChanged(nameof(XAxes)); // Force redraw
+
+            // Apply to Enthusiasm Macro-Trend
+            if (EnthusiasmXAxes.Length > 0)
+            {
+                EnthusiasmXAxes[0].MinLimit = minLimit;
+                EnthusiasmXAxes[0].MaxLimit = maxLimit;
+                OnPropertyChanged(nameof(EnthusiasmXAxes)); // Force redraw
+            }
+
+            // Apply to Pharmacokinetic Decay
+            if (PkXAxes.Length > 0)
+            {
+                PkXAxes[0].MinLimit = minLimit;
+                PkXAxes[0].MaxLimit = maxLimit;
+                OnPropertyChanged(nameof(PkXAxes)); // Force redraw
             }
         }
 
@@ -576,7 +596,7 @@ namespace DadPlanner2.ViewModels
 
             var closest = allPoints.OrderBy(p => Math.Abs((p.X ?? 0) - targetTs)).FirstOrDefault();
 
-            if (closest != null && Math.Abs((closest.X ?? 0) - targetTs) < (3 * 86400))
+            if (closest != null && Math.Abs((closest.X ?? 0) - targetTs) < TimeSpan.FromDays(3).Ticks)
             {
                 HoveredTimelinePoint = closest; HoveredPie = null; HoveredBar = null; HoveredEnthusiasm = null; HoveredPk = null;
                 PositionTooltip(winX, winY, ctrlX, ctrlY, ctrlW, ctrlH, 280, 210); 
@@ -677,7 +697,7 @@ namespace DadPlanner2.ViewModels
             if (zincPts == null) { IsTooltipVisible = false; return; }
 
             var closestZinc = zincPts.OrderBy(p => Math.Abs((p.X ?? 0) - targetTs)).FirstOrDefault();
-            if (closestZinc == null || Math.Abs((closestZinc.X ?? 0) - targetTs) >= (3 * 86400))
+            if (closestZinc == null || Math.Abs((closestZinc.X ?? 0) - targetTs) >= TimeSpan.FromDays(3).Ticks)
             {
                 IsTooltipVisible = false;
                 return;
@@ -685,14 +705,14 @@ namespace DadPlanner2.ViewModels
 
             double ts = closestZinc.X ?? 0;
             double zincVal = closestZinc.Y ?? 0;
-            double macaVal = macaPts?.FirstOrDefault(p => Math.Abs((p.X ?? 0) - ts) < 3600)?.Y ?? 0;
-            double vitDVal = vitDPts?.FirstOrDefault(p => Math.Abs((p.X ?? 0) - ts) < 3600)?.Y ?? 0;
-            double vitCVal = vitCPts?.FirstOrDefault(p => Math.Abs((p.X ?? 0) - ts) < 3600)?.Y ?? 0;
-            double tadVal  = tadPts?.FirstOrDefault(p => Math.Abs((p.X ?? 0) - ts) < 3600)?.Y ?? 0;
+            double macaVal = macaPts?.FirstOrDefault(p => Math.Abs((p.X ?? 0) - ts) < TimeSpan.FromHours(1).Ticks)?.Y ?? 0;
+            double vitDVal = vitDPts?.FirstOrDefault(p => Math.Abs((p.X ?? 0) - ts) < TimeSpan.FromHours(1).Ticks)?.Y ?? 0;
+            double vitCVal = vitCPts?.FirstOrDefault(p => Math.Abs((p.X ?? 0) - ts) < TimeSpan.FromHours(1).Ticks)?.Y ?? 0;
+            double tadVal  = tadPts?.FirstOrDefault(p => Math.Abs((p.X ?? 0) - ts) < TimeSpan.FromHours(1).Ticks)?.Y ?? 0;
 
             HoveredPk = new PkHoverData
             {
-                DateText = DateTimeOffset.FromUnixTimeSeconds((long)ts).ToLocalTime().ToString("MMM dd, yyyy"),
+                DateText = new DateTime((long)ts).ToString("MMM dd, yyyy"),
                 Zinc = zincVal,
                 Maca = macaVal,
                 VitD = vitDVal,
@@ -796,13 +816,89 @@ namespace DadPlanner2.ViewModels
             return 0;
         }
 
+        private void UpdateChartSections()
+        {
+            var sections = new List<RectangularSection>();
+            long apptTs = _dbService.GetAppointment();
+            
+            if (apptTs > 0)
+            {
+                var apptDt = DateTimeOffset.FromUnixTimeSeconds(apptTs).ToLocalTime();
+                long apptTicks = apptDt.Ticks;
+                
+                long ticks48 = apptDt.AddHours(-48).Ticks;
+                long ticks72 = apptDt.AddHours(-72).Ticks;
+                long ticks168 = apptDt.AddDays(-7).Ticks;
+
+                // 1. WHO Acceptable Window (72h - 168h)
+                sections.Add(new RectangularSection
+                {
+                    Xi = ticks168,
+                    Xj = ticks72,
+                    Fill = new SolidColorPaint(new SKColor(255, 152, 0, 15)),
+                    Label = "ACCEPTABLE (2-7d)",
+                    LabelPaint = new SolidColorPaint(new SKColor(255, 152, 0, 150)),
+                    LabelSize = 11
+                });
+
+                // 2. WHO Optimal Window (48h - 72h)
+                sections.Add(new RectangularSection
+                {
+                    Xi = ticks72,
+                    Xj = ticks48,
+                    Fill = new SolidColorPaint(new SKColor(76, 175, 80, 40)),
+                    Label = "TARGET CLEARANCE (48-72h)",
+                    LabelPaint = new SolidColorPaint(new SKColor(76, 175, 80, 200)),
+                    LabelSize = 12
+                });
+
+                // 3. Sub-48h Warning Window (0 - 48h)
+                sections.Add(new RectangularSection
+                {
+                    Xi = ticks48,
+                    Xj = apptTicks,
+                    Fill = new SolidColorPaint(new SKColor(211, 47, 47, 30)),
+                    Label = "SUB-48H (AVOID)",
+                    LabelPaint = new SolidColorPaint(new SKColor(211, 47, 47, 200)),
+                    LabelSize = 11
+                });
+
+                // 4. Exact Appointment Line
+                sections.Add(new RectangularSection
+                {
+                    Xi = apptTicks,
+                    Xj = apptTicks, 
+                    Stroke = new SolidColorPaint(new SKColor(245, 124, 0)) 
+                    { 
+                        StrokeThickness = 2, 
+                        PathEffect = new LiveChartsCore.SkiaSharpView.Painting.Effects.DashEffect(new float[] { 6, 6 }) 
+                    },
+                    Label = $"APPT: {apptDt:MMM dd, h:mm tt}",
+                    LabelPaint = new SolidColorPaint(new SKColor(245, 124, 0)),
+                    LabelSize = 13
+                });
+            }
+
+            TimelineSections = sections.ToArray();
+        }
+
         private void LoadData()
         {
             var thresholds = _dbService.GetThresholdSettings();
             MinHours = thresholds.Min; MaxHours = thresholds.Max;
             
             long apptTs = _dbService.GetAppointment();
-            AppointmentDate = apptTs > 0 ? DateTimeOffset.FromUnixTimeSeconds(apptTs).ToLocalTime().DateTime : null;
+            if (apptTs > 0)
+            {
+                var dt = DateTimeOffset.FromUnixTimeSeconds(apptTs).ToLocalTime();
+                AppointmentDate = dt.DateTime;
+                AppointmentTime = dt.TimeOfDay;
+            }
+            else
+            {
+                AppointmentDate = null;
+                AppointmentTime = null;
+            }
 
             var savedSupps = _dbService.GetSupplementsState();
             ZincActive = savedSupps.zn;
@@ -824,11 +920,34 @@ namespace DadPlanner2.ViewModels
             
             ApplyFilters();
             
-            CheckThermalShadow(); UpdateTelemetry(); UpdateCharts(); UpdateHeatmap(); UpdateBlackoutBanner();
+            CheckThermalShadow(); 
+            UpdateTelemetry(); 
+            UpdateCharts(); 
+            UpdateChartSections(); 
+            ApplyChartRange();
+            UpdateHeatmap(); 
+            UpdateBlackoutBanner();
         }
 
-        [RelayCommand] private void SetAppointment() { if (AppointmentDate.HasValue) { _dbService.SetAppointment(new DateTimeOffset(AppointmentDate.Value).ToUnixTimeSeconds()); _dbService.MarkDirty(); LoadData(); } }
-        [RelayCommand] private void ClearAppointment() { _dbService.ClearAppointment(); AppointmentDate = null; _dbService.MarkDirty(); LoadData(); }
+        [RelayCommand] private void SetAppointment() 
+        { 
+            if (AppointmentDate.HasValue && AppointmentTime.HasValue) 
+            { 
+                DateTime target = AppointmentDate.Value.Date + AppointmentTime.Value;
+                _dbService.SetAppointment(new DateTimeOffset(target).ToUnixTimeSeconds()); 
+                _dbService.MarkDirty(); 
+                LoadData(); 
+            } 
+        }
+        
+        [RelayCommand] private void ClearAppointment() 
+        { 
+            _dbService.ClearAppointment(); 
+            AppointmentDate = null; 
+            AppointmentTime = null;
+            _dbService.MarkDirty(); 
+            LoadData(); 
+        }
 
         private void UpdateBlackoutBanner()
         {
@@ -1252,16 +1371,31 @@ namespace DadPlanner2.ViewModels
 
             if (startTs <= 0 || endTs <= startTs)
             {
-                startTs = Logs.Min(l => l.Timestamp) - 86400;
-                endTs = Logs.Max(l => l.Timestamp) + 86400;
+                startTs = DateTimeOffset.FromUnixTimeSeconds(Logs.Min(l => l.Timestamp) - 86400).ToLocalTime().Ticks;
+                endTs = DateTimeOffset.FromUnixTimeSeconds(Logs.Max(l => l.Timestamp) + 86400).ToLocalTime().Ticks;
             }
 
-            var curves = _pkService.CalculateCurves(Logs.ToList(), startTs, endTs);
+            var minLocal = new DateTime((long)startTs);
+            var maxLocal = new DateTime((long)endTs);
+            
+            long startUnix = new DateTimeOffset(minLocal, TimeZoneInfo.Local.GetUtcOffset(minLocal)).ToUnixTimeSeconds();
+            long endUnix = new DateTimeOffset(maxLocal, TimeZoneInfo.Local.GetUtcOffset(maxLocal)).ToUnixTimeSeconds();
+
+            var curves = _pkService.CalculateCurves(Logs.ToList(), startUnix, endUnix);
 
             if (curves.Count == 0 || curves.Values.All(c => c.Count == 0))
             {
                 PkSeries = Array.Empty<ISeries>();
                 return;
+            }
+
+            foreach (var curve in curves.Values)
+            {
+                foreach(var pt in curve)
+                {
+                    if (pt.X.HasValue)
+                        pt.X = DateTimeOffset.FromUnixTimeSeconds((long)pt.X.Value).ToLocalTime().Ticks;
+                }
             }
 
             PkSeries = new ISeries[]
@@ -1326,12 +1460,12 @@ namespace DadPlanner2.ViewModels
             PkXAxes = new[] { 
                 new Axis { 
                     Labeler = value => { 
-                        try { return DateTimeOffset.FromUnixTimeSeconds((long)value).ToLocalTime().ToString("MMM"); } 
+                        try { return new DateTime((long)value).ToString("MMM"); } 
                         catch { return string.Empty; } 
                     }, 
                     LabelsPaint = new SolidColorPaint(new SKColor(136, 136, 136)), 
                     TextSize = 11,
-                    MinStep = 2592000,
+                    MinStep = TimeSpan.FromDays(30).Ticks,
                     MinLimit = startTs, 
                     MaxLimit = endTs,
                     SeparatorsPaint = null, 
@@ -1601,7 +1735,9 @@ namespace DadPlanner2.ViewModels
             
             if (releaseLogs.Count == 0)
             {
-                ChartSeries = Array.Empty<ISeries>(); _chartMinX = 0; _chartMaxX = 86400;
+                ChartSeries = Array.Empty<ISeries>(); 
+                _chartMinX = DateTime.Today.Ticks; 
+                _chartMaxX = DateTime.Today.AddDays(1).Ticks;
             }
             else
             {
@@ -1613,7 +1749,7 @@ namespace DadPlanner2.ViewModels
 
                 for (int i = 0; i < releaseLogs.Count; i++) 
                 {
-                    double xVal = releaseLogs[i].Timestamp;
+                    double xVal = DateTimeOffset.FromUnixTimeSeconds(releaseLogs[i].Timestamp).ToLocalTime().Ticks;
                     bool isBaseline = i == 0;
                     double yVal = isBaseline ? MaxHours : (releaseLogs[i].Timestamp - releaseLogs[i - 1].Timestamp) / 3600.0;
                     var pt = new ChartLogPoint { X = xVal, Y = yVal, IsBaseline = isBaseline, Log = releaseLogs[i] }; gapData.Add(pt);
@@ -1629,8 +1765,8 @@ namespace DadPlanner2.ViewModels
 
                 if (gapData.Count > 0) 
                 { 
-                    _chartMinX = gapData.First().X!.Value - 43200; 
-                    _chartMaxX = gapData.Last().X!.Value + 43200; 
+                    _chartMinX = gapData.First().X!.Value - TimeSpan.FromHours(12).Ticks; 
+                    _chartMaxX = gapData.Last().X!.Value + TimeSpan.FromHours(12).Ticks; 
                 }
 
                 // --- FORECASTING ENGINE ---
@@ -1645,21 +1781,21 @@ namespace DadPlanner2.ViewModels
                     predictionLineData.Add(lastActual); // Connect dashed line from the last real dot
 
                     // Predict next 2 events using the adaptive gap
-                    double predictedTs1 = lastActual.X!.Value + (prediction.MeanGapHours * 3600.0);
-                    double predictedTs2 = predictedTs1 + (prediction.MeanGapHours * 3600.0);
+                    long predictedUnix1 = lastActual.Log.Timestamp + (long)(prediction.MeanGapHours * 3600.0);
+                    long predictedUnix2 = predictedUnix1 + (long)(prediction.MeanGapHours * 3600.0);
 
                     // Create dummy log records for the tooltip binding
-                    var p1Log = new LogRecord { Mode = "Predicted", Volume = "Adaptive Forecast", Timestamp = (long)predictedTs1, Supplements = "{}" };
-                    var p2Log = new LogRecord { Mode = "Predicted", Volume = "Adaptive Forecast", Timestamp = (long)predictedTs2, Supplements = "{}" };
+                    var p1Log = new LogRecord { Mode = "Predicted", Volume = "Adaptive Forecast", Timestamp = predictedUnix1, Supplements = "{}" };
+                    var p2Log = new LogRecord { Mode = "Predicted", Volume = "Adaptive Forecast", Timestamp = predictedUnix2, Supplements = "{}" };
 
-                    var p1 = new ChartLogPoint { X = predictedTs1, Y = prediction.MeanGapHours, IsPrediction = true, StdDev = prediction.StdDevHours, Log = p1Log };
-                    var p2 = new ChartLogPoint { X = predictedTs2, Y = prediction.MeanGapHours, IsPrediction = true, StdDev = prediction.StdDevHours, Log = p2Log };
+                    var p1 = new ChartLogPoint { X = DateTimeOffset.FromUnixTimeSeconds(predictedUnix1).ToLocalTime().Ticks, Y = prediction.MeanGapHours, IsPrediction = true, StdDev = prediction.StdDevHours, Log = p1Log };
+                    var p2 = new ChartLogPoint { X = DateTimeOffset.FromUnixTimeSeconds(predictedUnix2).ToLocalTime().Ticks, Y = prediction.MeanGapHours, IsPrediction = true, StdDev = prediction.StdDevHours, Log = p2Log };
 
                     predictionPts.Add(p1); predictionPts.Add(p2);
                     predictionLineData.Add(p1); predictionLineData.Add(p2);
 
                     // Extend chart view further out to fit the predicted points
-                    _chartMaxX = predictedTs2 + 43200; 
+                    _chartMaxX = p2.X!.Value + TimeSpan.FromHours(12).Ticks; 
                 }
                 // ---------------------------
 
@@ -1739,13 +1875,13 @@ namespace DadPlanner2.ViewModels
                     { 
                         Labeler = value => 
                         { 
-                            try { return DateTimeOffset.FromUnixTimeSeconds((long)value).ToLocalTime().ToString("MMM dd"); } 
+                            try { return new DateTime((long)value).ToString("MMM dd\nHH:mm"); } 
                             catch { return string.Empty; } 
                         }, 
                         LabelsRotation = 15, 
                         LabelsPaint = new SolidColorPaint(SKColors.Gray), 
-                        TextSize = 12, 
-                        MinStep = 86400.0, 
+                        TextSize = 11, 
+                        MinStep = TimeSpan.FromHours(12).Ticks, 
                         MinLimit = _chartMinX, 
                         MaxLimit = _chartMaxX 
                     } 
@@ -1864,7 +2000,7 @@ namespace DadPlanner2.ViewModels
             double optimalScore = 336.0 / Math.Max(1.0, MinHours);
             EnthusiasmTargetScore = optimalScore;
             
-            DateTime maxChartDate = DateTimeOffset.FromUnixTimeSeconds((long)_chartMaxX).ToLocalTime().Date;
+            DateTime maxChartDate = new DateTime((long)_chartMaxX).Date;
             if (maxChartDate < today) maxChartDate = today;
 
             int totalDays = (maxChartDate - today.AddDays(-364)).Days;
@@ -1880,7 +2016,7 @@ namespace DadPlanner2.ViewModels
                         rollingSum += score;
                 }
                 
-                long targetTs = new DateTimeOffset(targetDate).ToUnixTimeSeconds();
+                long targetTs = targetDate.Ticks;
                 var point = new ObservablePoint(targetTs, rollingSum);
                 
                 baselinePoints.Add(new ObservablePoint(targetTs, optimalScore));
@@ -1948,12 +2084,12 @@ namespace DadPlanner2.ViewModels
                 new Axis { 
                     Labeler = value => 
                     { 
-                        try { return DateTimeOffset.FromUnixTimeSeconds((long)value).ToLocalTime().ToString("MMM"); } 
+                        try { return new DateTime((long)value).ToString("MMM"); } 
                         catch { return string.Empty; } 
                     }, 
                     LabelsPaint = new SolidColorPaint(new SKColor(136, 136, 136)), 
                     TextSize = 11,
-                    MinStep = 2592000,
+                    MinStep = TimeSpan.FromDays(30).Ticks,
                     MinLimit = _chartMinX, 
                     MaxLimit = _chartMaxX,
                     SeparatorsPaint = null, 
@@ -2008,11 +2144,11 @@ namespace DadPlanner2.ViewModels
 
             var closest = allPoints.OrderBy(p => Math.Abs((p.X ?? 0) - targetTs)).FirstOrDefault();
 
-            if (closest != null && Math.Abs((closest.X ?? 0) - targetTs) < (3 * 86400))
+            if (closest != null && Math.Abs((closest.X ?? 0) - targetTs) < TimeSpan.FromDays(3).Ticks)
             {
                 HoveredEnthusiasm = new EnthusiasmHoverData 
                 { 
-                    DateText = DateTimeOffset.FromUnixTimeSeconds((long)(closest.X ?? 0)).ToLocalTime().ToString("MMM dd, yyyy"), 
+                    DateText = new DateTime((long)(closest.X ?? 0)).ToString("MMM dd, yyyy"), 
                     Score = closest.Y ?? 0 
                 };
                 HoveredTimelinePoint = null; HoveredPie = null; HoveredBar = null; HoveredPk = null;
@@ -2061,12 +2197,14 @@ namespace DadPlanner2.ViewModels
                     globalMaxReleases = actualMax;
             }
 
-            int padding = (int)today.AddDays(-364).DayOfWeek;
+            int heatmapSpanDays = ChartRangeDays > 0 ? ChartRangeDays : 365;
+
+            int padding = (int)today.AddDays(-(heatmapSpanDays - 1)).DayOfWeek;
             
             for (int i = 0; i < padding; i++) 
                 HeatmapDays.Add(new HeatmapDay { Level = 0, ColorHex = "#252526" });
 
-            for (int i = 364; i >= 0; i--)
+            for (int i = heatmapSpanDays - 1; i >= 0; i--)
             {
                 var targetDate = today.AddDays(-i);
                 var dayData = new HeatmapDay { 
@@ -2175,8 +2313,8 @@ namespace DadPlanner2.ViewModels
                 : $"Measured gap: {(Y ?? 0):F1} Hrs";
                 
         public string HeaderText => IsPrediction
-            ? $"PREDICTED WINDOW: {DateTimeOffset.FromUnixTimeSeconds(Log.Timestamp).ToLocalTime():MMM dd, yyyy @ HH:mm}"
-            : DateTimeOffset.FromUnixTimeSeconds(Log.Timestamp).ToLocalTime().ToString("MMM dd, yyyy @ HH:mm");
+            ? $"PREDICTED WINDOW: {new DateTime((long)(X ?? 0)):MMM dd, yyyy @ HH:mm}"
+            : new DateTime((long)(X ?? 0)).ToString("MMM dd, yyyy @ HH:mm");
         
         public string FlagsText 
         { 

@@ -89,4 +89,13 @@ public sealed record ReportData(
     int LowCount,
     int DryCount,
     ClinicalDeltaResult? LatestDelta,
-    double UserTotalVolume);
+    double UserTotalVolume)
+{
+    // These properties act as the payload for the Clinical Appointment Snapshot
+    public string ProjectedAbstinence { get; set; } = "N/A";
+    public string ComplianceTier { get; set; } = "N/A";
+    public string ThermalStatus { get; set; } = "N/A";
+    public string AppointmentDateText { get; set; } = "N/A";
+    public bool ZincSaturated { get; set; }
+    public bool VitDSaturated { get; set; }
+}

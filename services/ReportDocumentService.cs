@@ -111,14 +111,14 @@ public sealed class ReportDocumentService
 
         // Calculate 90-day Thermal Status
         var heatEvents = logs.Where(l => l.HeatFlag >= 2).OrderByDescending(l => l.Timestamp).ToList();
-        string thermalStatus = "Uncompromised (No Severe Heat in Window)";
+        string thermalStatusHeader = "Uncompromised (No Severe Heat in Window)";
         if (heatEvents.Count > 0)
         {
             var latest = heatEvents[0];
             long elapsedDays = (DateTimeOffset.UtcNow.ToUnixTimeSeconds() - latest.Timestamp) / 86400;
             if (elapsedDays < 74)
             {
-                thermalStatus = $"Active Thermal Shadow (Day {elapsedDays}/74 - L{latest.HeatFlag} Heat)";
+                thermalStatusHeader = $"Active Thermal Shadow (Day {elapsedDays}/74 - L{latest.HeatFlag} Heat)";
             }
         }
 
@@ -149,7 +149,7 @@ public sealed class ReportDocumentService
                     {
                         col.Item().Text("PIMS BASELINE REPORT").SemiBold().FontSize(20).FontColor(Colors.Blue.Darken2);
                         col.Item().Text("Reproductive System Analytics & Clinical Summary").FontSize(12).FontColor(Colors.Grey.Darken1);
-                        col.Item().Text($"Thermal Status: {thermalStatus}").FontSize(9).FontColor(heatEvents.Count > 0 ? Colors.Orange.Darken2 : Colors.Green.Darken2).SemiBold();
+                        col.Item().Text($"Thermal Status: {thermalStatusHeader}").FontSize(9).FontColor(heatEvents.Count > 0 ? Colors.Orange.Darken2 : Colors.Green.Darken2).SemiBold();
                     });
                     row.RelativeItem().AlignRight().Column(col =>
                     {
@@ -181,6 +181,35 @@ public sealed class ReportDocumentService
                             c.Item().Text(complianceRate).FontSize(16).SemiBold().FontColor(Colors.Blue.Darken2);
                         });
                     });
+
+                    // NEW: Clinical Appointment Snapshot Box
+                    if (!string.IsNullOrEmpty(reportData.AppointmentDateText) && reportData.AppointmentDateText != "N/A")
+                    {
+                        col.Item().PaddingTop(10).PaddingBottom(10).Background(Colors.Grey.Lighten4).Border(1).BorderColor(Colors.Grey.Lighten2).Padding(10).Column(c =>
+                        {
+                            // Corrected QuestPDF fluent API logic here
+                            c.Item().PaddingBottom(5).Text("CLINICAL APPOINTMENT SNAPSHOT").SemiBold().FontSize(12).FontColor(Colors.Blue.Darken3);
+                            
+                            c.Item().Row(r =>
+                            {
+                                r.RelativeItem().Column(colLeft =>
+                                {
+                                    colLeft.Item().Text(text => { text.Span("Target Appointment: ").SemiBold(); text.Span(reportData.AppointmentDateText); });
+                                    colLeft.Item().Text(text => { text.Span("Projected Abstinence: ").SemiBold(); text.Span(reportData.ProjectedAbstinence).FontColor(Colors.Blue.Darken2).SemiBold(); });
+                                    colLeft.Item().Text(text => { text.Span("WHO Compliance Tier: ").SemiBold(); text.Span(reportData.ComplianceTier); });
+                                });
+                                
+                                r.RelativeItem().Column(colRight =>
+                                {
+                                    colRight.Item().Text(text => { text.Span("Thermal Shadow Status: ").SemiBold(); text.Span(reportData.ThermalStatus); });
+                                    colRight.Item().Text(text => { 
+                                        text.Span("PK Saturation: ").SemiBold(); 
+                                        text.Span($"Zinc ({(reportData.ZincSaturated ? "Yes" : "No")}) | Vit D3 ({(reportData.VitDSaturated ? "Yes" : "No")})"); 
+                                    });
+                                });
+                            });
+                        });
+                    }
 
                     col.Item().PaddingTop(10);
 

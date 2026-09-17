@@ -24,6 +24,23 @@ public partial class MainWindow : Window
             var grid = this.FindControl<DataGrid>("LogsGrid");
             grid?.ScrollIntoView(log, null);
         };
+
+        // UI UX FIX: Trap the mouse wheel over the charts to prevent the ScrollViewer from bouncing
+        var mainChart = this.FindControl<LiveChartsCore.SkiaSharpView.Avalonia.CartesianChart>("MainChart");
+        if (mainChart != null) mainChart.PointerWheelChanged += Chart_PointerWheelChanged;
+
+        var enthusiasmChart = this.FindControl<LiveChartsCore.SkiaSharpView.Avalonia.CartesianChart>("EnthusiasmChart");
+        if (enthusiasmChart != null) enthusiasmChart.PointerWheelChanged += Chart_PointerWheelChanged;
+
+        var pkChart = this.FindControl<LiveChartsCore.SkiaSharpView.Avalonia.CartesianChart>("PkChart");
+        if (pkChart != null) pkChart.PointerWheelChanged += Chart_PointerWheelChanged;
+    }
+
+    private void Chart_PointerWheelChanged(object? sender, PointerWheelEventArgs e)
+    {
+        // By marking this handled, LiveCharts gets the zoom data, 
+        // but the parent ScrollViewer ignores it and stays perfectly still.
+        e.Handled = true; 
     }
 
     private void MainContainer_PointerMoved(object? sender, PointerEventArgs e)

@@ -516,6 +516,54 @@ namespace DadPlanner2.ViewModels
             UpdateHeatmap();
         }
 
+        [RelayCommand]
+        private void StepZoom(string direction)
+        {
+            if (XAxes.Length == 0) return;
+            
+            var mainAxis = XAxes[0];
+            double min = mainAxis.MinLimit ?? _chartMinX;
+            double max = mainAxis.MaxLimit ?? _chartMaxX;
+            double range = max - min;
+            double step = range * 0.15; // 15% zoom per keystroke
+
+            if (direction == "IN")
+            {
+                if (range > TimeSpan.FromDays(2).Ticks) 
+                {
+                    min += step;
+                    max -= step;
+                }
+            }
+            else if (direction == "OUT")
+            {
+                min -= step;
+                max += step;
+                
+                if (min < _chartMinX - TimeSpan.FromDays(7).Ticks) min = _chartMinX - TimeSpan.FromDays(7).Ticks;
+                if (max > _chartMaxX + TimeSpan.FromDays(7).Ticks) max = _chartMaxX + TimeSpan.FromDays(7).Ticks;
+            }
+
+            XAxes[0].MinLimit = min;
+            XAxes[0].MaxLimit = max;
+            OnPropertyChanged(nameof(XAxes));
+
+            if (EnthusiasmXAxes.Length > 0) 
+            { 
+                EnthusiasmXAxes[0].MinLimit = min; 
+                EnthusiasmXAxes[0].MaxLimit = max; 
+                OnPropertyChanged(nameof(EnthusiasmXAxes)); 
+            }
+            if (PkXAxes.Length > 0) 
+            { 
+                PkXAxes[0].MinLimit = min; 
+                PkXAxes[0].MaxLimit = max; 
+                OnPropertyChanged(nameof(PkXAxes)); 
+            }
+            
+            ChartRangeDays = 0; 
+        }
+
         private void ApplyChartRange()
         {
             if (XAxes.Length == 0) return;
@@ -525,30 +573,26 @@ namespace DadPlanner2.ViewModels
 
             if (ChartRangeDays > 0)
             {
-                // Subtract the requested days (in Ticks) from the maximum chart X value
                 minLimit = _chartMaxX - TimeSpan.FromDays(ChartRangeDays).Ticks;
                 if (minLimit < _chartMinX) minLimit = _chartMinX;
             }
 
-            // Apply to Main Timeline
             XAxes[0].MinLimit = minLimit;
             XAxes[0].MaxLimit = maxLimit;
-            OnPropertyChanged(nameof(XAxes)); // Force redraw
+            OnPropertyChanged(nameof(XAxes));
 
-            // Apply to Enthusiasm Macro-Trend
             if (EnthusiasmXAxes.Length > 0)
             {
                 EnthusiasmXAxes[0].MinLimit = minLimit;
                 EnthusiasmXAxes[0].MaxLimit = maxLimit;
-                OnPropertyChanged(nameof(EnthusiasmXAxes)); // Force redraw
+                OnPropertyChanged(nameof(EnthusiasmXAxes));
             }
 
-            // Apply to Pharmacokinetic Decay
             if (PkXAxes.Length > 0)
             {
                 PkXAxes[0].MinLimit = minLimit;
                 PkXAxes[0].MaxLimit = maxLimit;
-                OnPropertyChanged(nameof(PkXAxes)); // Force redraw
+                OnPropertyChanged(nameof(PkXAxes));
             }
         }
 
@@ -1778,13 +1822,11 @@ namespace DadPlanner2.ViewModels
                 if (prediction.IsValid && gapData.Count > 0)
                 {
                     var lastActual = gapData.Last();
-                    predictionLineData.Add(lastActual); // Connect dashed line from the last real dot
+                    predictionLineData.Add(lastActual);
 
-                    // Predict next 2 events using the adaptive gap
                     long predictedUnix1 = lastActual.Log.Timestamp + (long)(prediction.MeanGapHours * 3600.0);
                     long predictedUnix2 = predictedUnix1 + (long)(prediction.MeanGapHours * 3600.0);
 
-                    // Create dummy log records for the tooltip binding
                     var p1Log = new LogRecord { Mode = "Predicted", Volume = "Adaptive Forecast", Timestamp = predictedUnix1, Supplements = "{}" };
                     var p2Log = new LogRecord { Mode = "Predicted", Volume = "Adaptive Forecast", Timestamp = predictedUnix2, Supplements = "{}" };
 
@@ -1794,10 +1836,33 @@ namespace DadPlanner2.ViewModels
                     predictionPts.Add(p1); predictionPts.Add(p2);
                     predictionLineData.Add(p1); predictionLineData.Add(p2);
 
-                    // Extend chart view further out to fit the predicted points
                     _chartMaxX = p2.X!.Value + TimeSpan.FromHours(12).Ticks; 
                 }
-                // ---------------------------
+                
+                // --- MIDNIGHT ANCHORS FOR EMPTY DAYS ---
+                var emptyDaysData = new List<ChartLogPoint>();
+                DateTime minDate = new DateTime((long)_chartMinX).Date;
+                DateTime maxDate = new DateTime((long)_chartMaxX).Date;
+                
+                for (DateTime d = minDate; d <= maxDate; d = d.AddDays(1))
+                {
+                    if (!gapData.Any(p => new DateTime((long)(p.X ?? 0)).Date == d.Date) &&
+                        !predictionPts.Any(p => new DateTime((long)(p.X ?? 0)).Date == d.Date))
+                    {
+                        long ticks = d.AddHours(12).Ticks; // Anchor at noon so it centers the day block
+                        var emptyLog = new LogRecord { Mode = "Empty" };
+                        emptyDaysData.Add(new ChartLogPoint { X = ticks, Y = MinHours, IsEmptyDay = true, Log = emptyLog });
+                    }
+                }
+                
+                var emptySeries = new ScatterSeries<ChartLogPoint>
+                {
+                    Name = "Empty",
+                    Values = emptyDaysData,
+                    GeometrySize = 0, // Invisible
+                    Fill = null,
+                    Stroke = null
+                };
 
                 var lineSeries = new LineSeries<ChartLogPoint> 
                 { 
@@ -1868,7 +1933,7 @@ namespace DadPlanner2.ViewModels
                     Stroke = new SolidColorPaint(new SKColor(30,30,30)) { StrokeThickness = 2 } 
                 };
 
-                ChartSeries = new ISeries[] { lineSeries, predictedLineSeries, maintSeries, playSeries, babySeries, labSeries, predictedScatterSeries };
+                ChartSeries = new ISeries[] { emptySeries, lineSeries, predictedLineSeries, maintSeries, playSeries, babySeries, labSeries, predictedScatterSeries };
                 
                 XAxes = new[] { 
                     new Axis 
@@ -2304,22 +2369,28 @@ namespace DadPlanner2.ViewModels
         public LogRecord Log { get; set; } = null!;
         public bool IsBaseline { get; set; }
         public bool IsPrediction { get; set; }
+        public bool IsEmptyDay { get; set; }
         public double? StdDev { get; set; }
         
-        public string GapText => IsPrediction 
-            ? $"Projected gap: {(Y ?? 0):F1} Hrs (± {StdDev:F1}h)" 
-            : IsBaseline 
-                ? $"Baseline threshold: {(Y ?? 0):F1} Hrs (no prior gap)" 
-                : $"Measured gap: {(Y ?? 0):F1} Hrs";
+        public string GapText => IsEmptyDay 
+            ? "No events recorded." 
+            : IsPrediction 
+                ? $"Projected gap: {(Y ?? 0):F1} Hrs (± {StdDev:F1}h)" 
+                : IsBaseline 
+                    ? $"Baseline threshold: {(Y ?? 0):F1} Hrs (no prior gap)" 
+                    : $"Measured gap: {(Y ?? 0):F1} Hrs";
                 
-        public string HeaderText => IsPrediction
-            ? $"PREDICTED WINDOW: {new DateTime((long)(X ?? 0)):MMM dd, yyyy @ HH:mm}"
-            : new DateTime((long)(X ?? 0)).ToString("MMM dd, yyyy @ HH:mm");
+        public string HeaderText => IsEmptyDay
+            ? new DateTime((long)(X ?? 0)).ToString("MMM dd, yyyy")
+            : IsPrediction
+                ? $"PREDICTED WINDOW: {new DateTime((long)(X ?? 0)):MMM dd, yyyy @ HH:mm}"
+                : new DateTime((long)(X ?? 0)).ToString("MMM dd, yyyy @ HH:mm");
         
         public string FlagsText 
         { 
             get 
             { 
+                if (IsEmptyDay) return "";
                 if (IsPrediction) return "[STATISTICAL PROJECTION]";
                 var flags = new List<string>(); 
                 if (Log.HeatFlag > 0) flags.Add($"[HEAT L{Log.HeatFlag}]"); 
@@ -2332,13 +2403,13 @@ namespace DadPlanner2.ViewModels
             } 
         }
         
-        public bool HasFlags => FlagsText.Length > 0;
+        public bool HasFlags => !IsEmptyDay && FlagsText.Length > 0;
         
         public string LabText 
         { 
             get 
             { 
-                if (IsPrediction) return "";
+                if (IsEmptyDay || IsPrediction) return "";
                 var lines = new List<string>(); 
                 if (Log.Concentration > 0) lines.Add($"Conc: {Log.Concentration} M"); 
                 if (Log.Motility > 0) lines.Add($"Mot: {Log.Motility}%"); 
@@ -2348,16 +2419,19 @@ namespace DadPlanner2.ViewModels
             } 
         }
         
-        public bool HasLab => Log.Mode == "Clinical-Lab" && LabText.Length > 0;
-        public string ModeHex => Log.Mode switch { 
-            "Maintenance" => "#007acc", 
-            "Playtime" => "#9c27b0", 
-            "Baby-Making" => "#4caf50", 
-            "Clinical-Lab" => "#546e7a", 
-            "Daily Dose" => "#607d8b", 
-            "Predicted" => "#f57c00",
-            _ => "#ccc" 
-        };
+        public bool HasLab => !IsEmptyDay && Log.Mode == "Clinical-Lab" && LabText.Length > 0;
+        
+        public string ModeHex => IsEmptyDay 
+            ? "#444" 
+            : Log.Mode switch { 
+                "Maintenance" => "#007acc", 
+                "Playtime" => "#9c27b0", 
+                "Baby-Making" => "#4caf50", 
+                "Clinical-Lab" => "#546e7a", 
+                "Daily Dose" => "#607d8b", 
+                "Predicted" => "#f57c00",
+                _ => "#ccc" 
+            };
     }
 
     public class PieHoverData { public string Category { get; set; } = ""; public int Count { get; set; } public string ColorHex { get; set; } = ""; public double Percentage { get; set; } }

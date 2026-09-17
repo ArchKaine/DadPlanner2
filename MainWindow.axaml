@@ -11,7 +11,8 @@
         x:Name="RootWindow"
         Title="Dad-Planner System Utility" Width="2134" Height="1225"
         Background="#121212" Foreground="#e0e0e0"
-        WindowStartupLocation="CenterScreen">
+        WindowStartupLocation="CenterScreen"
+        Icon="avares://DadPlanner2/Assets/delta_icon.png">
 
     <Window.Resources>
         <local:ModeToColorConverter x:Key="ModeColorConverter"/>
@@ -21,6 +22,12 @@
 
     <Window.KeyBindings>
         <KeyBinding Gesture="Escape" Command="{Binding ToggleStealthCommand}"/>
+        
+        <!-- Unified Keyboard Zoom Controls -->
+        <KeyBinding Gesture="OemPlus" Command="{Binding StepZoomCommand}" CommandParameter="IN"/>
+        <KeyBinding Gesture="OemMinus" Command="{Binding StepZoomCommand}" CommandParameter="OUT"/>
+        <KeyBinding Gesture="Add" Command="{Binding StepZoomCommand}" CommandParameter="IN"/>
+        <KeyBinding Gesture="Subtract" Command="{Binding StepZoomCommand}" CommandParameter="OUT"/>
     </Window.KeyBindings>
 
     <Window.Styles>
@@ -78,7 +85,7 @@
         </Style>
     </Window.Styles>
 
-    <!-- The root grid tracks the pointer to feed the custom overlay tooltip -->
+    <!-- UNLOCKED ROOT GRID: Automatically fills whatever window dimensions are provided -->
     <Grid Background="#121212" PointerMoved="MainContainer_PointerMoved">
 
         <!-- MAIN APP LAYER -->
@@ -89,7 +96,10 @@
 
             <!-- HEADER -->
             <Grid Grid.Row="0" ColumnDefinitions="*, Auto" Margin="0,0,0,15">
-                <TextBlock Text="Dad-Planner System Utility" FontSize="24" FontWeight="Bold" VerticalAlignment="Center"/>
+                <StackPanel Grid.Column="0" Orientation="Horizontal" Spacing="12" VerticalAlignment="Center">
+                    <Image Source="avares://DadPlanner2/Assets/delta_icon.png" Width="32" Height="32" VerticalAlignment="Center"/>
+                    <TextBlock Text="Dad-Planner System Utility" FontSize="24" FontWeight="Bold" VerticalAlignment="Center"/>
+                </StackPanel>
                 <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
                     <Button Classes="btn-icon" Content="[?] Help" Command="{Binding OpenHelpCommand}" Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1"/>
                     <Button Classes="btn-icon" Content="{Binding PdfButtonText}" Command="{Binding GeneratePdfCommand}" Background="#546e7a"/>
@@ -139,228 +149,228 @@
                           <TextBlock Text="{Binding ClinicalClearanceTarget}" FontSize="11" FontWeight="Bold" Foreground="{Binding ClinicalComplianceColor}" VerticalAlignment="Center"/>
                       </Border>
                   </Grid>
-              </Border>
+                </Border>
             </StackPanel>
 
             <!-- MAIN SPLIT -->
             <Grid Grid.Row="2" ColumnDefinitions="1.8*, 1.2*">
 
-                <!-- LEFT PANE -->
-                <ScrollViewer Grid.Column="0" Margin="0,0,15,0" HorizontalScrollBarVisibility="Disabled">
-                    <StackPanel Spacing="15">
-
-                        <!-- ENHANCED HUD GRID WITH BIOLOGICAL PHASES -->
-                        <UniformGrid Columns="5" Height="80">
-                            <!-- 1: Current Delta -->
-                            <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0" Padding="8">
-                                <Grid RowDefinitions="*, Auto">
-                                    <TextBlock Grid.Row="0" Text="{Binding HudCurrent}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Row="1" Text="CURRENT DELTA" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
-                                </Grid>
-                            </Border>
-
-                            <!-- 2: Phase & Viability / Limit (Dynamic Color + Progress Bar) -->
-                            <Border Background="#1e1e1e" BorderBrush="{Binding HudPhaseColor}" BorderThickness="1.5" CornerRadius="6" Margin="0,0,10,0" Padding="8">
-                                <Grid RowDefinitions="*, Auto, Auto">
-                                    <StackPanel Grid.Row="0" VerticalAlignment="Center" HorizontalAlignment="Center">
-                                        <TextBlock Text="{Binding HudRemaining}" FontSize="22" FontWeight="Bold" Foreground="{Binding HudPhaseColor}" HorizontalAlignment="Center"/>
-                                    </StackPanel>
-                                    <ProgressBar Grid.Row="1" Value="{Binding HudProgressValue}" Minimum="0" Maximum="1" Height="3" Foreground="{Binding HudPhaseColor}" Background="#2a2a2a" CornerRadius="1.5" Margin="4,2,4,4"/>
-                                    <TextBlock Grid.Row="2" Text="{Binding HudRemainingLabel}" FontSize="9" FontWeight="Bold" Foreground="{Binding HudPhaseColor}" HorizontalAlignment="Center"/>
-                                </Grid>
-                            </Border>
-
-                            <!-- 3: Rolling Average -->
-                            <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0" Padding="8">
-                                <Grid RowDefinitions="*, Auto">
-                                    <TextBlock Grid.Row="0" Text="{Binding HudAvg}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Row="1" Text="ROLLING AVG" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
-                                </Grid>
-                            </Border>
-
-                            <!-- 4: Max Endurance -->
-                            <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0" Padding="8">
-                                <Grid RowDefinitions="*, Auto">
-                                    <TextBlock Grid.Row="0" Text="{Binding HudMax}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Row="1" Text="MAX ENDURANCE" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
-                                </Grid>
-                            </Border>
-
-                            <!-- 5: 30-Day Frequency -->
-                            <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="8">
-                                <Grid RowDefinitions="*, Auto">
-                                    <TextBlock Grid.Row="0" Text="{Binding HudFrequency}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center" VerticalAlignment="Center"/>
-                                    <TextBlock Grid.Row="1" Text="30-DAY FREQ" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
-                                </Grid>
-                            </Border>
-                        </UniformGrid>
-
-                        <!-- RECOVERY GAP TIMELINE WITH ZOOM -->
-                        <Border Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Height="250">
-                            <Grid RowDefinitions="Auto, *">
-                                <Grid Grid.Row="0" ColumnDefinitions="Auto, *">
-                                    <TextBlock Grid.Column="0" Text="RECOVERY GAP TIMELINE" FontSize="12" Foreground="#888" VerticalAlignment="Center" Margin="10,10,0,5"/>
-                                    <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="5" Margin="0,10,10,5">
-                                        <TextBlock Text="GLOBAL SCALE:" FontSize="10" FontWeight="Bold" Foreground="#007acc" VerticalAlignment="Center" Margin="0,0,5,0"/>
-                                        <Button Content="14D" Command="{Binding ZoomChartCommand}" CommandParameter="14" FontSize="10" Padding="6,3" Background="#252526" Foreground="#888"/>
-                                        <Button Content="30D" Command="{Binding ZoomChartCommand}" CommandParameter="30" FontSize="10" Padding="6,3" Background="#252526" Foreground="#888"/>
-                                        <Button Content="90D" Command="{Binding ZoomChartCommand}" CommandParameter="90" FontSize="10" Padding="6,3" Background="#252526" Foreground="#888"/>
-                                        <Button Content="180D" Command="{Binding ZoomChartCommand}" CommandParameter="180" FontSize="10" Padding="6,3" Background="#252526" Foreground="#888"/>
-                                        <Button Content="ALL" Command="{Binding ZoomChartCommand}" CommandParameter="ALL" FontSize="10" Padding="6,3" Background="#252526" Foreground="#888"/>
-                                    </StackPanel>
-                                </Grid>
-
-                                <lvc:CartesianChart x:Name="MainChart" Grid.Row="1" Series="{Binding ChartSeries}" XAxes="{Binding XAxes}" YAxes="{Binding YAxes}" Sections="{Binding TimelineSections}" Margin="10,0,10,10" ZoomMode="X" DataPointerDownCommand="{Binding ChartClickedCommand}" TooltipPosition="Hidden" />
+                <!-- LEFT PANE (Zero Scrollbars - Dynamic Grid Allocation) -->
+                <Grid Grid.Column="0" Margin="0,0,15,0" RowDefinitions="Auto, 2.5*, Auto, 1.5*, Auto, Auto, Auto">
+                        
+                    <!-- ROW 0: ENHANCED HUD GRID -->
+                    <UniformGrid Grid.Row="0" Columns="5" Height="80" Margin="0,0,0,15">
+                        <!-- 1: Current Delta -->
+                        <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0" Padding="8">
+                            <Grid RowDefinitions="*, Auto">
+                                <TextBlock Grid.Row="0" Text="{Binding HudCurrent}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="1" Text="CURRENT DELTA" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
                             </Grid>
                         </Border>
 
-                        <!-- Analytics Charts -->
-                        <Grid ColumnDefinitions="*, *" Height="200">
+                        <!-- 2: Phase & Viability / Limit -->
+                        <Border Background="#1e1e1e" BorderBrush="{Binding HudPhaseColor}" BorderThickness="1.5" CornerRadius="6" Margin="0,0,10,0" Padding="8">
+                            <Grid RowDefinitions="*, Auto, Auto">
+                                <StackPanel Grid.Row="0" VerticalAlignment="Center" HorizontalAlignment="Center">
+                                    <TextBlock Text="{Binding HudRemaining}" FontSize="22" FontWeight="Bold" Foreground="{Binding HudPhaseColor}" HorizontalAlignment="Center"/>
+                                </StackPanel>
+                                <ProgressBar Grid.Row="1" Value="{Binding HudProgressValue}" Minimum="0" Maximum="1" Height="3" Foreground="{Binding HudPhaseColor}" Background="#2a2a2a" CornerRadius="1.5" Margin="4,2,4,4"/>
+                                <TextBlock Grid.Row="2" Text="{Binding HudRemainingLabel}" FontSize="9" FontWeight="Bold" Foreground="{Binding HudPhaseColor}" HorizontalAlignment="Center"/>
+                            </Grid>
+                        </Border>
 
-                            <!-- Doughnut Chart & Custom Legend -->
-                            <Border Grid.Column="0" Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0">
-                                <Grid RowDefinitions="Auto, *">
-                                    <TextBlock Grid.Row="0" Text="EVENT DISTRIBUTION" FontSize="12" Foreground="#888" Margin="10,10,0,5"/>
+                        <!-- 3: Rolling Average -->
+                        <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0" Padding="8">
+                            <Grid RowDefinitions="*, Auto">
+                                <TextBlock Grid.Row="0" Text="{Binding HudAvg}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="1" Text="ROLLING AVG" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
+                            </Grid>
+                        </Border>
 
-                                    <Grid Grid.Row="1" ColumnDefinitions="*, Auto" Margin="10,0,15,10">
-                                        <Grid Grid.Column="0">
-                                            <lvc:PieChart x:Name="PieChart" Series="{Binding ModeSeries}" LegendPosition="Hidden" TooltipPosition="Hidden"/>
-                                            <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
-                                                <TextBlock Text="{Binding TotalEventCount}" FontSize="22" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
-                                                <TextBlock Text="Total Logs" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
-                                            </StackPanel>
-                                        </Grid>
+                        <!-- 4: Max Endurance -->
+                        <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0" Padding="8">
+                            <Grid RowDefinitions="*, Auto">
+                                <TextBlock Grid.Row="0" Text="{Binding HudMax}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="1" Text="MAX ENDURANCE" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
+                            </Grid>
+                        </Border>
 
-                                        <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="10" Margin="10,0,0,0">
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <Border Width="12" Height="12" CornerRadius="6" Background="#007acc"/>
-                                                <TextBlock Text="{Binding LegendMaint}" FontSize="11" Foreground="#ccc" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <Border Width="12" Height="12" CornerRadius="6" Background="#9c27b0"/>
-                                                <TextBlock Text="{Binding LegendPlay}" FontSize="11" Foreground="#ccc" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <Border Width="12" Height="12" CornerRadius="6" Background="#4caf50"/>
-                                                <TextBlock Text="{Binding LegendBaby}" FontSize="11" Foreground="#ccc" VerticalAlignment="Center"/>
-                                            </StackPanel>
-                                            <StackPanel Orientation="Horizontal" Spacing="6">
-                                                <Border Width="12" Height="12" CornerRadius="6" Background="#546e7a"/>
-                                                <TextBlock Text="{Binding LegendLab}" FontSize="11" Foreground="#ccc" VerticalAlignment="Center"/>
-                                            </StackPanel>
+                        <!-- 5: 30-Day Frequency -->
+                        <Border Background="#1e1e1e" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="8">
+                            <Grid RowDefinitions="*, Auto">
+                                <TextBlock Grid.Row="0" Text="{Binding HudFrequency}" FontSize="24" FontWeight="Bold" Foreground="#007acc" HorizontalAlignment="Center" VerticalAlignment="Center"/>
+                                <TextBlock Grid.Row="1" Text="30-DAY FREQ" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
+                            </Grid>
+                        </Border>
+                    </UniformGrid>
+
+                    <!-- ROW 1: RECOVERY GAP TIMELINE WITH UNIFIED ZOOM -->
+                    <Border Grid.Row="1" Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6" MinHeight="250" Margin="0,0,0,5">
+                        <Grid RowDefinitions="Auto, *">
+                            <Grid Grid.Row="0" ColumnDefinitions="Auto, *">
+                                <TextBlock Grid.Column="0" Text="RECOVERY GAP TIMELINE" FontSize="12" Foreground="#888" VerticalAlignment="Center" Margin="10,10,0,5"/>
+                                <StackPanel Grid.Column="1" Orientation="Horizontal" HorizontalAlignment="Right" Spacing="5" Margin="0,10,10,5">
+                                    <TextBlock Text="GLOBAL SCALE:" FontSize="10" FontWeight="Bold" Foreground="#007acc" VerticalAlignment="Center" Margin="0,0,5,0"/>
+                                    <Button Content="14D" Command="{Binding ZoomChartCommand}" CommandParameter="14" FontSize="10" Padding="6,3" Background="#252526" Foreground="#888"/>
+                                    <Button Content="30D" Command="{Binding ZoomChartCommand}" CommandParameter="30" FontSize="10" Padding="6,3" Background="#252526" Foreground="#888"/>
+                                    <Button Content="90D" Command="{Binding ZoomChartCommand}" CommandParameter="90" FontSize="10" Padding="6,3" Background="#252526" Foreground="#888"/>
+                                    <Button Content="180D" Command="{Binding ZoomChartCommand}" CommandParameter="180" FontSize="10" Padding="6,3" Background="#252526" Foreground="#888"/>
+                                    <Button Content="ALL" Command="{Binding ZoomChartCommand}" CommandParameter="ALL" FontSize="10" Padding="6,3" Background="#252526" Foreground="#888"/>
+                                </StackPanel>
+                            </Grid>
+
+                            <lvc:CartesianChart x:Name="MainChart" Grid.Row="1" Series="{Binding ChartSeries}" XAxes="{Binding XAxes}" YAxes="{Binding YAxes}" Sections="{Binding TimelineSections}" Margin="10,0,10,10" ZoomMode="X" DataPointerDownCommand="{Binding ChartClickedCommand}" TooltipPosition="Hidden" />
+                        </Grid>
+                    </Border>
+
+                    <!-- ROW 2: GRIDSPLITTER FOR FLEXIBLE SIZING -->
+                    <GridSplitter Grid.Row="2" Height="4" Background="#333" HorizontalAlignment="Stretch" VerticalAlignment="Center" Margin="0,5,0,10"/>
+
+                    <!-- ROW 3: ANALYTICS CHARTS (PIE & BAR) -->
+                    <Grid Grid.Row="3" ColumnDefinitions="*, *" MinHeight="150" Margin="0,0,0,15">
+                        <!-- Doughnut Chart & Custom Legend -->
+                        <Border Grid.Column="0" Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Margin="0,0,10,0">
+                            <Grid RowDefinitions="Auto, *">
+                                <TextBlock Grid.Row="0" Text="EVENT DISTRIBUTION" FontSize="12" Foreground="#888" Margin="10,10,0,5"/>
+
+                                <Grid Grid.Row="1" ColumnDefinitions="*, Auto" Margin="10,0,15,10">
+                                    <Grid Grid.Column="0">
+                                        <lvc:PieChart x:Name="PieChart" Series="{Binding ModeSeries}" LegendPosition="Hidden" TooltipPosition="Hidden"/>
+                                        <StackPanel VerticalAlignment="Center" HorizontalAlignment="Center">
+                                            <TextBlock Text="{Binding TotalEventCount}" FontSize="22" FontWeight="Bold" Foreground="White" HorizontalAlignment="Center"/>
+                                            <TextBlock Text="Total Logs" FontSize="10" Foreground="#888" HorizontalAlignment="Center"/>
                                         </StackPanel>
                                     </Grid>
-                                </Grid>
-                            </Border>
 
-                            <!-- Bar Chart (Yield Profile) -->
-                            <Border Grid.Column="1" Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6">
-                                <Grid RowDefinitions="Auto, *">
-                                    <TextBlock Grid.Row="0" Text="YIELD PROFILE" FontSize="12" Foreground="#888" Margin="10,10,0,5"/>
-                                    <lvc:CartesianChart x:Name="BarChart" Grid.Row="1" Series="{Binding VolumeSeries}" XAxes="{Binding VolumeXAxes}" YAxes="{Binding VolumeYAxes}" Margin="10" TooltipPosition="Hidden"/>
-                                </Grid>
-                            </Border>
-                        </Grid>
-
-                        <!-- GitHub-Style Auto-Scaling Heatmap with Interactive Drill-Down -->
-                        <Border Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10">
-                            <StackPanel>
-                                <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,10">
-                                    <TextBlock Grid.Column="0" Text="365-DAY ACTIVITY MATRIX (CLICK DAY TO LOCATE)" FontSize="12" Foreground="#888" VerticalAlignment="Center"/>
-                                    <ToggleSwitch Grid.Column="1" OffContent="Release Frequency" OnContent="Clinical Volume" IsChecked="{Binding IsVolumeMode}" FontSize="11" Foreground="#aaa" MinWidth="0" Margin="0" Padding="0"/>
-                                </Grid>
-
-                                <Viewbox Height="110" Stretch="Uniform" HorizontalAlignment="Stretch">
-                                    <ItemsControl ItemsSource="{Binding HeatmapDays}">
-                                        <ItemsControl.ItemsPanel>
-                                            <ItemsPanelTemplate>
-                                                <WrapPanel Orientation="Vertical" Height="110" />
-                                            </ItemsPanelTemplate>
-                                        </ItemsControl.ItemsPanel>
-                                        <ItemsControl.ItemTemplate>
-                                            <DataTemplate>
-                                                <Button Classes="heatmap-cell"
-                                                        Background="{Binding ColorHex}"
-                                                        Width="12" Height="12" Margin="1.5" CornerRadius="2"
-                                                        Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).HeatmapDayClickedCommand}"
-                                                        CommandParameter="{Binding}">
-                                                    <ToolTip.Tip>
-                                                        <StackPanel Spacing="5">
-                                                            <TextBlock Text="{Binding DateText}" FontWeight="Bold" Foreground="#e0e0e0" FontSize="13"/>
-                                                            <TextBlock Text="{Binding MainInfoText}" Foreground="#aaa" FontSize="12"/>
-                                                            <Rectangle IsVisible="{Binding HasData}" Height="1" Fill="#333" Margin="0,4"/>
-                                                            <TextBlock IsVisible="{Binding HasData}" Text="{Binding ModesText}" Foreground="#888" FontSize="12" TextWrapping="Wrap"/>
-                                                            <TextBlock Text="Click cell to jump to log" FontSize="9" Foreground="#007acc" FontStyle="Italic"/>
-                                                        </StackPanel>
-                                                    </ToolTip.Tip>
-                                                </Button>
-                                            </DataTemplate>
-                                        </ItemsControl.ItemTemplate>
-                                    </ItemsControl>
-                                </Viewbox>
-                                
-                                <!-- Explicit Heatmap Legend -->
-                                <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4" Margin="0,5,10,0">
-                                    <TextBlock Text="Base Color = Mode" FontSize="9" FontWeight="Bold" Foreground="#777" VerticalAlignment="Center" Margin="0,0,10,0"/>
-                                    <TextBlock Text="Intensity:" FontSize="9" Foreground="#666" VerticalAlignment="Center" Margin="0,0,2,0"/>
-                                    <TextBlock Text="Low" FontSize="9" Foreground="#666" VerticalAlignment="Center" Margin="0,0,2,0"/>
-                                    <Border Width="10" Height="10" CornerRadius="2" Background="#252526" BorderBrush="#333" BorderThickness="1"/>
-                                    <Border Width="10" Height="10" CornerRadius="2" Background="#1e4a6d"/>
-                                    <Border Width="10" Height="10" CornerRadius="2" Background="#007acc"/>
-                                    <Border Width="10" Height="10" CornerRadius="2" Background="#64b5f6"/>
-                                    <TextBlock Text="High" FontSize="9" Foreground="#666" VerticalAlignment="Center" Margin="2,0,0,0"/>
-                                </StackPanel>
-
-                                <!-- ENTHUSIASM MACRO-TREND GRAPH -->
-                                <Grid Height="140" Margin="0,15,0,0"> 
-                                    <lvc:CartesianChart x:Name="EnthusiasmChart" Series="{Binding EnthusiasmSeries}" XAxes="{Binding EnthusiasmXAxes}" YAxes="{Binding EnthusiasmYAxes}" TooltipPosition="Hidden" ZoomMode="X" />
-                                    
-                                    <!-- Ghost Line & Actual Line Legends -->
-                                    <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,10,0,0" IsHitTestVisible="False" Spacing="4">
+                                    <StackPanel Grid.Column="1" VerticalAlignment="Center" Spacing="10" Margin="10,0,0,0">
                                         <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <Border Width="12" Height="3" Background="#f57c00" VerticalAlignment="Center"/>
-                                            <TextBlock Text="ACTUAL 14-DAY EXPENDITURE" FontSize="9" FontWeight="Bold" Foreground="#888" VerticalAlignment="Center"/>
+                                            <Border Width="12" Height="12" CornerRadius="6" Background="#007acc"/>
+                                            <TextBlock Text="{Binding LegendMaint}" FontSize="11" Foreground="#ccc" VerticalAlignment="Center"/>
                                         </StackPanel>
                                         <StackPanel Orientation="Horizontal" Spacing="6">
-                                            <TextBlock Text="- - -" FontWeight="Bold" Foreground="#777" VerticalAlignment="Center" Margin="0,0,0,2"/>
-                                            <TextBlock Text="{Binding EnthusiasmTargetScore, StringFormat='TARGET EXPENDITURE: {0:F1}'}" FontSize="9" FontWeight="Bold" Foreground="#777" VerticalAlignment="Center"/>
+                                            <Border Width="12" Height="12" CornerRadius="6" Background="#9c27b0"/>
+                                            <TextBlock Text="{Binding LegendPlay}" FontSize="11" Foreground="#ccc" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <Border Width="12" Height="12" CornerRadius="6" Background="#4caf50"/>
+                                            <TextBlock Text="{Binding LegendBaby}" FontSize="11" Foreground="#ccc" VerticalAlignment="Center"/>
+                                        </StackPanel>
+                                        <StackPanel Orientation="Horizontal" Spacing="6">
+                                            <Border Width="12" Height="12" CornerRadius="6" Background="#546e7a"/>
+                                            <TextBlock Text="{Binding LegendLab}" FontSize="11" Foreground="#ccc" VerticalAlignment="Center"/>
                                         </StackPanel>
                                     </StackPanel>
                                 </Grid>
-
-                                <!-- PHARMACOKINETIC DECAY OVERLAY -->
-                                <Grid Height="140" Margin="0,15,0,0"> 
-                                    <lvc:CartesianChart x:Name="PkChart" Series="{Binding PkSeries}" XAxes="{Binding PkXAxes}" YAxes="{Binding PkYAxes}" TooltipPosition="Hidden" ZoomMode="X" />
-                                    
-                                    <!-- PK Legend -->
-                                    <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="10,10,0,0" IsHitTestVisible="False" Spacing="15">
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <PathIcon Data="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1Z" Width="10" Height="10" Foreground="#007acc" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Zn (12d)" FontSize="9" Foreground="#007acc" FontWeight="Bold"/>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <PathIcon Data="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 2,11 2,11C2,11 4,8 9,7C14,6 17,8 17,8Z" Width="10" Height="10" Foreground="#9c27b0" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Ma (20h)" FontSize="9" Foreground="#9c27b0" FontWeight="Bold"/>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <PathIcon Data="M12,9C10.34,9 9,10.34 9,12C9,13.66 10.34,15 12,15C13.66,15 15,13.66 15,12C15,10.34 13.66,9 12,9M12,4.5C13.13,4.5 13.5,4.87 13.5,6V7.5C13.5,8.63 13.13,9 12,9C10.87,9 10.5,8.63 10.5,7.5V6C10.5,4.87 10.87,4.5 12,4.5M12,15C10.87,15 10.5,15.37 10.5,16.5V18C10.5,19.13 10.87,19.5 12,19.5C13.13,19.5 13.5,19.13 13.5,18V16.5C13.5,15.37 13.13,15 12,15M4.5,12C4.5,10.87 4.87,10.5 6,10.5H7.5C8.63,10.5 9,10.87 9,12C9,13.13 8.63,13.5 7.5,13.5H6C4.87,13.5 4.5,13.13 4.5,12M15,12C15,13.13 15.37,13.5 16.5,13.5H18C19.13,13.5 19.5,13.13 19.5,12C19.5,10.87 19.13,10.5 18,10.5H16.5C15.37,10.5 15,10.87 15,12Z" Width="10" Height="10" Foreground="#4caf50" VerticalAlignment="Center"/>
-                                            <TextBlock Text="D3 (18d)" FontSize="9" Foreground="#4caf50" FontWeight="Bold"/>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <PathIcon Data="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4Z" Width="10" Height="10" Foreground="#f57c00" VerticalAlignment="Center"/>
-                                            <TextBlock Text="C (24h)" FontSize="9" Foreground="#f57c00" FontWeight="Bold"/>
-                                        </StackPanel>
-                                        <StackPanel Orientation="Horizontal" Spacing="4">
-                                            <PathIcon Data="M11,2H13V19H11V2M9,20H15V22H9V20M12,0L15,3H9L12,0Z" Width="10" Height="10" Foreground="#e53935" VerticalAlignment="Center"/>
-                                            <TextBlock Text="Tad (17.5h)" FontSize="9" Foreground="#e53935" FontWeight="Bold"/>
-                                        </StackPanel>
-                                    </StackPanel>
-                                </Grid>
-                                
-                            </StackPanel>
+                            </Grid>
                         </Border>
-                    </StackPanel>
-                </ScrollViewer>
+
+                        <!-- Bar Chart (Yield Profile) -->
+                        <Border Grid.Column="1" Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6">
+                            <Grid RowDefinitions="Auto, *">
+                                <TextBlock Grid.Row="0" Text="YIELD PROFILE" FontSize="12" Foreground="#888" Margin="10,10,0,5"/>
+                                <lvc:CartesianChart x:Name="BarChart" Grid.Row="1" Series="{Binding VolumeSeries}" XAxes="{Binding VolumeXAxes}" YAxes="{Binding VolumeYAxes}" Margin="10" TooltipPosition="Hidden"/>
+                            </Grid>
+                        </Border>
+                    </Grid>
+
+                    <!-- ROW 4: ACTIVITY MATRIX -->
+                    <Border Grid.Row="4" Background="#1a1a1a" BorderBrush="#333" BorderThickness="1" CornerRadius="6" Padding="10" Margin="0,0,0,15">
+                        <StackPanel>
+                            <Grid ColumnDefinitions="*, Auto" Margin="0,0,0,10">
+                                <TextBlock Grid.Column="0" Text="ACTIVITY MATRIX (SCALES WITH ZOOM)" FontSize="12" Foreground="#888" VerticalAlignment="Center"/>
+                                <ToggleSwitch Grid.Column="1" OffContent="Release Frequency" OnContent="Clinical Volume" IsChecked="{Binding IsVolumeMode}" FontSize="11" Foreground="#aaa" MinWidth="0" Margin="0" Padding="0"/>
+                            </Grid>
+
+                            <Viewbox Height="110" Stretch="Uniform" HorizontalAlignment="Stretch">
+                                <ItemsControl ItemsSource="{Binding HeatmapDays}">
+                                    <ItemsControl.ItemsPanel>
+                                        <ItemsPanelTemplate>
+                                            <WrapPanel Orientation="Vertical" Height="110" />
+                                        </ItemsPanelTemplate>
+                                    </ItemsControl.ItemsPanel>
+                                    <ItemsControl.ItemTemplate>
+                                        <DataTemplate>
+                                            <Button Classes="heatmap-cell"
+                                                    Background="{Binding ColorHex}"
+                                                    Width="12" Height="12" Margin="1.5" CornerRadius="2"
+                                                    Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).HeatmapDayClickedCommand}"
+                                                    CommandParameter="{Binding}">
+                                                <ToolTip.Tip>
+                                                    <StackPanel Spacing="5">
+                                                        <TextBlock Text="{Binding DateText}" FontWeight="Bold" Foreground="#e0e0e0" FontSize="13"/>
+                                                        <TextBlock Text="{Binding MainInfoText}" Foreground="#aaa" FontSize="12"/>
+                                                        <Rectangle IsVisible="{Binding HasData}" Height="1" Fill="#333" Margin="0,4"/>
+                                                        <TextBlock IsVisible="{Binding HasData}" Text="{Binding ModesText}" Foreground="#888" FontSize="12" TextWrapping="Wrap"/>
+                                                        <TextBlock Text="Click cell to jump to log" FontSize="9" Foreground="#007acc" FontStyle="Italic"/>
+                                                    </StackPanel>
+                                                </ToolTip.Tip>
+                                            </Button>
+                                        </DataTemplate>
+                                    </ItemsControl.ItemTemplate>
+                                </ItemsControl>
+                            </Viewbox>
+                            
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Right" Spacing="4" Margin="0,5,10,0">
+                                <TextBlock Text="Base Color = Mode" FontSize="9" FontWeight="Bold" Foreground="#777" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                                <TextBlock Text="Intensity:" FontSize="9" Foreground="#666" VerticalAlignment="Center" Margin="0,0,2,0"/>
+                                <TextBlock Text="Low" FontSize="9" Foreground="#666" VerticalAlignment="Center" Margin="0,0,2,0"/>
+                                <Border Width="10" Height="10" CornerRadius="2" Background="#252526" BorderBrush="#333" BorderThickness="1"/>
+                                <Border Width="10" Height="10" CornerRadius="2" Background="#1e4a6d"/>
+                                <Border Width="10" Height="10" CornerRadius="2" Background="#007acc"/>
+                                <Border Width="10" Height="10" CornerRadius="2" Background="#64b5f6"/>
+                                <TextBlock Text="High" FontSize="9" Foreground="#666" VerticalAlignment="Center" Margin="2,0,0,0"/>
+                            </StackPanel>
+                        </StackPanel>
+                    </Border>
+
+                    <!-- ROW 5: ENTHUSIASM EXPANDER -->
+                    <Expander Grid.Row="5" Header="MACRO-TREND ENTHUSIASM EXPENDITURE" IsExpanded="False" Background="#1a1a1a" Margin="0,0,0,15" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <Grid MinHeight="150"> 
+                            <lvc:CartesianChart x:Name="EnthusiasmChart" Series="{Binding EnthusiasmSeries}" XAxes="{Binding EnthusiasmXAxes}" YAxes="{Binding EnthusiasmYAxes}" TooltipPosition="Hidden" ZoomMode="X" Margin="10" />
+                            
+                            <StackPanel HorizontalAlignment="Left" VerticalAlignment="Top" Margin="20,10,0,0" IsHitTestVisible="False" Spacing="4">
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <Border Width="12" Height="3" Background="#f57c00" VerticalAlignment="Center"/>
+                                    <TextBlock Text="ACTUAL 14-DAY EXPENDITURE" FontSize="9" FontWeight="Bold" Foreground="#888" VerticalAlignment="Center"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="6">
+                                    <TextBlock Text="- - -" FontWeight="Bold" Foreground="#777" VerticalAlignment="Center" Margin="0,0,0,2"/>
+                                    <TextBlock Text="{Binding EnthusiasmTargetScore, StringFormat='TARGET EXPENDITURE: {0:F1}'}" FontSize="9" FontWeight="Bold" Foreground="#777" VerticalAlignment="Center"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+                    </Expander>
+
+                    <!-- ROW 6: PK DECAY EXPANDER -->
+                    <Expander Grid.Row="6" Header="PHARMACOKINETIC SATURATION OVERLAY" IsExpanded="False" Background="#1a1a1a" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
+                        <Grid MinHeight="150"> 
+                            <lvc:CartesianChart x:Name="PkChart" Series="{Binding PkSeries}" XAxes="{Binding PkXAxes}" YAxes="{Binding PkYAxes}" TooltipPosition="Hidden" ZoomMode="X" Margin="10" />
+                            
+                            <StackPanel Orientation="Horizontal" HorizontalAlignment="Left" VerticalAlignment="Top" Margin="20,10,0,0" IsHitTestVisible="False" Spacing="15">
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <PathIcon Data="M12,1L3,5V11C3,16.55 6.84,21.74 12,23C17.16,21.74 21,16.55 21,11V5L12,1Z" Width="10" Height="10" Foreground="#007acc" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Zn (12d)" FontSize="9" Foreground="#007acc" FontWeight="Bold"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <PathIcon Data="M17,8C8,10 5.9,16.17 3.82,21.34L5.71,22L6.66,19.7C7.14,19.87 7.64,20 8,20C19,20 22,3 22,3C21,5 14,5.25 9,6.25C4,7.25 2,11 2,11C2,11 4,8 9,7C14,6 17,8 17,8Z" Width="10" Height="10" Foreground="#9c27b0" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Ma (20h)" FontSize="9" Foreground="#9c27b0" FontWeight="Bold"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <PathIcon Data="M12,9C10.34,9 9,10.34 9,12C9,13.66 10.34,15 12,15C13.66,15 15,13.66 15,12C15,10.34 13.66,9 12,9M12,4.5C13.13,4.5 13.5,4.87 13.5,6V7.5C13.5,8.63 13.13,9 12,9C10.87,9 10.5,8.63 10.5,7.5V6C10.5,4.87 10.87,4.5 12,4.5M12,15C10.87,15 10.5,15.37 10.5,16.5V18C10.5,19.13 10.87,19.5 12,19.5C13.13,19.5 13.5,19.13 13.5,18V16.5C13.5,15.37 13.13,15 12,15M4.5,12C4.5,10.87 4.87,10.5 6,10.5H7.5C8.63,10.5 9,10.87 9,12C9,13.13 8.63,13.5 7.5,13.5H6C4.87,13.5 4.5,13.13 4.5,12M15,12C15,13.13 15.37,13.5 16.5,13.5H18C19.13,13.5 19.5,13.13 19.5,12C19.5,10.87 19.13,10.5 18,10.5H16.5C15.37,10.5 15,10.87 15,12Z" Width="10" Height="10" Foreground="#4caf50" VerticalAlignment="Center"/>
+                                    <TextBlock Text="D3 (18d)" FontSize="9" Foreground="#4caf50" FontWeight="Bold"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <PathIcon Data="M12,2A10,10 0 0,1 22,12A10,10 0 0,1 12,22A10,10 0 0,1 2,12A10,10 0 0,1 12,2M12,4A8,8 0 0,0 4,12A8,8 0 0,0 12,20A8,8 0 0,0 20,12A8,8 0 0,0 12,4Z" Width="10" Height="10" Foreground="#f57c00" VerticalAlignment="Center"/>
+                                    <TextBlock Text="C (24h)" FontSize="9" Foreground="#f57c00" FontWeight="Bold"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Spacing="4">
+                                    <PathIcon Data="M11,2H13V19H11V2M9,20H15V22H9V20M12,0L15,3H9L12,0Z" Width="10" Height="10" Foreground="#e53935" VerticalAlignment="Center"/>
+                                    <TextBlock Text="Tad (17.5h)" FontSize="9" Foreground="#e53935" FontWeight="Bold"/>
+                                </StackPanel>
+                            </StackPanel>
+                        </Grid>
+                    </Expander>
+                </Grid>
 
                 <!-- RIGHT PANE -->
                 <Grid Grid.Column="1" RowDefinitions="Auto, Auto, *" Background="#1a1a1a" Margin="5,0,0,0">
@@ -373,7 +383,7 @@
                                 <!-- Silent Diurnal Hint -->
                                 <TextBlock Grid.Column="1" 
                                            Text="{Binding DiurnalPeakText}" 
-                                           IsVisible="{Binding DiurnalPeakText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}"
+                                           IsVisible="{Binding DiurnalPeakText, Converter={x:Static StringConverters.IsNotNullOrEmpty}}" 
                                            FontSize="10" 
                                            Foreground="#4caf50" 
                                            FontWeight="SemiBold" 
@@ -454,9 +464,9 @@
                                             HorizontalAlignment="Stretch" HorizontalContentAlignment="Center"/>
                                 </StackPanel>
                             </Border>
-                            <Border Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="6" Padding="10">
+                            
+                            <Expander Header="CLINICAL LAB DATA (OPTIONAL)" IsExpanded="False" Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="6" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                                 <StackPanel Spacing="8">
-                                    <TextBlock Text="CLINICAL METRICS (OPTIONAL)" FontSize="10" FontWeight="Bold" Foreground="#90a4ae"/>
                                     <UniformGrid Columns="3">
                                         <TextBox Text="{Binding ClinicalVol}" Watermark="Vol (mL)" Margin="2"/>
                                         <TextBox Text="{Binding Concentration}" Watermark="Conc (M)" Margin="2"/>
@@ -466,7 +476,7 @@
                                         <TextBox Text="{Binding PhLevel}" Watermark="pH Level" Margin="2"/>
                                     </UniformGrid>
                                 </StackPanel>
-                            </Border>
+                            </Expander>
                             
                             <!-- Notes Field -->
                             <TextBox Text="{Binding SelectedNotes}" Watermark="Context, symptoms, external factors..." TextWrapping="Wrap" AcceptsReturn="True" Height="60" Margin="0,5,0,5" />
@@ -536,9 +546,9 @@
                                 <DataGridTemplateColumn.CellTemplate>
                                     <DataTemplate>
                                         <StackPanel Orientation="Horizontal" HorizontalAlignment="Right">
-                                            <Button IsVisible="{Binding HasPdf}" Content="PDF" Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).OpenPdfCommand}" CommandParameter="{Binding Id}" Background="#546e7a" Foreground="White" FontSize="10" Padding="6,4" Margin="2"/>
-                                            <Button Content="EDIT" Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).OpenEditLogCommand}" CommandParameter="{Binding Id}" Background="#f57c00" Foreground="White" FontSize="10" Padding="6,4" Margin="2"/>
-                                            <Button Content="PURGE" Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).DeleteLogCommand}" CommandParameter="{Binding Id}" Background="#d32f2f" Foreground="White" FontSize="10" Padding="6,4" Margin="2"/>
+                                            <Button IsVisible="{Binding HasPdf}" Content="PDF" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).OpenPdfCommand}" CommandParameter="{Binding Id}" Background="#546e7a" Foreground="White" FontSize="10" Padding="6,4" Margin="2"/>
+                                            <Button Content="EDIT" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).OpenEditLogCommand}" CommandParameter="{Binding Id}" Background="#f57c00" Foreground="White" FontSize="10" Padding="6,4" Margin="2"/>
+                                            <Button Content="PURGE" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).DeleteLogCommand}" CommandParameter="{Binding Id}" Background="#d32f2f" Foreground="White" FontSize="10" Padding="6,4" Margin="2"/>
                                         </StackPanel>
                                     </DataTemplate>
                                 </DataGridTemplateColumn.CellTemplate>
@@ -1207,9 +1217,8 @@
                         </Grid>
                     </Border>
 
-                    <Border Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="6" Padding="10">
+                    <Expander Header="CLINICAL LAB DATA (OPTIONAL)" IsExpanded="False" Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="6" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                         <StackPanel Spacing="8">
-                            <TextBlock Text="CLINICAL LAB DATA (OPTIONAL)" FontSize="10" FontWeight="Bold" Foreground="#90a4ae"/>
                             <UniformGrid Columns="3">
                                 <TextBox Text="{Binding ManualClinicalVol}" Watermark="Vol (mL)" Margin="2"/>
                                 <TextBox Text="{Binding ManualConcentration}" Watermark="Conc (M)" Margin="2"/>
@@ -1224,7 +1233,7 @@
                                 <Button Grid.Column="1" Content="Attach PDF" Command="{Binding SelectManualPdfCommand}" CommandParameter="{Binding #RootWindow}" Background="#546e7a" Foreground="White" FontSize="10" Padding="8,4"/>
                             </Grid>
                         </StackPanel>
-                    </Border>
+                    </Expander>
                     
                     <!-- Notes Field -->
                     <TextBox Text="{Binding ManualNotes}" Watermark="Context, symptoms, external factors..." TextWrapping="Wrap" AcceptsReturn="True" Height="60" Margin="0,5,0,0" />
@@ -1336,9 +1345,8 @@
                         </Grid>
                     </Border>
 
-                    <Border Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="6" Padding="10">
+                    <Expander Header="CLINICAL LAB DATA (OPTIONAL)" IsExpanded="False" Background="#1e262b" BorderBrush="#546e7a" BorderThickness="1" CornerRadius="6" HorizontalAlignment="Stretch" HorizontalContentAlignment="Stretch">
                         <StackPanel Spacing="8">
-                            <TextBlock Text="CLINICAL LAB DATA (OPTIONAL)" FontSize="10" FontWeight="Bold" Foreground="#90a4ae"/>
                             <UniformGrid Columns="3">
                                 <TextBox Text="{Binding EditClinicalVol}" Watermark="Vol (mL)" Margin="2"/>
                                 <TextBox Text="{Binding EditConcentration}" Watermark="Conc (M)" Margin="2"/>
@@ -1353,7 +1361,7 @@
                                 <Button Grid.Column="1" Content="Update PDF" Command="{Binding SelectEditPdfCommand}" CommandParameter="{Binding #RootWindow}" Background="#546e7a" Foreground="White" FontSize="10" Padding="8,4"/>
                             </Grid>
                         </StackPanel>
-                    </Border>
+                    </Expander>
 
                     <Border Background="#151515" BorderBrush="#333" BorderThickness="1" Padding="10">
                         <StackPanel Spacing="5">
@@ -1365,7 +1373,7 @@
                                     <DataTemplate>
                                         <Grid ColumnDefinitions="*,Auto" Margin="0,2">
                                             <TextBlock Text="{Binding DisplayText}" TextWrapping="Wrap" FontSize="10" Foreground="#888"/>
-                                            <Button Grid.Column="1" Content="Restore" Command="{Binding #RootWindow.((vm:MainWindowViewModel)DataContext).RestoreEditHistoryCommand}" CommandParameter="{Binding Id}" FontSize="10" Padding="6,2" Background="#546e7a" Foreground="White"/>
+                                            <Button Grid.Column="1" Content="Restore" Command="{Binding $parent[Window].((vm:MainWindowViewModel)DataContext).RestoreEditHistoryCommand}" CommandParameter="{Binding Id}" FontSize="10" Padding="6,2" Background="#546e7a" Foreground="White"/>
                                         </Grid>
                                     </DataTemplate>
                                 </ItemsControl.ItemTemplate>

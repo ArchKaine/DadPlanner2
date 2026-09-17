@@ -978,9 +978,54 @@ namespace DadPlanner2.Services
         public void Generate90DayReport(double userTotalVolume)
         {
             var logs = GetAllLogs();
-            var reportData = _reportData.Create(logs, DateTimeOffset.UtcNow.ToUnixTimeSeconds(), userTotalVolume);
-            string pdfPath = Path.Combine(_dbDir, "Baseline_Summary.pdf");
+            
+            // --- CLINICAL SNAPSHOT CALCULATION ENGINE ---
+            long apptTs = GetAppointment(); 
+            DateTimeOffset? apptDate = apptTs > 0 ? DateTimeOffset.FromUnixTimeSeconds(apptTs).ToLocalTime() : null;
 
+            var releaseLogs = logs.Where(l => l.Volume != "None" && l.Volume != "N/A" && l.Mode != "Daily Dose")
+                                  .OrderByDescending(l => l.Timestamp)
+                                  .ToList();
+
+            long analysisTs = apptTs > 0 ? apptTs : DateTimeOffset.UtcNow.ToUnixTimeSeconds();
+            long lastReleaseTs = releaseLogs.FirstOrDefault(l => l.Timestamp < analysisTs)?.Timestamp ?? 0;
+
+            string projectedAbstinenceText = "N/A";
+            string complianceStatus = "N/A";
+
+            if (analysisTs > 0 && lastReleaseTs > 0)
+            {
+                double gapHours = (analysisTs - lastReleaseTs) / 3600.0;
+                TimeSpan gapSpan = TimeSpan.FromHours(gapHours);
+                projectedAbstinenceText = $"{(int)gapSpan.TotalHours}h {gapSpan.Minutes:D2}m";
+
+                if (gapHours < 48) complianceStatus = "SUB-OPTIMAL (< 48h)";
+                else if (gapHours <= 72) complianceStatus = "WHO GOLD STANDARD (48h - 72h)";
+                else if (gapHours <= 168) complianceStatus = "WHO ACCEPTABLE (3d - 7d)";
+                else complianceStatus = "EXTENDED HOLD (> 7d) - Elevated DFI Risk";
+            }
+
+            var telemetrySvc = new TelemetryAnalysisService();
+            var shadow = telemetrySvc.GetThermalShadowDetails(logs, analysisTs);
+            string thermalStatus = shadow.IsActive ? $"ACTIVE (Level {shadow.HeatLevel}, Day {shadow.DaysElapsed}/74)" : "CLEAR";
+
+            bool isZincSaturated = _supplementSaturation.Calculate(logs, analysisTs, "zinc", 14).IsSaturated;
+            bool isVitDSaturated = _supplementSaturation.Calculate(logs, analysisTs, "vitD", 14).IsSaturated;
+            // --------------------------------------------
+
+            // NOTE: The reportData object now needs to accept these new Clinical Snapshot properties
+            // so they can be injected into the PDF generation.
+            var reportData = _reportData.Create(logs, DateTimeOffset.UtcNow.ToUnixTimeSeconds(), userTotalVolume);
+            
+            // You will need to add these fields to your ReportData class, e.g.:
+            reportData.ProjectedAbstinence = projectedAbstinenceText;
+            reportData.ComplianceTier = complianceStatus;
+            reportData.ThermalStatus = thermalStatus;
+            reportData.AppointmentDateText = apptDate?.ToString("MMM dd, yyyy @ h:mm tt") ?? "N/A";
+            reportData.ZincSaturated = isZincSaturated;
+            reportData.VitDSaturated = isVitDSaturated;
+
+            string pdfPath = Path.Combine(_dbDir, "Baseline_Summary.pdf");
             bool includeNotes = GetIncludeNotesInReportSetting();
 
             try

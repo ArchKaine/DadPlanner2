@@ -48,7 +48,7 @@ public partial class MainWindow : Window
         if (DataContext is not MainWindowViewModel vm) return;
 
         // GATEKEEPER: If any modal dialog is open, kill the tooltips and ignore hover logic
-        if (vm.IsHelpOpen || vm.IsSettingsOpen || vm.IsManualLogOpen || vm.IsEditLogOpen || vm.IsAlertOpen || vm.IsDeltaOpen)
+        if (vm.IsHelpOpen || vm.IsSettingsOpen || vm.IsManualLogOpen || vm.IsEditLogOpen || vm.IsAlertOpen || vm.IsDeltaOpen || vm.IsAnalysisOpen)
         {
             vm.IsTooltipVisible = false;
             return;
